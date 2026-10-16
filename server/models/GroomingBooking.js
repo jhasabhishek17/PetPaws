@@ -1,7 +1,13 @@
+/**
+ * Grooming Booking Reservation Mongoose Model
+ * 
+ * Stores user reservations for pet grooming and spa packages.
+ */
+
 const mongoose = require('mongoose');
 
 const groomingBookingSchema = new mongoose.Schema({
-  custom_id: { type: String, unique: true },
+  custom_id: { type: String, unique: true, index: true },
   buyer_id: { type: String, required: true },
   buyer_name: { type: String, required: true },
   service_id: { type: String, required: true },

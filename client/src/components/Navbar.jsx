@@ -10,13 +10,14 @@ import {
   LogOut, 
   Menu, 
   X,
+  Search,
+  ChevronDown,
   ShieldCheck,
-  Search
+  Sparkles
 } from 'lucide-react';
 
 /**
- * Navbar Component
- * Navigation bar with role badge, view switcher, search input, and responsive mobile menu.
+ * Ultra-Aesthetic Eye-Comfort Navbar Component
  */
 export default function Navbar({ 
   currentUser, 
@@ -29,195 +30,161 @@ export default function Navbar({
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navItems = [
-    { id: 'marketplace', label: 'Pet Marketplace', icon: ShoppingBag, role: 'all' },
-    { id: 'seller', label: 'Seller Portal', icon: Store, role: 'seller' },
-    { id: 'vets', label: 'Veterinarians', icon: Stethoscope, role: 'all' },
-    { id: 'grooming', label: 'Grooming & Care', icon: Scissors, role: 'all' },
-    { id: 'orders', label: 'Orders & Tracking', icon: Truck, role: 'all' },
-    { id: 'support', label: 'Customer Support', icon: HelpCircle, role: 'all' },
-  ];
-
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+    <header className="sticky top-0 z-40 glass-ultra border-b border-[#EFE9DF] shadow-sm transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-16 sm:h-20">
           
           {/* Brand Logo & Name */}
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('marketplace')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white text-xl font-bold shadow-md shadow-orange-500/20">
+          <div 
+            className="flex items-center space-x-3 cursor-pointer group" 
+            onClick={() => setActiveTab('marketplace')}
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#E07A5F] via-[#F4A261] to-[#E76F51] text-white flex items-center justify-center font-bold text-xl shadow-md shadow-[#E07A5F]/20 group-hover:scale-105 transition-all">
               🐾
             </div>
             <div>
-              <span className="text-xl font-extrabold bg-gradient-to-r from-slate-900 via-orange-600 to-amber-600 bg-clip-text text-transparent">
-                PetPaws
-              </span>
-              <span className="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700 rounded-full">
-                Verified Pets
-              </span>
+              <div className="flex items-center space-x-2">
+                <span className="text-2xl font-black text-[#231F20] tracking-tight font-display">
+                  PetPaws
+                </span>
+                <span className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-0.5 text-[10px] font-bold bg-[#EAEFE9] text-[#2A5C4A] border border-[#D1E7DD] rounded-full">
+                  <ShieldCheck className="w-3 h-3 text-[#52796F]" />
+                  <span>Verified</span>
+                </span>
+              </div>
+              <span className="text-[10px] text-[#65605B] font-semibold hidden md:block">Verified Pets & Eye-Comfort Care</span>
             </div>
           </div>
 
-          {/* Desktop Search Bar (shown on marketplace tab) */}
-          {activeTab === 'marketplace' && (
-            <div className="hidden md:flex flex-1 max-w-md mx-6">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search cats, dogs, fishes, rabbits, breeds..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-slate-100 border border-transparent rounded-full text-sm focus:outline-none focus:bg-white focus:border-orange-500 transition-all"
-                />
-              </div>
+          {/* Search Trigger Input in Navbar */}
+          <div className="hidden md:flex flex-1 max-w-md mx-8">
+            <div className="relative w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8C847C]" />
+              <input
+                type="text"
+                placeholder="Search Golden Retriever, Persian Kitten, Guppy..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-[#F3ECE0]/70 border border-[#E6DCCF] rounded-full text-xs font-semibold text-[#231F20] placeholder-[#8C847C] focus:outline-none focus:bg-white focus:border-[#E07A5F] transition-all shadow-inner"
+              />
             </div>
-          )}
+          </div>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center space-x-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              
-              // Hide seller portal if logged in as buyer/vet and not viewing demo
-              if (item.id === 'seller' && currentUser && currentUser.role !== 'seller') {
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-orange-600 hover:bg-orange-50 transition-colors flex items-center space-x-1.5"
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>Become a Seller</span>
-                  </button>
-                );
-              }
+          {/* Desktop Navigation Items */}
+          <nav className="hidden lg:flex items-center space-x-1.5">
+            
+            <button
+              onClick={() => setActiveTab('marketplace')}
+              className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all flex items-center space-x-1.5 ${
+                activeTab === 'marketplace' 
+                  ? 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' 
+                  : 'text-[#4A4344] hover:text-[#231F20] hover:bg-[#F3ECE0]'
+              }`}
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>Marketplace</span>
+            </button>
 
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-1.5 ${
-                    isActive 
-                      ? 'bg-orange-50 text-orange-600 font-semibold' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-orange-600' : 'text-slate-400'}`} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+            <button
+              onClick={() => setActiveTab('vets')}
+              className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all flex items-center space-x-1.5 ${
+                activeTab === 'vets' 
+                  ? 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' 
+                  : 'text-[#4A4344] hover:text-[#231F20] hover:bg-[#F3ECE0]'
+              }`}
+            >
+              <Stethoscope className="w-4 h-4" />
+              <span>Vet Care</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('grooming')}
+              className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all flex items-center space-x-1.5 ${
+                activeTab === 'grooming' 
+                  ? 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' 
+                  : 'text-[#4A4344] hover:text-[#231F20] hover:bg-[#F3ECE0]'
+              }`}
+            >
+              <Scissors className="w-4 h-4" />
+              <span>Spa & Grooming</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all flex items-center space-x-1.5 ${
+                activeTab === 'orders' 
+                  ? 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' 
+                  : 'text-[#4A4344] hover:text-[#231F20] hover:bg-[#F3ECE0]'
+              }`}
+            >
+              <Truck className="w-4 h-4" />
+              <span>Track Order</span>
+            </button>
           </nav>
 
-          {/* User Account / Login Button */}
+          {/* User Account / Action */}
           <div className="hidden sm:flex items-center space-x-3">
+            <button
+              onClick={() => setActiveTab('seller')}
+              className="text-xs font-extrabold text-[#4A4344] hover:text-[#231F20] hover:bg-[#F3ECE0] px-3.5 py-2 rounded-full transition-all flex items-center space-x-1.5"
+            >
+              <Store className="w-4 h-4 text-[#8C847C]" />
+              <span>Seller Portal</span>
+            </button>
+
             {currentUser ? (
-              <div className="flex items-center space-x-3 bg-slate-50 p-1.5 pr-3 rounded-full border border-slate-200">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 flex items-center justify-center text-white text-xs font-bold">
+              <div className="flex items-center space-x-2.5 bg-[#F3ECE0] p-1.5 pr-3.5 rounded-full border border-[#E6DCCF]">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-r from-[#E07A5F] to-[#F4A261] text-white flex items-center justify-center text-xs font-bold shadow">
                   {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <div className="text-left">
-                  <div className="text-xs font-semibold text-slate-800 leading-tight">
-                    {currentUser.name}
-                  </div>
-                  <span className={`inline-block text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${
-                    currentUser.role === 'seller' 
-                      ? 'bg-amber-100 text-amber-800' 
-                      : currentUser.role === 'vet' 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    {currentUser.role}
-                  </span>
-                </div>
+                <span className="text-xs font-bold text-[#231F20]">{currentUser.name}</span>
                 <button
                   onClick={onLogout}
                   title="Logout"
-                  className="p-1 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors ml-1"
+                  className="p-1 text-[#8C847C] hover:text-red-600 rounded-full hover:bg-white transition-colors"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
               <button
                 onClick={onOpenAuth}
-                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full text-sm font-semibold shadow-md hover:from-orange-600 hover:to-amber-600 transition-all flex items-center space-x-2"
+                className="px-5 py-2.5 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] text-white rounded-full text-xs font-extrabold shadow-md shadow-[#E07A5F]/20 transition-all flex items-center space-x-1.5 transform hover:scale-105"
               >
                 <User className="w-4 h-4" />
-                <span>Login / Register</span>
+                <span>Sign In / Join</span>
               </button>
             )}
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex lg:hidden items-center space-x-2">
+          <div className="flex lg:hidden items-center">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-slate-600 rounded-lg hover:bg-slate-100"
+              className="p-2 text-[#4A4344] rounded-xl hover:bg-[#F3ECE0]"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
+
         </div>
       </div>
 
-      {/* Mobile Drawer Navigation */}
+      {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-200 bg-white px-4 pt-2 pb-4 space-y-1">
-          {activeTab === 'marketplace' && (
-            <div className="my-2">
-              <input
-                type="text"
-                placeholder="Search pets..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm"
-              />
-            </div>
-          )}
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center space-x-3 ${
-                  isActive ? 'bg-orange-50 text-orange-600 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+        <div className="lg:hidden border-t border-[#EFE9DF] bg-white px-4 pt-3 pb-4 space-y-1 animate-fadeIn">
+          <button onClick={() => { setActiveTab('marketplace'); setMobileMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-extrabold text-[#231F20]">Marketplace</button>
+          <button onClick={() => { setActiveTab('vets'); setMobileMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-extrabold text-[#231F20]">24/7 Vet Telehealth</button>
+          <button onClick={() => { setActiveTab('grooming'); setMobileMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-extrabold text-[#231F20]">Spa & Grooming</button>
+          <button onClick={() => { setActiveTab('orders'); setMobileMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-extrabold text-[#231F20]">Track Order</button>
+          <button onClick={() => { setActiveTab('seller'); setMobileMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-extrabold text-[#231F20]">Seller Portal</button>
 
-          <div className="pt-3 border-t border-slate-100 mt-2">
+          <div className="pt-3 border-t border-[#EFE9DF]">
             {currentUser ? (
-              <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{currentUser.name}</p>
-                  <p className="text-xs text-slate-500 uppercase">{currentUser.role}</p>
-                </div>
-                <button
-                  onClick={() => { onLogout(); setMobileMenuOpen(false); }}
-                  className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 rounded-md"
-                >
-                  Logout
-                </button>
-              </div>
+              <button onClick={() => { onLogout(); setMobileMenuOpen(false); }} className="w-full py-2 bg-red-50 text-red-700 font-extrabold text-xs rounded-xl">Logout ({currentUser.name})</button>
             ) : (
-              <button
-                onClick={() => { onOpenAuth(); setMobileMenuOpen(false); }}
-                className="w-full py-2.5 bg-orange-500 text-white font-semibold rounded-lg text-center text-sm shadow"
-              >
-                Login / Register
-              </button>
+              <button onClick={() => { onOpenAuth(); setMobileMenuOpen(false); }} className="w-full py-2.5 bg-[#E07A5F] text-white font-extrabold text-xs rounded-full">Sign In / Join</button>
             )}
           </div>
         </div>
