@@ -1,0 +1,203 @@
+<!-- Top Ribbon Sub-Navbar -->
+<div class="bg-dark text-white-50 py-2 px-3 mb-4 rounded-3 shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2 text-xs">
+  <div class="d-flex align-items-center gap-3">
+    <span class="text-warning fw-bold"><i class="fa-solid fa-fire text-danger animate-bounce me-1"></i> Hot Categories:</span>
+    <a href="/?category=Dogs" class="text-white-50 text-decoration-none hover-white"><span class="animate-tailWag d-inline-block">🐶</span> Dogs</a>
+    <a href="/?category=Cats" class="text-white-50 text-decoration-none hover-white"><span class="animate-purrBounce d-inline-block">🐱</span> Cats</a>
+    <a href="/?category=Fishes" class="text-white-50 text-decoration-none hover-white"><span class="animate-swimFish d-inline-block">🐠</span> Aquatics</a>
+    <a href="/?category=Rabbits" class="text-white-50 text-decoration-none hover-white"><span class="animate-hopBunny d-inline-block">🐰</span> Rabbits</a>
+    <a href="/?category=Birds" class="text-white-50 text-decoration-none hover-white"><span class="animate-flutterBird d-inline-block">🦜</span> Birds</a>
+  </div>
+  <div class="text-warning small font-monospace">
+    ⚡ Code: <strong>PETPAWS10</strong> for 10% OFF
+  </div>
+</div>
+
+<!-- Dynamic Amazon-Style Hero Banner -->
+<div class="hero-banner p-4 p-md-5 mb-5 shadow-lg text-center animate-fade-in relative overflow-hidden">
+  <div class="max-w-3xl mx-auto py-3">
+    <span class="badge bg-warning text-dark rounded-pill px-3 py-2 mb-3 text-uppercase tracking-wider fw-bold">Verified Pet Marketplace & Care</span>
+    <h1 class="display-4 fw-extrabold mb-3">Find Your Healthy Pet Companion 🐾</h1>
+    <p class="lead text-white-50 mb-4">Connecting pet lovers with verified ethical breeders, 24/7 vet care, and climate-controlled transport tracking.</p>
+
+    <!-- Search Input Bar -->
+    <div class="row justify-content-center mb-4">
+      <div class="col-md-8">
+        <form action="/" method="GET" class="d-flex gap-2 bg-white p-2 rounded-pill shadow-sm">
+          <input type="text" name="search" id="petSearchInput" value="<%= search %>" class="form-control border-0 rounded-pill px-4" placeholder="Search breeds, dogs, cats, fishes, rabbits...">
+          <button type="submit" class="btn btn-primary rounded-pill px-4 btn-gradient fw-bold">
+            <i class="fa-solid fa-magnifying-glass me-1"></i> Search
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Stats Ribbon -->
+    <div class="row text-center border-top border-secondary border-opacity-50 pt-3 text-white-50 small">
+      <div class="col-3"><strong>5,000+</strong> Verified Pets</div>
+      <div class="col-3"><strong>99.8%</strong> Health Certificate</div>
+      <div class="col-3"><strong>Live GPS</strong> Climate Transport</div>
+      <div class="col-3"><strong>24/7</strong> Vet Assistance</div>
+    </div>
+  </div>
+</div>
+
+<!-- Section-Specific Animated Pet Badges -->
+<div class="row g-3 mb-5 text-center">
+  <div class="col-md">
+    <div class="p-3 bg-white rounded-4 border shadow-sm h-100">
+      <span class="fs-2 animate-tailWag d-inline-block">🐶</span>
+      <strong class="d-block text-dark small mt-1">Wagging Puppies</strong>
+      <span class="text-muted text-xs">Tail-wagging joy</span>
+    </div>
+  </div>
+  <div class="col-md">
+    <div class="p-3 bg-white rounded-4 border shadow-sm h-100">
+      <span class="fs-2 animate-purrBounce d-inline-block">🐱</span>
+      <strong class="d-block text-dark small mt-1">Purring Kittens</strong>
+      <span class="text-muted text-xs">Playful felines</span>
+    </div>
+  </div>
+  <div class="col-md">
+    <div class="p-3 bg-white rounded-4 border shadow-sm h-100">
+      <span class="fs-2 animate-swimFish d-inline-block">🐠</span>
+      <strong class="d-block text-dark small mt-1">Aquatic Fishes</strong>
+      <span class="text-muted text-xs">Tropical tank life</span>
+    </div>
+  </div>
+  <div class="col-md">
+    <div class="p-3 bg-white rounded-4 border shadow-sm h-100">
+      <span class="fs-2 animate-hopBunny d-inline-block">🐰</span>
+      <strong class="d-block text-dark small mt-1">Hopping Bunnies</strong>
+      <span class="text-muted text-xs">Gentle rabbits</span>
+    </div>
+  </div>
+  <div class="col-md">
+    <div class="p-3 bg-white rounded-4 border shadow-sm h-100">
+      <span class="fs-2 animate-flutterBird d-inline-block">🦜</span>
+      <strong class="d-block text-dark small mt-1">Exotic Birds</strong>
+      <span class="text-muted text-xs">Fluttering parrots</span>
+    </div>
+  </div>
+</div>
+
+<!-- Amazon Flash Deals Banner -->
+<div class="bg-gradient p-4 rounded-4 text-white mb-5 shadow" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="fw-bold mb-0"><i class="fa-solid fa-bolt text-warning animate-bounce me-2"></i> Flash Deals of the Day</h4>
+    <span class="badge bg-dark text-warning font-monospace p-2"><i class="fa-solid fa-clock me-1"></i> Ends in 04h : 28m : 45s</span>
+  </div>
+
+  <div class="row g-3">
+    <% if (pets && pets.length > 0) { %>
+      <% pets.slice(0, 4).forEach(pet => { %>
+        <div class="col-md-3">
+          <div class="card border-0 rounded-3 shadow-sm h-100 p-2 text-dark">
+            <img src="<%= pet.image_url %>" class="card-img-top rounded-2" style="height: 140px; object-fit: cover;" alt="<%= pet.title %>">
+            <div class="card-body p-2">
+              <span class="badge bg-danger mb-1">25% OFF</span>
+              <h6 class="fw-bold mb-1 text-truncate"><%= pet.title %></h6>
+              <div class="d-flex align-items-baseline gap-2 mb-2">
+                <span class="fw-bold text-primary fs-5">$<%= pet.price %></span>
+                <span class="text-muted text-decoration-line-through small">$<%= Math.round(pet.price * 1.25) %></span>
+              </div>
+              <a href="/pets/<%= pet.id %>" class="btn btn-warning btn-sm w-100 fw-bold rounded-pill">Claim Deal</a>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
+</div>
+
+<!-- Category Filters -->
+<div class="d-flex justify-content-center mb-5 overflow-auto pb-2">
+  <ul class="nav nav-pills gap-2 flex-nowrap">
+    <% const categories = ['All', 'Dogs', 'Cats', 'Fishes', 'Rabbits', 'Birds']; %>
+    <% categories.forEach(cat => { %>
+      <li class="nav-item">
+        <a class="nav-link <%= category === cat ? 'active' : '' %>" href="/?category=<%= cat %>">
+          <%= cat %>
+        </a>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<!-- Main Pet Cards Grid -->
+<div class="row g-4 mb-5" id="petGrid">
+  <% if (pets && pets.length > 0) { %>
+    <% pets.forEach(pet => { %>
+      <div class="col-lg-4 col-md-6 pet-card-col" data-title="<%= pet.title %>" data-breed="<%= pet.breed %>">
+        <div class="card pet-card h-100 animate-fade-in">
+          <div class="card-img-wrapper">
+            <img src="<%= pet.image_url %>" class="card-img-top" alt="<%= pet.title %>">
+            <span class="badge-category"><%= pet.category %></span>
+          </div>
+          <div class="card-body p-4 d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h5 class="card-title fw-bold mb-0 text-truncate me-2" style="max-width: 200px;"><%= pet.title %></h5>
+              <span class="price-tag">$<%= pet.price %></span>
+            </div>
+            <p class="text-muted small mb-2"><i class="fa-solid fa-dna text-primary me-1"></i> <%= pet.breed %> • <%= pet.age %></p>
+            <p class="card-text text-secondary small mb-3 flex-grow-1 line-clamp-2"><%= pet.description %></p>
+
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top border-light">
+              <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 small">
+                <i class="fa-solid fa-shield-check me-1"></i> Vaccinated
+              </span>
+              <a href="/pets/<%= pet.id %>" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">View Details</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  <% } else { %>
+    <div class="col-12 text-center py-5">
+      <div class="p-5 bg-white rounded-4 shadow-sm border border-light">
+        <span class="fs-1 text-muted d-block mb-3">🐶</span>
+        <h4 class="fw-bold text-slate-700 mb-2">No pets match your search criteria</h4>
+        <p class="text-muted mb-4">Try adjusting your filter or search keyword.</p>
+        <a href="/" class="btn btn-primary btn-gradient rounded-pill px-4">Reset Filters</a>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<!-- Amazon-Style Security & Guarantee Section -->
+<div class="bg-dark text-white p-5 rounded-4 mb-5 shadow">
+  <div class="text-center max-w-2xl mx-auto mb-4">
+    <h3 class="fw-bold">Why Pet Families Trust PetPaws 🛡️</h3>
+    <p class="text-white-50 small">Every pet listing undergoes rigorous veterinary screening, microchipping, and climate transport tracking.</p>
+  </div>
+  <div class="row g-4 text-center">
+    <div class="col-md-3">
+      <div class="p-3 bg-secondary bg-opacity-25 rounded-3 border border-secondary">
+        <span class="fs-2 d-block mb-2">🛡️</span>
+        <h6 class="fw-bold text-warning mb-1">Vet Health Certificate</h6>
+        <p class="small text-white-50 mb-0">Vaccinated, dewormed & microchipped.</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="p-3 bg-secondary bg-opacity-25 rounded-3 border border-secondary">
+        <span class="fs-2 d-block mb-2 animate-truckDrive">🚚</span>
+        <h6 class="fw-bold text-warning mb-1">Live Climate GPS Transport</h6>
+        <p class="small text-white-50 mb-0">Temperature monitored live shipping.</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="p-3 bg-secondary bg-opacity-25 rounded-3 border border-secondary">
+        <span class="fs-2 d-block mb-2">🩺</span>
+        <h6 class="fw-bold text-warning mb-1">24/7 Vet Telehealth</h6>
+        <p class="small text-white-50 mb-0">Direct 1-on-1 video consultations.</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="p-3 bg-secondary bg-opacity-25 rounded-3 border border-secondary">
+        <span class="fs-2 d-block mb-2">🔒</span>
+        <h6 class="fw-bold text-warning mb-1">Escrow Guarantee</h6>
+        <p class="small text-white-50 mb-0">100% safe payment protection.</p>
+      </div>
+    </div>
+  </div>
+</div>

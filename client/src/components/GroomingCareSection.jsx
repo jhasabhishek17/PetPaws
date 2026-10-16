@@ -16,10 +16,10 @@ import {
  * Offers professional pet spa grooming, dog obedience training, 
  * and educational pet care guides.
  */
-export default function GroomingCareSection({ currentUser }) {
+export default function GroomingCareSection({ currentUser, onRequireAuth }) {
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
-  const [bookingDate, setBookingDate] = useState('2026-09-18');
+  const [bookingDate, setBookingDate] = useState('2026-10-05');
   const [bookingSlot, setBookingSlot] = useState('02:00 PM');
   const [bookingSuccess, setBookingSuccess] = useState(null);
 
@@ -30,6 +30,18 @@ export default function GroomingCareSection({ currentUser }) {
         if (data.success) setServices(data.services);
       });
   }, []);
+
+  const handleBookClick = (srv) => {
+    if (onRequireAuth) {
+      onRequireAuth(`Please log in or create an account to book the ${srv.title} session.`, () => {
+        setSelectedService(srv);
+        setBookingSuccess(null);
+      });
+    } else {
+      setSelectedService(srv);
+      setBookingSuccess(null);
+    }
+  };
 
   const handleBookService = async (e) => {
     e.preventDefault();
@@ -67,7 +79,7 @@ export default function GroomingCareSection({ currentUser }) {
       
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-black text-slate-900 font-display">Pet Grooming, Training & Care Hub</h1>
+        <h1 className="text-3xl font-black text-slate-900 font-display">Pet Grooming, Spa & Training Hub ✂️</h1>
         <p className="text-slate-500 text-sm mt-1">
           Professional spa grooming packages, obedience training programs, and expert care guides
         </p>
@@ -76,10 +88,10 @@ export default function GroomingCareSection({ currentUser }) {
       {/* Services Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         {services.map((srv) => (
-          <div key={srv.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
+          <div key={srv.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between hover:-translate-y-1">
             <div className="relative h-48 overflow-hidden">
               <img src={srv.image_url} alt={srv.title} className="w-full h-full object-cover" />
-              <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
+              <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur text-white text-[11px] font-bold px-3 py-1 rounded-full">
                 {srv.category}
               </div>
             </div>
@@ -96,11 +108,8 @@ export default function GroomingCareSection({ currentUser }) {
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xl font-black text-slate-900 font-display">${srv.price}</span>
                 <button
-                  onClick={() => {
-                    setSelectedService(srv);
-                    setBookingSuccess(null);
-                  }}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow transition-all"
+                  onClick={() => handleBookClick(srv)}
+                  className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 text-white font-bold text-xs rounded-xl shadow transition-all"
                 >
                   Book Session
                 </button>
@@ -111,7 +120,7 @@ export default function GroomingCareSection({ currentUser }) {
       </div>
 
       {/* Care Guides Section */}
-      <div className="bg-slate-900 rounded-3xl text-white p-8 mb-8">
+      <div className="bg-slate-900 rounded-3xl text-white p-8 mb-8 shadow-xl">
         <div className="flex items-center space-x-2 mb-6">
           <BookOpen className="w-6 h-6 text-orange-400" />
           <h2 className="text-2xl font-bold font-display">Pet Care & Maintenance Advice</h2>
@@ -178,7 +187,7 @@ export default function GroomingCareSection({ currentUser }) {
                 </div>
                 <button
                   type="submit"
-                  className="w-full py-3 bg-orange-500 text-white font-bold text-xs rounded-xl shadow"
+                  className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-xs rounded-xl shadow"
                 >
                   Confirm Booking (${selectedService.price})
                 </button>
