@@ -354,13 +354,6 @@ npm run dev
 
 ---
 
-## 📚 Project Documentation
-
-A comprehensive engineering manual covering database schemas, code walkthroughs, request-flow diagrams, developer glossaries, and maintenance guides is available in:
-📁 [`docs/PetPaws_Project_Documentation.pdf`](docs/PetPaws_Project_Documentation.pdf)
-
----
-
 ## 👨‍💻 Author & Acknowledgments
 
 - **Developer:** Abhishek Jha
