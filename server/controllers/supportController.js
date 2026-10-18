@@ -11,26 +11,24 @@ const { normalizeItem } = require('../utils/normalize');
 const ExpressError = require('../utils/ExpressError');
 
 /**
- * Get customer support tickets for user
+ * Get customer support tickets for authenticated user
  * GET /api/support/tickets
  */
 const getTickets = async (req, res) => {
-  const { userId } = req.query;
+  if (!req.user) {
+    throw new ExpressError('Authentication required to view support tickets', 401);
+  }
 
   // MongoDB / Atlas Branch
   if (isMongoConnected()) {
-    let query = {};
-    if (userId) query.user_id = userId;
-
-    const tickets = await SupportTicket.find(query).sort({ createdAt: -1 });
+    const tickets = await SupportTicket.find({ user_id: req.user.id }).sort({ createdAt: -1 });
     const normalizedTickets = tickets.map(normalizeItem);
     return res.json({ success: true, tickets: normalizedTickets });
   }
 
   // Fallback JSON File Branch
   const db = loadData();
-  let tickets = db.support_tickets;
-  if (userId) tickets = tickets.filter(t => t.user_id === userId);
+  const tickets = db.support_tickets.filter(t => t.user_id === req.user.id);
 
   res.json({ success: true, tickets });
 };
@@ -40,21 +38,25 @@ const getTickets = async (req, res) => {
  * POST /api/support/tickets
  */
 const createTicket = async (req, res) => {
-  const { user_id, user_name, user_email, subject, message, priority } = req.body;
+  if (!req.user) {
+    throw new ExpressError('Authentication required to submit a support ticket', 401);
+  }
+
+  const { subject, message, priority } = req.body;
 
   if (!subject || !message) {
     throw new ExpressError('Subject and message are required', 400);
   }
 
-  const customId = `TCK-${Math.floor(100 + Math.random() * 900)}`;
+  const customId = `TCK-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
   // MongoDB / Atlas Branch
   if (isMongoConnected()) {
     const ticket = await SupportTicket.create({
       custom_id: customId,
-      user_id: user_id || 'u-buyer-1',
-      user_name: user_name || 'Alex Morgan',
-      user_email: user_email || 'buyer@petpaws.com',
+      user_id: req.user.id,
+      user_name: req.user.name,
+      user_email: req.user.email,
       subject,
       message,
       priority: priority || 'Medium',
@@ -73,9 +75,9 @@ const createTicket = async (req, res) => {
   const db = loadData();
   const ticket = {
     id: customId,
-    user_id: user_id || 'u-buyer-1',
-    user_name: user_name || 'Alex Morgan',
-    user_email: user_email || 'buyer@petpaws.com',
+    user_id: req.user.id,
+    user_name: req.user.name,
+    user_email: req.user.email,
     subject,
     message,
     priority: priority || 'Medium',

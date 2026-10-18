@@ -66,6 +66,11 @@ const userSchema = new mongoose.Schema({
   ifsc_code: { 
     type: String, 
     default: '' 
+  },
+  // Saved pet listing IDs for buyer wishlist
+  wishlist: {
+    type: [String],
+    default: []
   }
 }, {
   // Automatically creates createdAt and updatedAt timestamps

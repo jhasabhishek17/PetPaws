@@ -1,27 +1,50 @@
-import React from 'react';
-import { 
-  X, 
-  ShieldCheck, 
-  CheckCircle2, 
-  ShoppingBag, 
-  User, 
-  Calendar, 
-  Tag, 
-  Heart, 
-  Sparkles,
+import React, { useEffect } from 'react';
+import {
+  X,
+  ShieldCheck,
+  ShoppingBag,
+  Heart,
   Stethoscope
 } from 'lucide-react';
 
 /**
  * PetDetailModal Component (Eye-Comfort Aesthetic)
  */
-export default function PetDetailModal({ pet, onClose, onBuyNow }) {
+export default function PetDetailModal({
+  pet,
+  currentUser,
+  wishlistIds = [],
+  onToggleWishlist,
+  onClose,
+  onBuyNow
+}) {
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   if (!pet) return null;
 
+  const isBuyer = currentUser?.role === 'buyer';
+  const isWishlisted = wishlistIds.includes(pet.id);
+  const isOwnListing = Boolean(currentUser && currentUser.id === pet.seller_id);
+  const isSoldOut = pet.stock === 0 || pet.status === 'sold';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/40 backdrop-blur-md animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-aesthetic max-w-2xl w-full overflow-hidden border border-[#EFE9DF] max-h-[90vh] flex flex-col">
-        
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={pet.title}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/40 backdrop-blur-md animate-fadeIn"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-3xl shadow-aesthetic max-w-2xl w-full overflow-hidden border border-[#EFE9DF] max-h-[90vh] flex flex-col"
+      >
         {/* Modal Header with Close Button */}
         <div className="relative h-64 sm:h-72 bg-[#FAF6F0] flex-shrink-0">
           <img
@@ -30,13 +53,27 @@ export default function PetDetailModal({ pet, onClose, onBuyNow }) {
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#231F20]/80 via-transparent to-black/20" />
-          
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-white bg-black/40 hover:bg-black/70 p-2 rounded-full backdrop-blur transition-all"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="absolute top-4 right-4 flex items-center space-x-2">
+            {isBuyer && (
+              <button
+                type="button"
+                onClick={() => onToggleWishlist?.(pet.id)}
+                aria-label={isWishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
+                className="text-white bg-black/40 hover:bg-black/70 p-2 rounded-full backdrop-blur transition-all"
+                title={isWishlisted ? 'Saved in Wishlist' : 'Add to Wishlist'}
+              >
+                <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-red-500 text-red-500' : ''}`} />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="text-white bg-black/40 hover:bg-black/70 p-2 rounded-full backdrop-blur transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
           <div className="absolute bottom-4 left-6 right-6 text-white">
             <div className="flex items-center space-x-2 mb-1">
@@ -47,13 +84,12 @@ export default function PetDetailModal({ pet, onClose, onBuyNow }) {
                 <ShieldCheck className="w-3 h-3 mr-1" /> Health Verified
               </span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black font-display">{pet.title}</h2>
+            <h2 className="text-2xl sm:text-3xl font-black font-display text-white">{pet.title}</h2>
           </div>
         </div>
 
         {/* Modal Scrollable Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          
           {/* Key Attributes Grid */}
           <div className="grid grid-cols-3 gap-3 bg-[#FAF6F0] p-4 rounded-2xl border border-[#E6DCCF]">
             <div className="text-center">
@@ -89,22 +125,25 @@ export default function PetDetailModal({ pet, onClose, onBuyNow }) {
             </p>
           </div>
 
-          {/* Seller Information */}
+          {/* Public Seller Information (name & public seller ID only) */}
           <div className="flex items-center justify-between p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-[#FFF5F0] text-[#E07A5F] border border-[#F4C4B7] flex items-center justify-center font-bold text-sm">
                 🏪
               </div>
               <div>
-                <p className="text-xs font-bold text-[#231F20]">{pet.seller_name}</p>
-                <p className="text-[11px] text-[#65605B]">Verified Seller • Rated 4.9 ★</p>
+                <p className="text-xs font-bold text-[#231F20]">
+                  Owner: {pet.seller_name || 'Verified Breeder'}
+                </p>
+                <p className="text-[11px] text-[#65605B]">
+                  Public Seller ID: <span className="font-mono font-bold text-[#231F20]">{pet.seller_id}</span> • Verified Breeder
+                </p>
               </div>
             </div>
             <span className="text-xs font-bold text-[#2A5C4A] bg-[#EAEFE9] px-2.5 py-1 rounded-full border border-[#D1E7DD]">
               In Stock: {pet.stock} Available
             </span>
           </div>
-
         </div>
 
         {/* Modal Footer with Price and Buy Button */}
@@ -114,15 +153,21 @@ export default function PetDetailModal({ pet, onClose, onBuyNow }) {
             <span className="text-2xl font-black text-[#231F20] font-display">${pet.price}</span>
           </div>
 
-          <button
-            onClick={() => onBuyNow(pet)}
-            className="px-6 py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] text-white font-bold text-sm rounded-xl shadow-md shadow-[#E07A5F]/20 transition-all flex items-center space-x-2"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Proceed to Buy Now</span>
-          </button>
+          {isOwnListing ? (
+            <span className="px-5 py-3 bg-[#F3ECE0] text-[#65605B] border border-[#E6DCCF] font-extrabold text-xs rounded-xl">
+              Your Listing (Owner Cannot Purchase)
+            </span>
+          ) : (
+            <button
+              onClick={() => onBuyNow(pet)}
+              disabled={isSoldOut}
+              className="px-6 py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md shadow-[#E07A5F]/20 transition-all flex items-center space-x-2"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>{isSoldOut ? 'Sold Out' : 'Proceed to Buy Now'}</span>
+            </button>
+          )}
         </div>
-
       </div>
     </div>
   );

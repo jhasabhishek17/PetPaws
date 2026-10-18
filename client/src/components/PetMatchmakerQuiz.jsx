@@ -7,7 +7,7 @@ import { Sparkles, Check, ArrowRight, RotateCcw, Heart, ShieldCheck, ChevronRigh
  * Interactive 3-step quiz that analyzes living space, activity level, and allergy preferences
  * to recommend ideal pet matches with soft, warm, aesthetic feedback.
  */
-export default function PetMatchmakerQuiz({ pets, onSelectPet, onBuyPetRequest }) {
+export default function PetMatchmakerQuiz({ pets, currentUser, onSelectPet, onBuyPetRequest }) {
   const [step, setStep] = useState(1);
   const [homeType, setHomeType] = useState('apartment'); // apartment, house, aquarium
   const [activityLevel, setActivityLevel] = useState('couch'); // couch, active, low
@@ -269,7 +269,9 @@ export default function PetMatchmakerQuiz({ pets, onSelectPet, onBuyPetRequest }
             <h3 className="text-xl font-extrabold text-[#231F20]">Top Recommended Pets For You</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-left">
-              {recommendations.map((pet) => (
+              {recommendations.map((pet) => {
+                const isOwnListing = Boolean(currentUser && currentUser.id === pet.seller_id);
+                return (
                 <div
                   key={pet.id}
                   onClick={() => onSelectPet(pet)}
@@ -285,23 +287,32 @@ export default function PetMatchmakerQuiz({ pets, onSelectPet, onBuyPetRequest }
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
                       <h4 className="font-bold text-sm text-[#231F20] line-clamp-1 mb-1">{pet.title}</h4>
-                      <p className="text-xs text-[#65605B] mb-2">{pet.breed} • {pet.category}</p>
+                      <p className="text-xs text-[#65605B] mb-1">{pet.breed} • {pet.category}</p>
+                      <p className="text-[10px] text-[#4A4344] mb-2">
+                        Owner: <strong>{pet.seller_name || 'Verified Breeder'}</strong> ({pet.seller_id})
+                      </p>
                       <span className="text-base font-black text-[#231F20] font-display">${pet.price}</span>
                     </div>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onBuyPetRequest(pet);
-                      }}
-                      className="w-full mt-3 py-2 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center space-x-1"
-                    >
-                      <span>Adopt Pet</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                    {isOwnListing ? (
+                      <span className="w-full mt-3 py-2 bg-[#F3ECE0] text-[#65605B] font-bold text-xs rounded-xl text-center block">
+                        Your Listing (Owner)
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onBuyPetRequest(pet);
+                        }}
+                        className="w-full mt-3 py-2 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center space-x-1"
+                      >
+                        <span>Adopt Pet</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
 
             <button
