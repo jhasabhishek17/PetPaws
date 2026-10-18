@@ -1,25 +1,37 @@
 /* ==========================================================================
    PetPaws Custom CSS3 & Animations stylesheet
-   Includes Glassmorphism, Keyframe animations, Card Hover lifts & Glows
+   Warm Cream (#FAF6F0), Sage Green (#52796F), Terracotta Coral (#E07A5F)
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --primary-color: #6366f1;
-  --primary-hover: #4f46e5;
-  --secondary-color: #ec4899;
-  --accent-color: #10b981;
-  --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-  --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-  --hover-shadow: 0 20px 35px -5px rgba(99, 102, 241, 0.25), 0 10px 15px -5px rgba(0, 0, 0, 0.1);
+  --primary-color: #E07A5F;
+  --primary-hover: #C85A3F;
+  --secondary-color: #52796F;
+  --accent-color: #F4A261;
+  --bg-cream: #FAF6F0;
+  --bg-sand: #F3ECE0;
+  --text-charcoal: #231F20;
+  --bg-gradient: linear-gradient(135deg, #2F3E46 0%, #52796F 55%, #354F52 100%);
+  --card-shadow: 0 12px 30px -8px rgba(35, 31, 32, 0.08), 0 6px 12px -6px rgba(35, 31, 32, 0.04);
+  --hover-shadow: 0 22px 40px -10px rgba(224, 122, 95, 0.22), 0 10px 18px -6px rgba(35, 31, 32, 0.08);
 }
 
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: var(--bg-cream);
+  color: var(--text-charcoal);
   overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6, .navbar-brand {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Override Bootstrap dark utilities into warm sage/charcoal */
+.bg-dark {
+  background-color: #2F3E46 !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -33,25 +45,20 @@ body {
 }
 
 @keyframes pulseGlow {
-  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
-  70% { box-shadow: 0 0 0 15px rgba(99, 102, 241, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(224, 122, 95, 0.4); }
+  70% { box-shadow: 0 0 0 15px rgba(224, 122, 95, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(224, 122, 95, 0); }
 }
 
 @keyframes fadeInScale {
   from {
     opacity: 0;
-    transform: scale(0.95) translateY(10px);
+    transform: scale(0.96) translateY(10px);
   }
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
 }
 
 .animate-float {
@@ -66,13 +73,21 @@ body {
   animation: fadeInScale 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-pulse-glow,
+  .animate-fade-in {
+    animation: none !important;
+  }
+}
+
 /* --------------------------------------------------------------------------
    Hero & Header Banners
    -------------------------------------------------------------------------- */
 
 .hero-banner {
   background: var(--bg-gradient);
-  border-radius: 24px;
+  border-radius: 28px;
   color: white;
   position: relative;
   overflow: hidden;
@@ -85,15 +100,15 @@ body {
   right: -20%;
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, rgba(99, 102, 241, 0) 70%);
+  background: radial-gradient(circle, rgba(244, 162, 97, 0.22) 0%, rgba(82, 121, 111, 0) 70%);
   border-radius: 50%;
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 253, 249, 0.9);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 20px;
+  border: 1px solid rgba(226, 217, 200, 0.7);
+  border-radius: 24px;
 }
 
 /* --------------------------------------------------------------------------
@@ -101,16 +116,16 @@ body {
    -------------------------------------------------------------------------- */
 
 .pet-card {
-  border: none;
-  border-radius: 20px;
+  border: 1px solid #E2D9C8;
+  border-radius: 24px;
   overflow: hidden;
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  background: white;
+  background: #FFFDF9;
   box-shadow: var(--card-shadow);
 }
 
 .pet-card:hover {
-  transform: translateY(-8px);
+  transform: translateY(-7px);
   box-shadow: var(--hover-shadow);
 }
 
@@ -128,25 +143,25 @@ body {
 }
 
 .pet-card:hover .card-img-top {
-  transform: scale(1.08);
+  transform: scale(1.06);
 }
 
 .pet-card .badge-category {
   position: absolute;
   top: 12px;
   left: 12px;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(35, 31, 32, 0.78);
   backdrop-filter: blur(8px);
-  color: white;
+  color: #FAF6F0;
   padding: 6px 14px;
   border-radius: 30px;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.5px;
 }
 
 .pet-card .price-tag {
-  color: #4f46e5;
+  color: var(--primary-color);
   font-weight: 800;
   font-size: 1.25rem;
 }
@@ -155,50 +170,50 @@ body {
    Buttons & Interactive Elements
    -------------------------------------------------------------------------- */
 
-.btn-gradient {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+.btn-gradient, .btn-primary {
+  background: linear-gradient(135deg, #E07A5F 0%, #F4A261 100%);
   color: white;
   border: none;
-  font-weight: 600;
-  border-radius: 12px;
+  font-weight: 700;
+  border-radius: 14px;
   transition: all 0.25s ease;
 }
 
-.btn-gradient:hover {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+.btn-gradient:hover, .btn-primary:hover {
+  background: linear-gradient(135deg, #C85A3F 0%, #E07A5F 100%);
   color: white;
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 8px 20px rgba(224, 122, 95, 0.3);
 }
 
 /* Category Filter Pills */
 .nav-pills .nav-link {
-  color: #64748b;
-  font-weight: 600;
+  color: #4A4344;
+  font-weight: 700;
   border-radius: 30px;
   padding: 8px 20px;
   transition: all 0.25s ease;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: #FFFDF9;
+  border: 1px solid #E2D9C8;
 }
 
 .nav-pills .nav-link.active,
 .nav-pills .nav-link:hover {
-  background: var(--primary-color);
+  background: var(--secondary-color);
   color: white;
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+  border-color: var(--secondary-color);
+  box-shadow: 0 4px 12px rgba(82, 121, 111, 0.25);
 }
 
 /* Timeline tracking styles */
 .timeline-item {
   position: relative;
   padding-left: 30px;
-  border-left: 3px solid #e2e8f0;
+  border-left: 3px solid #E2D9C8;
 }
 
 .timeline-item.active {
-  border-left-color: #10b981;
+  border-left-color: #52796F;
 }
 
 .timeline-item::before {
@@ -209,10 +224,10 @@ body {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #cbd5e1;
+  background: #D5CBB8;
 }
 
 .timeline-item.active::before {
-  background: #10b981;
-  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+  background: #52796F;
+  box-shadow: 0 0 0 4px rgba(82, 121, 111, 0.2);
 }
