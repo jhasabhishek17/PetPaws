@@ -53,6 +53,9 @@ app.use(express.urlencoded({ extended: true }));
 // HTTP Request Logger
 app.use(requestLogger);
 
+// Health check (used by uptime monitors and deploy platforms)
+app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
 // Initialize Database Connection (MongoDB / MongoDB Atlas)
 connectDB();
 
@@ -60,7 +63,7 @@ connectDB();
 // 2. MOUNT MODULAR ROUTERS
 // ==========================================
 
-// EJS Web Page View Routes (Wanderlust-Style Frontend)
+// EJS Server-Rendered Web Page Routes
 app.use('/', viewRoutes);
 
 // REST API Endpoints (For React / Mobile / SPA Clients)
@@ -87,10 +90,15 @@ app.use(errorHandler);
 // 4. SERVER LISTENER
 // ==========================================
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`==================================================`);
   console.log(`🚀 PetPaws Server running on port http://localhost:${PORT}`);
   console.log(`📁 EJS Web Views: http://localhost:${PORT}`);
   console.log(`🔌 REST API Base: http://localhost:${PORT}/api/pets`);
   console.log(`==================================================`);
 });
+
+// Graceful shutdown so in-flight requests finish and the DB connection closes cleanly
+const shutdown = () => server.close(() => require('mongoose').connection.close().finally(() => process.exit(0)));
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

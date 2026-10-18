@@ -15,6 +15,7 @@ const Order = require('../models/Order');
 const { loadData, isMongoConnected } = require('../db');
 const { normalizeItem } = require('../utils/normalize');
 const asyncHandler = require('../middleware/asyncHandler');
+const { protect, requireRole } = require('../middleware/authMiddleware');
 const mongoose = require('mongoose');
 
 /**
@@ -58,9 +59,9 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 /**
- * GET /pets/new - Add Pet Listing Form View
+ * GET /pets/new - Add Pet Listing Form View (Seller Only)
  */
-router.get('/pets/new', (req, res) => {
+router.get('/pets/new', protect, requireRole('seller'), (req, res) => {
   res.render('pets/new', { title: 'List a Pet - PetPaws' });
 });
 
@@ -127,16 +128,16 @@ router.get('/grooming', asyncHandler(async (req, res) => {
 }));
 
 /**
- * GET /orders - Orders & Tracking View
+ * GET /orders - Orders & Tracking View (Authenticated Only)
  */
-router.get('/orders', asyncHandler(async (req, res) => {
+router.get('/orders', protect, asyncHandler(async (req, res) => {
   let orders = [];
   if (isMongoConnected()) {
-    const docs = await Order.find().sort({ createdAt: -1 });
+    const docs = await Order.find({ buyer_id: req.user.id }).sort({ createdAt: -1 });
     orders = docs.map(normalizeItem);
   } else {
     const db = loadData();
-    orders = db.orders;
+    orders = db.orders.filter(o => o.buyer_id === req.user.id);
   }
 
   res.render('orders/index', { title: 'My Orders & Tracking - PetPaws', orders });
