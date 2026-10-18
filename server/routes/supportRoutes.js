@@ -8,10 +8,11 @@ const express = require('express');
 const router = express.Router();
 const supportController = require('../controllers/supportController');
 const asyncHandler = require('../middleware/asyncHandler');
+const { protect } = require('../middleware/authMiddleware');
 
-// Support Ticket Routes
+// Support Ticket Routes (Protected)
 router.route('/tickets')
-  .get(asyncHandler(supportController.getTickets))
-  .post(asyncHandler(supportController.createTicket));
+  .get(protect, asyncHandler(supportController.getTickets))
+  .post(protect, asyncHandler(supportController.createTicket));
 
 module.exports = router;
