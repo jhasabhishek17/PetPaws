@@ -13,6 +13,7 @@ import {
   ArrowRight,
   ShieldCheck
 } from 'lucide-react';
+import { apiPost } from '../utils/auth';
 
 /**
  * Highly Animated & Interactive Auth Modal Component (Eye-Comfort Theme)
@@ -40,15 +41,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role })
-      });
-      const data = await res.json();
+      const data = await apiPost('/api/auth/login', { email, password, role });
 
       if (data.success) {
-        onLoginSuccess(data.user);
+        onLoginSuccess(data.user, data.token);
       } else {
         setError(data.message || 'Invalid email or password');
       }
@@ -66,15 +62,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, role, phone, address })
-      });
-      const data = await res.json();
+      const data = await apiPost('/api/auth/register', { name, email, password, role, phone, address });
 
       if (data.success) {
-        onLoginSuccess(data.user);
+        onLoginSuccess(data.user, data.token);
       } else {
         setError(data.message || 'Registration failed');
       }
@@ -85,38 +76,22 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
     }
   };
 
-  // Quick Demo Login Helper
-  const handleDemoLogin = (demoRole) => {
-    let demoUser = {
-      id: "u-buyer-1",
-      name: "Alex Morgan",
-      email: "buyer@petpaws.com",
-      role: "buyer",
-      phone: "+1 (555) 234-5678",
-      address: "742 Evergreen Terrace, Springfield"
-    };
-
-    if (demoRole === 'seller') {
-      demoUser = {
-        id: "u-seller-1",
-        name: "Golden Paws Kennel",
-        email: "seller@petpaws.com",
-        role: "seller",
-        phone: "+1 (555) 987-6543",
-        address: "100 Breeding Ranch, Texas"
-      };
-    } else if (demoRole === 'vet') {
-      demoUser = {
-        id: "u-vet-1",
-        name: "Dr. Sarah Jenkins",
-        email: "vet@petpaws.com",
-        role: "vet",
-        phone: "+1 (555) 456-7890",
-        address: "Pet Care Medical Center, NY"
-      };
+  // Quick Demo Login Helper: performs a real login against the seeded demo accounts (see `npm run seed:demo`)
+  const handleDemoLogin = async (demoRole) => {
+    setError('');
+    setLoading(true);
+    try {
+      const data = await apiPost('/api/auth/login', { email: `demo-${demoRole}@petpaws.demo`, password: 'password123', role: demoRole });
+      if (data.success) {
+        onLoginSuccess(data.user, data.token);
+      } else {
+        setError((data.message || 'Demo login failed') + ' — run "npm run seed:demo" in /server to create demo accounts.');
+      }
+    } catch (err) {
+      setError('Connection failed. Is the server running?');
+    } finally {
+      setLoading(false);
     }
-
-    onLoginSuccess(demoUser);
   };
 
   return (
