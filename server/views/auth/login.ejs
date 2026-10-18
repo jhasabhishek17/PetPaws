@@ -1,0 +1,41 @@
+<div class="row justify-content-center animate-fade-in py-4">
+  <div class="col-md-6 col-lg-5">
+    <div class="card border-0 shadow-lg rounded-4 p-4 p-md-5 bg-white">
+      <div class="text-center mb-4">
+        <span class="fs-1 animate-float d-block">🐾</span>
+        <h3 class="fw-bold text-slate-900 mt-2">Welcome Back</h3>
+        <p class="text-muted small">Log in to manage your orders, pets, and appointments</p>
+      </div>
+
+      <form action="/api/auth/login" method="POST">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Email Address</label>
+          <input type="email" name="email" required class="form-control rounded-3" placeholder="buyer@petpaws.com">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Password</label>
+          <input type="password" name="password" required class="form-control rounded-3" placeholder="••••••••">
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Role</label>
+          <select name="role" class="form-select rounded-3">
+            <option value="buyer">Buyer</option>
+            <option value="seller">Seller / Breeder</option>
+            <option value="vet">Veterinarian</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-gradient w-100 py-2.5 rounded-pill fw-bold shadow">
+          Sign In
+        </button>
+      </form>
+
+      <div class="text-center mt-4 pt-3 border-top small">
+        <span class="text-muted">Don't have an account?</span>
+        <a href="/register" class="fw-bold text-primary text-decoration-none ms-1">Register Now</a>
+      </div>
+    </div>
+  </div>
+</div>

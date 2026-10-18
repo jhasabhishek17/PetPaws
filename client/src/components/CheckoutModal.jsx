@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
-import { 
-  X, 
-  CreditCard, 
-  Smartphone, 
-  Building2, 
-  ShieldCheck, 
-  CheckCircle2, 
-  Truck, 
-  FileText,
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  CreditCard,
+  Smartphone,
+  Building2,
+  ShieldCheck,
+  CheckCircle2,
+  Truck,
   QrCode,
   ArrowRight
 } from 'lucide-react';
+import { apiPost } from '../utils/auth';
 
 /**
  * CheckoutModal Component
@@ -22,40 +22,48 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
   const [upiId, setUpiId] = useState(currentUser?.upi_id || 'buyer@upi');
   const [selectedBank, setSelectedBank] = useState('HDFC Bank');
   const [cardNumber, setCardNumber] = useState('4532 •••• •••• 8821');
-  const [shippingAddress, setShippingAddress] = useState(currentUser?.address || '742 Evergreen Terrace, Springfield');
+  const [shippingAddress, setShippingAddress] = useState(
+    currentUser?.address || '742 Evergreen Terrace, Springfield'
+  );
   const [buyerPhone, setBuyerPhone] = useState(currentUser?.phone || '+1 (555) 234-5678');
-  
+
   const [loading, setLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose?.();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   if (!pet) return null;
 
+  const isOwnListing = Boolean(currentUser && currentUser.id === pet.seller_id);
   const tax = Math.round(pet.price * 0.08);
   const totalAmount = pet.price + tax;
 
   // Handle Checkout submission
   const handleConfirmPurchase = async (e) => {
     e.preventDefault();
+    if (isOwnListing) {
+      setError('Sellers cannot purchase their own listings.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const res = await fetch('/api/orders/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          buyer_id: currentUser?.id || 'u-buyer-1',
-          buyer_name: currentUser?.name || 'Alex Morgan',
-          buyer_email: currentUser?.email || 'buyer@petpaws.com',
-          buyer_phone: buyerPhone,
-          shipping_address: shippingAddress,
-          pet_id: pet.id,
-          payment_method: paymentMethod
-        })
+      const data = await apiPost('/api/orders/checkout', {
+        buyer_phone: buyerPhone,
+        shipping_address: shippingAddress,
+        pet_id: pet.id,
+        payment_method: paymentMethod
       });
 
-      const data = await res.json();
       if (!data.success) {
         throw new Error(data.message || 'Checkout failed');
       }
@@ -70,16 +78,24 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100">
-        
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
+    >
+      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-[#E6DCCF]">
         {/* Header */}
-        <div className="bg-slate-900 p-5 text-white flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[#2F3E46] via-[#52796F] to-[#2F3E46] p-5 text-white flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-bold">Secure Pet Booking Checkout</h2>
+            <ShieldCheck className="w-5 h-5 text-[#F4A261]" />
+            <h2 className="text-lg font-bold text-white font-display">Secure Pet Booking Checkout</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white p-1">
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="text-white/80 hover:text-white p-1 rounded-full hover:bg-white/15 transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -90,12 +106,10 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl animate-bounce">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-
             <h3 className="text-2xl font-black text-slate-900 font-display">Booking Confirmed!</h3>
             <p className="text-slate-600 text-xs sm:text-sm max-w-sm mx-auto">
               Your pet purchase order <strong className="text-slate-900">{orderSuccess.id}</strong> has been successfully booked. Stock updated automatically.
             </p>
-
             {/* Tracking Code Box */}
             <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200">
               <span className="text-[11px] font-bold uppercase tracking-wider text-orange-600 block mb-1">
@@ -105,14 +119,12 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
                 {orderSuccess.tracking_code}
               </span>
             </div>
-
             <div className="pt-4 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => {
                   onClose();
-                  // Trigger redirect to orders view
                 }}
-                className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2"
+                className="flex-1 py-3 bg-[#231F20] hover:bg-[#E07A5F] text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition-colors"
               >
                 <Truck className="w-4 h-4" />
                 <span>Track Order & Invoice</span>
@@ -120,19 +132,15 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
             </div>
           </div>
         ) : (
-          /* Checkout Form */
           <form onSubmit={handleConfirmPurchase} className="p-6 space-y-5">
-            
             {/* Pet Item Summary */}
             <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-              <img
-                src={pet.image_url}
-                alt={pet.title}
-                className="w-14 h-14 rounded-xl object-cover"
-              />
+              <img src={pet.image_url} alt={pet.title} className="w-14 h-14 rounded-xl object-cover" />
               <div className="flex-1">
                 <h4 className="text-sm font-bold text-slate-900">{pet.title}</h4>
-                <p className="text-xs text-slate-500">{pet.breed} • {pet.category}</p>
+                <p className="text-xs text-slate-500">
+                  {pet.breed} • {pet.category} • Seller: {pet.seller_name} ({pet.seller_id})
+                </p>
               </div>
               <span className="text-base font-black text-slate-900">${pet.price}</span>
             </div>
@@ -145,9 +153,7 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
 
             {/* Shipping Address */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Delivery Address
-              </label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Delivery Address</label>
               <input
                 type="text"
                 required
@@ -159,16 +165,14 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
 
             {/* Payment Method Selector Tabs */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-2">
-                Select Payment Method
-              </label>
+              <label className="block text-xs font-semibold text-slate-700 mb-2">Select Payment Method</label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('UPI')}
                   className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center space-y-1 transition-all ${
-                    paymentMethod === 'UPI' 
-                      ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-sm' 
+                    paymentMethod === 'UPI'
+                      ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-sm'
                       : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -179,8 +183,8 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
                   type="button"
                   onClick={() => setPaymentMethod('NetBanking')}
                   className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center space-y-1 transition-all ${
-                    paymentMethod === 'NetBanking' 
-                      ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-sm' 
+                    paymentMethod === 'NetBanking'
+                      ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-sm'
                       : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -191,8 +195,8 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
                   type="button"
                   onClick={() => setPaymentMethod('Card')}
                   className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center space-y-1 transition-all ${
-                    paymentMethod === 'Card' 
-                      ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-sm' 
+                    paymentMethod === 'Card'
+                      ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-sm'
                       : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -209,7 +213,9 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
                   <span className="text-xs font-bold text-slate-800 flex items-center">
                     <QrCode className="w-4 h-4 mr-1 text-orange-600" /> Instant UPI Payment
                   </span>
-                  <span className="text-[10px] bg-orange-200 text-orange-800 px-2 py-0.5 rounded font-bold">GPay / PhonePe / Paytm</span>
+                  <span className="text-[10px] bg-orange-200 text-orange-800 px-2 py-0.5 rounded font-bold">
+                    GPay / PhonePe / Paytm
+                  </span>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">Enter your UPI ID</label>
@@ -224,7 +230,6 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
                 </div>
               </div>
             )}
-
             {paymentMethod === 'NetBanking' && (
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                 <label className="block text-xs font-semibold text-slate-700">Choose Bank for NetBanking</label>
@@ -240,7 +245,6 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
                 </select>
               </div>
             )}
-
             {paymentMethod === 'Card' && (
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
                 <label className="block text-xs font-semibold text-slate-700">Card Details</label>
@@ -273,11 +277,13 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
             {/* Confirm Payment Button */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center space-x-2"
+              disabled={loading || isOwnListing}
+              className="w-full py-3 bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] disabled:opacity-50 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-[#52796F]/25 transition-all flex items-center justify-center space-x-2"
             >
               {loading ? (
                 <span>Processing Payment...</span>
+              ) : isOwnListing ? (
+                <span>Your Listing (Owner Cannot Purchase)</span>
               ) : (
                 <>
                   <span>Pay ${totalAmount} & Complete Order</span>
@@ -285,10 +291,8 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
                 </>
               )}
             </button>
-
           </form>
         )}
-
       </div>
     </div>
   );

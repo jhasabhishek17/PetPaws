@@ -1,0 +1,53 @@
+<div class="row g-4 animate-fade-in">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+      <img src="<%= pet.image_url %>" class="img-fluid w-100" style="max-height: 450px; object-fit: cover;" alt="<%= pet.title %>">
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 h-100 bg-white">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="badge bg-primary-subtle text-primary fw-bold rounded-pill px-3 py-1.5"><%= pet.category %></span>
+        <span class="badge bg-success-subtle text-success fw-bold rounded-pill px-3 py-1.5">Stock: <%= pet.stock %></span>
+      </div>
+
+      <h1 class="fw-extrabold text-slate-900 mb-2"><%= pet.title %></h1>
+      <h3 class="text-primary fw-bold mb-4">$<%= pet.price %> <span class="text-muted fs-6 font-normal">+ 8% Tax & Climate Transport</span></h3>
+
+      <div class="row g-3 mb-4 text-center">
+        <div class="col-4">
+          <div class="p-3 bg-light rounded-3">
+            <span class="d-block text-muted small">Breed</span>
+            <strong class="text-dark"><%= pet.breed %></strong>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="p-3 bg-light rounded-3">
+            <span class="d-block text-muted small">Age</span>
+            <strong class="text-dark"><%= pet.age %></strong>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="p-3 bg-light rounded-3">
+            <span class="d-block text-muted small">Gender</span>
+            <strong class="text-dark"><%= pet.gender %></strong>
+          </div>
+        </div>
+      </div>
+
+      <h5 class="fw-bold mb-2">Health & Vet Status</h5>
+      <p class="text-secondary small mb-4"><i class="fa-solid fa-circle-check text-success me-1"></i> <%= pet.health_status %></p>
+
+      <h5 class="fw-bold mb-2">Description</h5>
+      <p class="text-secondary leading-relaxed mb-4"><%= pet.description %></p>
+
+      <div class="mt-auto pt-3 border-top d-flex gap-3">
+        <button class="btn btn-primary btn-gradient rounded-pill px-5 py-3 fw-bold flex-grow-1 shadow" onclick="alert('Order Checkout Initiated for <%= pet.title %>! Redirecting to orders...')">
+          <i class="fa-solid fa-cart-shopping me-2"></i> Buy Now ($<%= pet.price %>)
+        </button>
+        <a href="/" class="btn btn-outline-secondary rounded-pill px-4 py-3 fw-bold">Back</a>
+      </div>
+    </div>
+  </div>
+</div>

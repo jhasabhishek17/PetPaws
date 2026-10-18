@@ -1,7 +1,13 @@
+/**
+ * Vet Appointment Consultation Mongoose Model
+ * 
+ * Stores scheduled veterinarian consultation appointments between pet owners and vets.
+ */
+
 const mongoose = require('mongoose');
 
 const vetAppointmentSchema = new mongoose.Schema({
-  custom_id: { type: String, unique: true },
+  custom_id: { type: String, unique: true, index: true },
   buyer_id: { type: String, required: true },
   buyer_name: { type: String, required: true },
   vet_id: { type: String, required: true },
