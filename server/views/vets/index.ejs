@@ -1,0 +1,33 @@
+<div class="row mb-4 animate-fade-in">
+  <div class="col-12 text-center py-4">
+    <span class="badge bg-primary rounded-pill px-3 py-2 mb-2 text-uppercase fw-bold">Healthcare & Telehealth</span>
+    <h1 class="fw-bold text-slate-900">Verified Veterinarians Directory 🩺</h1>
+    <p class="text-muted max-w-2xl mx-auto">Book in-person clinic consultations or instant online video consultations with top-rated licensed veterinarians.</p>
+  </div>
+</div>
+
+<div class="row g-4 animate-fade-in">
+  <% if (vets && vets.length > 0) { %>
+    <% vets.forEach(vet => { %>
+      <div class="col-lg-4 col-md-6">
+        <div class="card pet-card h-100 p-4">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <img src="<%= vet.avatar %>" class="rounded-circle object-cover shadow-sm" width="70" height="70" alt="<%= vet.name %>">
+            <div>
+              <h5 class="fw-bold mb-1"><%= vet.name %></h5>
+              <p class="text-primary small mb-0 fw-semibold"><%= vet.specialty %></p>
+              <span class="text-warning small"><i class="fa-solid fa-star"></i> <%= vet.rating %> (<%= vet.experience %> exp)</span>
+            </div>
+          </div>
+
+          <p class="text-muted small mb-3"><i class="fa-solid fa-location-dot me-1 text-danger"></i> <%= vet.clinic_address %></p>
+
+          <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-auto">
+            <span class="fw-bold text-dark">$<%= vet.consultation_fee %> <small class="text-muted font-normal">/ session</small></span>
+            <button class="btn btn-primary btn-sm btn-gradient rounded-pill px-4 fw-bold" onclick="alert('Scheduling consultation with <%= vet.name %>')">Book Consult</button>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  <% } %>
+</div>

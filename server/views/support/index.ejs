@@ -1,0 +1,49 @@
+<div class="row justify-content-center animate-fade-in">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-lg rounded-4 p-4 p-md-5 bg-white">
+      <div class="text-center mb-4">
+        <span class="fs-1">🎧</span>
+        <h2 class="fw-bold text-slate-900 mt-2">24/7 Customer Support Center</h2>
+        <p class="text-muted">Have a question regarding your pet purchase, health guarantee, or order shipment?</p>
+      </div>
+
+      <form action="/api/support/tickets" method="POST" id="supportForm">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Your Name</label>
+            <input type="text" name="user_name" required class="form-control rounded-3" placeholder="Alex Morgan">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Email Address</label>
+            <input type="email" name="user_email" required class="form-control rounded-3" placeholder="alex@example.com">
+          </div>
+
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">Subject</label>
+            <input type="text" name="subject" required class="form-control rounded-3" placeholder="e.g. Health Certificate Inquiry">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Priority Level</label>
+            <select name="priority" class="form-select rounded-3">
+              <option value="Low">Low</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="High">High</option>
+              <option value="Urgent">Urgent</option>
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Detailed Message</label>
+            <textarea name="message" rows="5" required class="form-control rounded-3" placeholder="Describe your issue or request in detail..."></textarea>
+          </div>
+        </div>
+
+        <div class="mt-4 text-center">
+          <button type="submit" class="btn btn-primary btn-gradient rounded-pill px-5 py-3 fw-bold shadow">
+            <i class="fa-solid fa-paper-plane me-2"></i> Submit Support Ticket
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

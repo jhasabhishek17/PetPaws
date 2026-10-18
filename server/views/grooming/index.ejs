@@ -1,0 +1,30 @@
+<div class="row mb-4 animate-fade-in">
+  <div class="col-12 text-center py-4">
+    <span class="badge bg-secondary rounded-pill px-3 py-2 mb-2 text-uppercase fw-bold">Pamper Your Pet</span>
+    <h1 class="fw-bold text-slate-900">Pet Grooming & Spa Packages ✂️</h1>
+    <p class="text-muted max-w-2xl mx-auto">Professional bath, hair trim, dental hygiene, nail care, and behavioral training sessions.</p>
+  </div>
+</div>
+
+<div class="row g-4 animate-fade-in">
+  <% if (services && services.length > 0) { %>
+    <% services.forEach(srv => { %>
+      <div class="col-lg-4 col-md-6">
+        <div class="card pet-card h-100 p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="fs-2"><%= srv.category === 'Grooming' ? '✂️' : '🎓' %></span>
+            <span class="badge bg-indigo-subtle text-primary fw-bold rounded-pill px-3 py-1"><%= srv.duration %></span>
+          </div>
+
+          <h5 class="fw-bold mb-2"><%= srv.title %></h5>
+          <p class="text-muted small mb-3 flex-grow-1"><%= srv.description %></p>
+
+          <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-auto">
+            <h4 class="fw-bold text-primary mb-0">$<%= srv.price %></h4>
+            <button class="btn btn-outline-primary btn-sm rounded-pill px-4 fw-bold" onclick="alert('Booking <%= srv.title %> session...')">Book Service</button>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  <% } %>
+</div>

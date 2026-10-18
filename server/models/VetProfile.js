@@ -1,7 +1,14 @@
+/**
+ * Veterinarian Profile Mongoose Model
+ * 
+ * Stores licensed veterinarian credentials, clinic addresses, specialties,
+ * consultation fees, experience, ratings, and available appointment time slots.
+ */
+
 const mongoose = require('mongoose');
 
 const vetProfileSchema = new mongoose.Schema({
-  custom_id: { type: String, unique: true },
+  custom_id: { type: String, unique: true, index: true },
   user_id: { type: String, required: true },
   name: { type: String, required: true },
   specialization: { type: String, required: true },
