@@ -358,4 +358,4 @@ npm run dev
 
 - **Developer:** Abhishek Jha
 - **Project:** PetPaws Full-Stack Pet Care Platform
-- **License:** Open-source under the [MIT License](LICENSE).
+
