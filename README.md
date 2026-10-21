@@ -67,7 +67,6 @@ The project focuses on modular architecture, secure API access, responsive user 
 | Component | Link |
 |---|---|
 | **Live Website** | [https://petpaws-frontend.onrender.com](https://petpaws-frontend.onrender.com) |
-| Backend API | [https://petpaws-backend.onrender.com](https://petpaws-backend.onrender.com) |
 | GitHub Repository | [jhasabhishek17/PetPaws](https://github.com/jhasabhishek17/PetPaws) |
 
 The frontend communicates with the backend through REST APIs. MongoDB Atlas stores application data, while Cloudinary handles uploaded media.
@@ -484,6 +483,4 @@ Full-Stack Web Development Project — PetPaws
 
 ---
 
-## 📄 License
 
-This project is distributed under the MIT License if the repository's `LICENSE` file specifies that license. See the [`LICENSE`](LICENSE) file for the applicable terms.
