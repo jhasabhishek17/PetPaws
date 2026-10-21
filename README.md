@@ -1,121 +1,194 @@
 # 🐾 PetPaws — Full-Stack Pet Care & Adoption Marketplace
 
-[![Node.js](https://img.shields.io/badge/Node.js-v18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Express.js](https://img.shields.io/badge/Express.js-4.22-000000?logo=express&logoColor=white)](https://expressjs.com/)
-[![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-6.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.3-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose_8.9-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-[![JWT Auth](https://img.shields.io/badge/Auth-JWT_%26_bcrypt-FF6F00)](https://jwt.io/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <strong>Discover. Adopt. Care.</strong>
+  <br />
+  A full-stack pet marketplace connecting pet parents, sellers, veterinarians, and pet care providers through a unified web platform.
+  <br /><br />
+  <a href="https://petpaws-frontend.onrender.com"><strong>🌐 Live Website</strong></a>
+  &nbsp; • &nbsp;
+  <a href="https://github.com/jhasabhishek17/PetPaws"><strong>📂 GitHub Repository</strong></a>
+</p>
 
-> **Discover. Adopt. Care.**  
-> A full-stack pet marketplace and wellness platform connecting ethical breeders, certified veterinarians, specialized pet care providers, and loving pet parents in a verified, secure environment.
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Express.js-4.x-000000?logo=express&logoColor=white" alt="Express.js" />
+  <img src="https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white" alt="MongoDB" />
+  <img src="https://img.shields.io/badge/Vite-6.x-646CFF?logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4.x-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" />
+</p>
 
 ---
 
-## 📖 Table of Contents
-- [Project Overview](#-project-overview)
-- [Key Features by Role](#-key-features-by-role)
+## 📌 Table of Contents
+
+- [Overview](#-overview)
+- [Live Demo](#-live-demo)
+- [Core Features](#-core-features)
 - [Technology Stack](#-technology-stack)
 - [System Architecture](#-system-architecture)
 - [Project Structure](#-project-structure)
-- [Local Setup & Installation](#-local-setup--installation-macos)
-- [Running the Application](#-running-the-application)
-- [Database Models & API Overview](#-database-models--api-overview)
-- [Security & Authorization](#-security--authorization)
-- [Testing & Quality Verification](#-testing--quality-verification)
-- [Known Limitations & Roadmap](#-known-limitations--roadmap)
-- [Project Documentation](#-project-documentation)
-- [Author & Acknowledgments](#-author--acknowledgments)
+- [Getting Started](#-getting-started)
+- [Environment Configuration](#-environment-configuration)
+- [Running Locally](#-running-locally)
+- [API Overview](#-api-overview)
+- [Database Design](#-database-design)
+- [Security](#-security)
+- [Current Limitations](#-current-limitations)
+- [Future Enhancements](#-future-enhancements)
+- [Author](#-author)
+- [License](#-license)
 
 ---
 
-## 🌟 Project Overview
+## 🌟 Overview
 
-**PetPaws** is an end-to-end full-stack web application designed to solve key challenges in modern pet adoption and pet healthcare:
-1. **Health-Verified Listings:** Every pet listing features verified vaccination and veterinary health status checkmarks (`Vet Verified`) rather than unverified third-party claims.
-2. **Dual-Client Architecture:** A high-performance **React 18 Single-Page Application (SPA)** with real-time state management, alongside server-rendered **EJS Web Views** for universal web accessibility.
-3. **Role-Based Access Control (RBAC):** Distinct interfaces, permissions, and security policies for **Buyers**, **Sellers**, and **Veterinarians**.
-4. **Resilient Dual-Persistence:** Primary storage in **MongoDB (Mongoose ODM)** with an automatic, zero-downtime fallback to an atomic **JSON flat-file store** when offline or during local testing without a database server.
-5. **Full Transaction Lifecycle:** Instant checkout simulation, automated stock decrements, auto-delisting on zero stock, 5-stage live shipment tracking, and self-service order cancellation with automatic pet inventory restocking.
+**PetPaws** is a full-stack pet care and adoption marketplace built to bring pet discovery, seller listings, veterinary consultations, grooming services, and order management into one application.
 
----
+The platform provides role-specific experiences for buyers, sellers, and veterinarians. It combines a React-based single-page application with a Node.js and Express backend, persistent data storage through MongoDB Atlas, and cloud-based image storage through Cloudinary.
 
-## 🎯 Key Features by Role
+The project focuses on modular architecture, secure API access, responsive user interfaces, and end-to-end application workflows.
 
-### 🐶 For Buyers
-- **Live Search & Category Filtering:** Instant search by breed, title, or keywords across five pet categories: **Dogs**, **Cats**, **Fishes**, **Rabbits**, and **Birds**, coupled with dynamic price filtering.
-- **Interactive Pet Matchmaker Quiz:** A multi-step lifestyle questionnaire evaluating living quarters, energy preferences, daily time availability, and pet experience to recommend ideal breeds.
-- **Interactive Health Details Modal:** Inspect detailed vaccination badges, physical specs (age, gender, breed), seller profiles, and adoption fees before ordering.
-- **Wishlist Management:** Save favorite pets with one-click heart toggles, real-time navbar counter badge, and a dedicated Saved Wishlist tab.
-- **Multi-Method Simulated Checkout:** Complete adoptions via **UPI (QR code / UPI ID)**, **Credit/Debit Card**, or **NetBanking**, with automatic 8% tax calculation and printable receipts.
-- **5-Stage Live Order Tracking:** Real-time visual timeline:  
-  `Order Placed` &rarr; `Health Check` &rarr; `In Transit` &rarr; `Out for Delivery` &rarr; `Delivered`.
-- **Self-Service Order Cancellation:** Buyers can cancel active orders prior to delivery; cancelling automatically initiates a refund and restocks the pet listing.
-- **24/7 Vet Telehealth & Spa Grooming:** Book video consultations with certified veterinarians and reserve professional spa grooming and obedience training sessions.
+### Project Highlights
 
-### 🏪 For Sellers
-- **Dedicated Seller Portal:** Gated on both frontend and backend; inaccessible to buyers and logged-out visitors.
-- **Listing Lifecycle Management:** Create, update, and delist pet listings with custom images, health verifications, descriptions, and stock counts.
-- **Strict Backend Ownership Enforcement:** Only the verified listing owner (matching `req.user.id` from JWT) can update or delete pet records.
-- **Payout Configuration:** Securely configure bank accounts, IFSC codes, and UPI IDs for adoption payouts.
-- **Order & Inventory Sync:** Pet stock automatically decrements upon purchase (switching to `sold` when stock reaches 0) and increments upon cancellation.
+- Role-based experiences for buyers, sellers, and veterinarians.
+- Pet discovery with search, category filters, and price filtering.
+- JWT-based authentication and protected API endpoints.
+- Pet listing management with seller ownership checks.
+- Order management, simulated checkout, cancellation, and inventory updates.
+- Veterinary consultation and grooming service workflows.
+- Cloud deployment with separately hosted frontend and backend.
+- MongoDB Atlas for database persistence and Cloudinary for image storage.
 
-### 🩺 For Veterinarians
-- **Veterinary Consultation Hub:** Public directory displaying certified specialties (Cardiology, Surgery, Dermatology, General Wellness), consultation fees, and availability.
-- **Vet Portal & Schedule:** Role-gated portal where veterinarians can inspect scheduled patient appointments and review consultation requests.
+## 🌐 Live Demo
+
+| Component | Link |
+|---|---|
+| **Live Website** | [https://petpaws-frontend.onrender.com](https://petpaws-frontend.onrender.com) |
+| Backend API | [https://petpaws-backend.onrender.com](https://petpaws-backend.onrender.com) |
+| GitHub Repository | [jhasabhishek17/PetPaws](https://github.com/jhasabhishek17/PetPaws) |
+
+The frontend communicates with the backend through REST APIs. MongoDB Atlas stores application data, while Cloudinary handles uploaded media.
+
+> Note: Availability and response times may depend on the hosting plan and service status.
 
 ---
 
-## 🛠️ Technology Stack
+## ✨ Core Features
 
-| Layer | Technology | Version | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Frontend Framework** | React | `^18.3.1` | Reactive user interface & component state management |
-| **Frontend Build Tool** | Vite | `^6.4.3` | Fast bundling, HMR, and development API proxy |
-| **CSS Framework** | Tailwind CSS | `^4.3.3` | Responsive Warm Amber & Coral eye-comfort palette |
-| **Iconography** | Lucide React | `^0.469.0` | Accessible, clean vector icons |
-| **Backend Runtime** | Node.js | `>=18` (Tested v24) | High-performance asynchronous JavaScript runtime |
-| **Web Framework** | Express.js | `^4.22.2` | RESTful API routes, MVC pipeline, and middleware |
-| **Primary Database** | MongoDB / Mongoose | `^8.9.5` | ODM schemas, validations, and auto-timestamps |
-| **Fallback Database** | JSON Flat-File | Custom | Zero-downtime offline persistence (`server/data/db.json`) |
-| **Authentication** | JSON Web Tokens | `^9.0.3` | Cryptographically signed stateless JWT authentication |
-| **Password Security** | bcryptjs | `^3.0.3` | Salted credential hashing (10 rounds) |
-| **Rate Limiting** | express-rate-limit | `^8.7.1` | Brute-force defense on auth endpoints (15 req/15 min) |
-| **Security Headers** | helmet | `^8.3.0` | HTTP security headers & clickjacking mitigation |
-| **Templating Engine** | EJS | `^6.0.1` | Server-rendered webpage views |
+### 🐶 Buyer Experience
+
+- **Pet Marketplace:** Browse dogs, cats, birds, fish, and rabbits.
+- **Search and Filtering:** Find listings using keywords, categories, and price filters.
+- **Pet Matchmaker Quiz:** Receive pet suggestions based on lifestyle, living environment, available time, and experience.
+- **Pet Details:** Explore listing information, health details, seller information, and adoption fees.
+- **Wishlist:** Save favourite listings and access them through the wishlist interface.
+- **Checkout:** Complete the application's simulated checkout flow with UPI, card, and net-banking options.
+- **Order Tracking:** Follow orders through a five-stage tracking timeline.
+- **Order Cancellation:** Cancel eligible orders through the application workflow.
+- **Veterinary Services:** Explore veterinarians and request consultations.
+- **Grooming and Care:** Browse grooming packages and submit service bookings.
+
+### 🏪 Seller Experience
+
+- **Seller Dashboard:** Access seller-specific listing and order management features.
+- **Listing Management:** Create, update, and remove pet listings.
+- **Image Uploads:** Upload listing images through the configured media service.
+- **Health Information:** Provide relevant pet health and vaccination details.
+- **Inventory Management:** Track available stock and update listing availability.
+- **Payout Settings:** Configure seller payout information through the relevant application workflow.
+- **Ownership Validation:** Restrict listing modifications to the authenticated listing owner.
+
+### 🩺 Veterinarian Experience
+
+- **Veterinarian Directory:** Browse veterinary profiles, specialties, and consultation fees.
+- **Consultation Requests:** Submit veterinary appointment requests.
+- **Vet Dashboard:** Access veterinarian-specific appointment management features.
+- **Schedule Management:** Review and manage consultation requests and eligible cancellations.
+
+### 🛠️ Platform Capabilities
+
+- Responsive React interface for desktop and mobile screens.
+- Reusable components and modular backend routes.
+- JWT authentication with password hashing.
+- Centralized request validation and error handling.
+- Rate limiting on authentication endpoints.
+- Cloud-hosted frontend and backend services.
+- Database-backed application records and cloud-hosted images.
+
+---
+
+## 🧰 Technology Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend | React 18 | Component-based user interface |
+| Build Tool | Vite | Development server and production builds |
+| Styling | Tailwind CSS 4 | Responsive styling and layout |
+| Icons | Lucide React | Interface icons |
+| Backend | Node.js | JavaScript runtime |
+| API Framework | Express.js 4 | REST API and middleware |
+| Database | MongoDB Atlas | Persistent application data |
+| ODM | Mongoose | Database schemas, models, and queries |
+| Authentication | JSON Web Tokens | Signed authentication tokens |
+| Password Security | bcryptjs | Password hashing |
+| Security Headers | Helmet | HTTP security headers |
+| Rate Limiting | express-rate-limit | Request throttling |
+| Media Storage | Cloudinary | Cloud-hosted images |
+| Server Templates | EJS | Server-rendered views |
+| Frontend Hosting | Render Static Site | Serves the production frontend |
+| Backend Hosting | Render Web Service | Runs the Express application |
 
 ---
 
 ## 🏗️ System Architecture
 
+PetPaws follows a layered architecture that separates the user interface, backend business logic, and data storage.
+
 ```text
-+---------------------------------------------------------------------------------------+
-|                                    CLIENT TIER                                        |
-|  React 18 SPA (Vite + Tailwind CSS)           EJS Server-Rendered Views (Bootstrap 5) |
-|  - Realtime Search & Category Filters          - Wanderlust-style Marketplace View    |
-|  - Interactive Matchmaker Quiz & Cart         - Pet Detail & Auth Templates          |
-|  - Role-gated Buyer, Seller & Vet Portals     - Server-side Flash Alerts             |
-+-------------------------------------------+-------------------------------------------+
-                                            | HTTP REST API / Proxy (Port 5173 -> 5001)
-                                            v
-+---------------------------------------------------------------------------------------+
-|                                    BACKEND TIER                                       |
-|  Node.js & Express.js Server (Port 5001)                                              |
-|  - Security Middleware: Helmet (CSP), CORS Origin Whitelist, Rate Limiting (Login)   |
-|  - Auth Middleware: JWT Verification (protect / optionalAuth), Role Gate Checkers     |
-|  - Modular Routers: /api/auth, /api/pets, /api/orders, /api/vets, /api/services, etc. |
-|  - Centralized Error Handler (ExpressError, AsyncHandler, Status Code Mapping)        |
-+-------------------------------------------+-------------------------------------------+
-                                            | Mongoose / JSON Dual-Persistence
-                                            v
-+---------------------------------------------------------------------------------------+
-|                                   DATA TIER                                           |
-|  Primary: MongoDB / MongoDB Atlas (Mongoose ODM with Schemas, Indexes, Timestamps)    |
-|  Fallback: Local JSON Store (server/data/db.json) for zero-downtime offline execution|
-+---------------------------------------------------------------------------------------+
+                         USERS
+                           |
+                           v
+              +--------------------------+
+              |   React + Vite Frontend  |
+              |   Render Static Site     |
+              +--------------------------+
+                           |
+                     HTTPS / REST API
+                           |
+                           v
+              +--------------------------+
+              |   Node.js + Express      |
+              |   Render Web Service     |
+              |                          |
+              | - Authentication        |
+              | - Authorization          |
+              | - Business Logic         |
+              | - API Routes             |
+              | - Validation & Errors    |
+              +--------------------------+
+                    |             |
+                    v             v
+          +----------------+  +----------------+
+          | MongoDB Atlas  |  | Cloudinary     |
+          | Application    |  | Uploaded Media |
+          | Data           |  |                |
+          +----------------+  +----------------+
 ```
+
+### Request Flow
+
+1. A user interacts with the React frontend.
+2. The frontend sends HTTP requests to the Express backend.
+3. Express middleware handles authentication, authorization, and request processing.
+4. Controllers execute the relevant application logic.
+5. Mongoose interacts with MongoDB Atlas to read or update records.
+6. Cloudinary handles image storage and delivery.
+7. The backend returns a response to the frontend, which updates the interface.
+
+The frontend and backend are deployed independently, allowing each service to be configured and deployed separately.
 
 ---
 
@@ -123,239 +196,294 @@
 
 ```text
 PetPaws/
-├── client/                               # Frontend React Application (Vite SPA)
+├── client/
 │   ├── src/
-│   │   ├── components/                   # UI Modules and Interactive Sections
-│   │   │   ├── Navbar.jsx                # Responsive navbar, search, user dropdown & logout
-│   │   │   ├── Hero.jsx                  # Hero section with verified badge & quick links
-│   │   │   ├── Marketplace.jsx           # Pet grid, breed/category filters, price sorting
-│   │   │   ├── PetDetailModal.jsx        # Health certificate, specs, seller info & adoption
-│   │   │   ├── CheckoutModal.jsx         # Multi-method payment modal (UPI, Card, NetBanking)
-│   │   │   ├── OrdersTracking.jsx        # Order timeline, carrier status & cancel option
-│   │   │   ├── BuyerDashboard.jsx        # Buyer stats, order history, wishlist shortcuts
-│   │   │   ├── SellerDashboard.jsx       # Inventory manager, listing uploader, payout settings
-│   │   │   ├── VetSection.jsx            # 24/7 telehealth directory & appointment booking
-│   │   │   ├── VetDashboard.jsx          # Veterinarian consultation manager & schedule
-│   │   │   ├── GroomingCareSection.jsx   # Spa grooming packages, pricing & booking
-│   │   │   ├── CustomerSupport.jsx       # FAQ accordion & collision-resistant support tickets
-│   │   │   ├── PetMatchmakerQuiz.jsx     # Interactive multi-step pet compatibility quiz
-│   │   │   ├── Toast.jsx                 # Decoupled accessible floating toast notifications
-│   │   │   ├── PawLoader.jsx             # Animated paw-print loading indicator
-│   │   │   └── AuthModal.jsx             # Role-based modal (Buyer, Seller, Vet) with demo logins
+│   │   ├── components/
+│   │   │   ├── Navbar.jsx
+│   │   │   ├── Hero.jsx
+│   │   │   ├── Marketplace.jsx
+│   │   │   ├── PetDetailModal.jsx
+│   │   │   ├── CheckoutModal.jsx
+│   │   │   ├── OrdersTracking.jsx
+│   │   │   ├── BuyerDashboard.jsx
+│   │   │   ├── SellerDashboard.jsx
+│   │   │   ├── VetSection.jsx
+│   │   │   ├── VetDashboard.jsx
+│   │   │   ├── GroomingCareSection.jsx
+│   │   │   ├── CustomerSupport.jsx
+│   │   │   ├── PetMatchmakerQuiz.jsx
+│   │   │   ├── AuthModal.jsx
+│   │   │   ├── Toast.jsx
+│   │   │   └── PawLoader.jsx
 │   │   ├── utils/
-│   │   │   └── auth.js                   # JWT token persistence & authenticated fetch wrappers
-│   │   ├── App.jsx                       # Root React component, active tab routing, global state
-│   │   ├── main.jsx                      # Vite entry point mounting React root
-│   │   └── index.css                 # Tailwind directives, animations & custom styles
-│   ├── vite.config.js                    # Vite configuration with Express /api proxy
-│   └── package.json                      # Frontend dependencies & build scripts
-├── server/                               # Backend REST API & Server-Rendered Views
+│   │   │   └── auth.js
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── index.css
+│   ├── index.html
+│   ├── vite.config.js
+│   └── package.json
+│
+├── server/
 │   ├── config/
-│   │   ├── db.js                         # Mongoose MongoDB connection & failover handler
-│   │   └── jwt.js                        # JWT signing & secret configuration
-│   ├── controllers/                      # Business Logic & Endpoint Handlers
-│   │   ├── authController.js             # User registration, bcrypt login, JWT signing
-│   │   ├── petController.js              # Pet CRUD, stock decrement, owner authorization
-│   │   ├── orderController.js            # Checkout, buyer order isolation, status & cancel
-│   │   ├── vetController.js              # Vet directory, appointments, schedule cancellation
-│   │   ├── serviceController.js          # Grooming packages, reservations & cancel logic
-│   │   └── supportController.js          # Collision-resistant ticket generation & inquiry CRUD
-│   ├── middleware/                       # Request Pipeline Interceptors
-│   │   ├── authMiddleware.js             # protect (required JWT) & optionalAuth middleware
-│   │   ├── requestLogger.js              # Morgan-style formatted HTTP request logging
-│   │   ├── errorHandler.js               # Centralized Express error handler & status formatting
-│   │   └── asyncHandler.js               # Promise wrapper eliminating try/catch boilerplate
-│   ├── models/                           # Mongoose Schemas (MongoDB)
-│   │   ├── User.js                       # User credentials, roles, phone, address, payout details
-│   │   ├── Pet.js                        # Pet listing, seller ID, stock, health status, category
-│   │   ├── Order.js                      # Transaction record, tracking code, shipping, tax
-│   │   ├── VetProfile.js                 # Certified vet credentials, fee, specialty, schedule
-│   │   ├── VetAppointment.js             # 1-on-1 consultation booking & cancellation state
-│   │   ├── GroomingService.js            # Spa package offerings, pricing, durations
-│   │   ├── GroomingBooking.js            # Grooming reservations & status
-│   │   └── SupportTicket.js              # Customer ticket with timestamp-based unique ID
-│   ├── routes/                           # Modular Express Router Declarations
-│   │   ├── authRoutes.js                 # /api/auth routes with login rate limiting
-│   │   ├── petRoutes.js                  # /api/pets routes (public GET, protected POST/PUT/DELETE)
-│   │   ├── orderRoutes.js                # /api/orders routes (checkout, tracking, cancellation)
-│   │   ├── vetRoutes.js                  # /api/vets routes (directory, appointments, cancel)
-│   │   ├── serviceRoutes.js              # /api/services routes (grooming, booking, cancel)
-│   │   ├── supportRoutes.js              # /api/support routes (tickets, status)
-│   │   └── viewRoutes.js                 # Server-rendered EJS webpage routes (/)
-│   ├── views/                            # EJS Templates for Server-Side Rendering
+│   │   ├── db.js
+│   │   └── jwt.js
+│   ├── controllers/
+│   │   ├── authController.js
+│   │   ├── petController.js
+│   │   ├── orderController.js
+│   │   ├── vetController.js
+│   │   ├── serviceController.js
+│   │   └── supportController.js
+│   ├── middleware/
+│   │   ├── authMiddleware.js
+│   │   ├── requestLogger.js
+│   │   ├── errorHandler.js
+│   │   └── asyncHandler.js
+│   ├── models/
+│   │   ├── User.js
+│   │   ├── Pet.js
+│   │   ├── Order.js
+│   │   ├── VetProfile.js
+│   │   ├── VetAppointment.js
+│   │   ├── GroomingService.js
+│   │   ├── GroomingBooking.js
+│   │   └── SupportTicket.js
+│   ├── routes/
+│   │   ├── authRoutes.js
+│   │   ├── petRoutes.js
+│   │   ├── orderRoutes.js
+│   │   ├── vetRoutes.js
+│   │   ├── serviceRoutes.js
+│   │   ├── supportRoutes.js
+│   │   └── viewRoutes.js
+│   ├── views/
 │   ├── data/
-│   │   └── db.json                       # Flat-file database fallback for offline execution
-│   ├── server.js                         # Express application entry point & listener
-│   └── package.json                      # Backend dependencies & scripts
-├── docs/                                 # Project Documentation
-│   └── PetPaws_Project_Documentation.pdf # Comprehensive compiled manual
-├── package.json                          # Monorepo root scripts (dev:server, dev:client)
-└── README.md                             # GitHub-ready project README
+│   │   └── db.json
+│   ├── server.js
+│   └── package.json
+│
+├── docs/
+├── package.json
+└── README.md
 ```
+
+*The structure above summarizes the main application modules. Individual files and optional configuration files may vary by branch.*
 
 ---
 
-## 💻 Local Setup & Installation (macOS)
+## 🚀 Getting Started
+
+Follow these instructions to run PetPaws locally on macOS or another supported development environment.
 
 ### Prerequisites
-- **Node.js**: `v18.0.0` or higher (`node -v`)
-- **npm**: `v9.0.0` or higher (`npm -v`)
-- **MongoDB** *(Optional)*: Community edition on port `27017` or Atlas URI. If unavailable, the application automatically uses the local JSON fallback.
+
+Install the following tools and create the necessary external service accounts:
+
+- [Node.js](https://nodejs.org/) — version 18 or later.
+- npm — included with Node.js.
+- [Git](https://git-scm.com/) — for cloning the repository.
+- [MongoDB Atlas](https://www.mongodb.com/atlas) or a local MongoDB instance.
+- [Cloudinary](https://cloudinary.com/) — if image upload functionality is required.
 
 ### 1. Clone the Repository
+
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+git clone https://github.com/jhasabhishek17/PetPaws.git
 cd PetPaws
 ```
 
-### 2. Configure Environment Variables
-Create `server/.env` based on `server/.env.example`:
+### 2. Install Backend Dependencies
+
 ```bash
-cp server/.env.example server/.env
+cd server
+npm install
 ```
 
-Ensure `server/.env` contains:
+### 3. Install Frontend Dependencies
+
+Open a second terminal from the project root:
+
+```bash
+cd client
+npm install
+```
+
+### 4. Configure Environment Variables
+
+Create your local environment files using the project's example files where available.
+
+**Backend:** `server/.env`
+
 ```env
 PORT=5001
-MONGODB_URI=mongodb://127.0.0.1:27017/petpaws
-JWT_SECRET=petpaws-local-dev-jwt-secret-change-in-prod
-JWT_EXPIRES_IN=7d
 NODE_ENV=development
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=replace_with_a_strong_random_secret
+JWT_EXPIRES_IN=7d
 ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5001
 ```
 
-*(Optional)* Create `client/.env`:
+**Frontend:** `client/.env`
+
 ```env
 VITE_API_URL=http://localhost:5001
 ```
 
-### 3. Install Dependencies
-```bash
-# Backend dependencies
-cd server
-npm install
+Replace placeholder values with your own configuration. The exact variable names should match the code in your current branch.
 
-# Frontend dependencies
-cd ../client
-npm install
-cd ..
-```
-
-### 4. Seed Demo Data (Optional)
-```bash
-cd server
-npm run seed:demo
-cd ..
-```
+> **Security:** Never commit `.env` files, database credentials, API secrets, or production JWT secrets to GitHub. Keep private credentials in local environment files and the hosting provider's environment settings.
 
 ---
 
-## 🚀 Running the Application
+## ▶️ Running Locally
 
-You can run the frontend and backend in separate terminal tabs:
+Run the backend and frontend in separate terminals.
 
-**Terminal 1 — Backend API Server:**
+### Terminal 1 — Backend
+
 ```bash
 cd server
 npm start
 ```
-*Backend runs on [http://localhost:5001](http://localhost:5001)*
 
-**Terminal 2 — Frontend React Client:**
+The backend is configured to use port `5001` in the local setup.
+
+### Terminal 2 — Frontend
+
 ```bash
 cd client
 npm run dev
 ```
-*Frontend runs on [http://localhost:5173](http://localhost:5173)*
 
-### Pre-Configured Demo Accounts
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| **Buyer** | `demo-buyer@petpaws.demo` | `password123` |
-| **Seller** | `demo-seller@petpaws.demo` | `password123` |
-| **Veterinarian** | `demo-vet@petpaws.demo` | `password123` |
+Vite normally serves the development frontend at:
 
----
+[http://localhost:5173](http://localhost:5173)
 
-## 🗄️ Database Models & API Overview
+The Vite development proxy can forward API requests to the backend when configured in `client/vite.config.js`.
 
-### Database Collections
-- **`User`**: Custom user IDs, bcrypt password hashes, normalized emails, user roles (`buyer`, `seller`, `vet`), phone, address, and seller payout details.
-- **`Pet`**: Listing title, category, price, breed, age, gender, health/vaccination status, stock count, and active status.
-- **`Order`**: Itemized pricing, 8% tax breakdown, tracking code, shipping address, payment status (`Completed`, `Refunded`), and tracking status (`Order Placed`, `Health Check`, `In Transit`, `Out for Delivery`, `Delivered`, `Cancelled`).
-- **`VetProfile` & `VetAppointment`**: Certified veterinarian directory, fees, specialties, and 1-on-1 booking records.
-- **`GroomingService` & `GroomingBooking`**: Spa grooming packages, durations, prices, and booking logs.
-- **`SupportTicket`**: Inquiries with collision-resistant timestamp IDs (`TCK-<TIMESTAMP>-<RANDOM>`).
+### Production Build
 
-### REST API Endpoints
-| Method | Endpoint | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | No | Register new account and receive JWT |
-| `POST` | `/api/auth/login` | No *(Rate Limited)* | Authenticate user and receive JWT |
-| `PUT` | `/api/auth/update-payout` | Yes *(Seller)* | Configure seller bank account & UPI |
-| `GET` | `/api/pets` | Optional | Browse listings with search & category filters |
-| `POST` | `/api/pets` | Yes *(Seller)* | Create a pet listing (binds seller from token) |
-| `PUT` | `/api/pets/:id` | Yes *(Owner)* | Update pet details (enforces ownership) |
-| `DELETE` | `/api/pets/:id` | Yes *(Owner)* | Delete pet listing (enforces ownership) |
-| `POST` | `/api/orders/checkout` | Yes *(Buyer)* | Place order, decrement stock, issue tracking |
-| `GET` | `/api/orders` | Yes | Get orders for authenticated buyer or seller |
-| `GET` | `/api/orders/track/:code` | Optional | Track shipment by unique tracking code |
-| `PUT` | `/api/orders/:id/cancel` | Yes *(Buyer/Seller)* | Cancel order, refund payment, and restock listing |
-| `GET` | `/api/vets` | No | List certified veterinarians & specialties |
-| `POST` | `/api/vets/appointments` | Yes *(Buyer)* | Schedule veterinary telehealth consultation |
-| `PUT` | `/api/vets/appointments/:id/cancel` | Yes *(Owner)* | Cancel veterinary appointment |
-| `GET` | `/api/services` | No | List pet spa grooming & training packages |
-| `POST` | `/api/services/bookings` | Yes *(Buyer)* | Book pet grooming session |
-| `PUT` | `/api/services/bookings/:id/cancel` | Yes *(Owner)* | Cancel pet grooming reservation |
-| `POST` | `/api/support/tickets` | Optional | Submit support ticket with unique ID |
-| `GET` | `/api/health` | No | Server health and uptime check |
+From the client directory:
+
+```bash
+npm run build
+```
+
+Vite generates the production build in `client/dist/`.
 
 ---
 
-## 🔒 Security & Authorization
+## 🔌 API Overview
 
-1. **Password Hashing:** Passwords are never stored in plaintext. They are salted and hashed using `bcryptjs` with 10 salt rounds.
-2. **Stateless JWT Authorization:** Protected API routes verify signed JWT tokens via `server/middleware/authMiddleware.js`.
-3. **Backend Ownership Verification:**
-   - `createPet` automatically attaches `req.user.id` and verifies the seller role.
-   - `updatePet` and `deletePet` check `pet.seller_id === req.user.id`, rejecting unauthorized calls with `403 Forbidden`.
-   - `getOrders` prevents unauthorized buyers from querying other accounts' purchase histories.
-   - `cancelOrder` verifies that the requester is the buyer who placed the order or the seller.
-4. **Mass-Assignment Defense:** Pet listing update endpoints whitelist permitted attributes (`title`, `category`, `price`, `age`, `breed`, `gender`, `health_status`, `description`, `image_url`, `stock`, `status`), ignoring injected fields.
-5. **Rate Limiting & Security Headers:** `express-rate-limit` mitigates brute-force attacks on `/api/auth/login` (15 requests per 15 minutes window), and `helmet` configures essential HTTP security headers.
-6. **Data Sanitization:** Object normalization helpers strip sensitive attributes (`password`, `__v`) before API responses leave the server.
+The backend exposes REST API endpoints for authentication, pet listings, orders, veterinary services, grooming, and customer support.
 
----
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/auth/register` | Register an account |
+| POST | `/api/auth/login` | Authenticate a user |
+| PUT | `/api/auth/update-payout` | Update seller payout information |
+| GET | `/api/pets` | Browse pet listings |
+| POST | `/api/pets` | Create a listing |
+| PUT | `/api/pets/:id` | Update an existing listing |
+| DELETE | `/api/pets/:id` | Delete a listing |
+| POST | `/api/orders/checkout` | Create an order through the checkout workflow |
+| GET | `/api/orders` | Retrieve relevant orders |
+| GET | `/api/orders/track/:code` | Retrieve order tracking information |
+| PUT | `/api/orders/:id/cancel` | Request order cancellation |
+| GET | `/api/vets` | Browse veterinarian profiles |
+| POST | `/api/vets/appointments` | Request a consultation |
+| PUT | `/api/vets/appointments/:id/cancel` | Cancel an eligible appointment |
+| GET | `/api/services` | Browse grooming services |
+| POST | `/api/services/bookings` | Create a grooming booking |
+| PUT | `/api/services/bookings/:id/cancel` | Cancel an eligible booking |
+| POST | `/api/support/tickets` | Submit a support ticket |
+| GET | `/api/health` | Check backend health |
 
-## 🧪 Testing & Quality Verification
-
-- **Production Build:** `npm run build` in `client/` succeeds in under 4 seconds with 0 warnings/errors.
-- **Responsive Multi-Viewport Testing:** Verified across viewports (1440px desktop, 1100px laptop, 768px tablet, 375px mobile):
-  - No horizontal overflow (`hasHorizontalOverflow: false`).
-  - Full username and dedicated Logout button visible and clickable on all layouts.
-  - Interactive profile dropdown menu renders on desktop and mobile drawer.
-- **Functional Logout Validation:** Verified token and user session removal from `localStorage` upon clicking Logout, cleanly transitioning the interface to the logged-out state.
-- **Lifecycle Restocking Test:** Confirmed that cancelling an order updates the tracking status to `Cancelled`, payment status to `Refunded`, and increments pet listing stock back to active.
-
----
-
-## ⚠️ Known Limitations & Roadmap
-
-### Current Limitations
-- **Simulated Payment Gateway:** Checkout uses realistic simulation (UPI QR, Card, NetBanking) rather than direct production webhooks (Stripe / Razorpay).
-- **Simulated Carrier Logistics:** Carrier updates follow realistic logistics steps rather than querying live third-party GPS APIs.
-- **Client-Side Wishlist Storage:** Saved wishlist items are persisted in client `localStorage` rather than synced across multiple devices via database record.
-
-### Future Roadmap
-- [ ] Connect production Stripe and Razorpay webhook integrations for card processing and automated refund dispatches.
-- [ ] Implement Socket.io for real-time chat between Buyers, Sellers, and Vets.
-- [ ] Add Web Push and SMS notifications for shipping status changes.
-- [ ] Expand automated testing coverage with Jest and React Testing Library.
+**Authentication note:** Protected endpoints require valid authentication and, where applicable, the correct user role or resource ownership. Refer to the route and middleware implementations for the exact requirements.
 
 ---
 
-## 👨‍💻 Author & Acknowledgments
+## 🗄️ Database Design
 
-- **Developer:** Abhishek Jha
-- **Project:** PetPaws Full-Stack Pet Care Platform
+PetPaws uses MongoDB with Mongoose models to organize its application data.
 
+| Model | Responsibility |
+|---|---|
+| `User` | User profiles, credentials, and roles |
+| `Pet` | Pet listings, seller references, pricing, stock, and health details |
+| `Order` | Order records, tracking information, and payment workflow status |
+| `VetProfile` | Veterinarian profiles, specialties, and consultation fees |
+| `VetAppointment` | Veterinary consultation requests |
+| `GroomingService` | Available grooming and care services |
+| `GroomingBooking` | Grooming booking records |
+| `SupportTicket` | Customer support requests |
+
+### Data and Media Storage
+
+- **MongoDB Atlas:** Stores application records and structured data.
+- **Cloudinary:** Stores uploaded images and provides media delivery.
+- **Local JSON fallback:** The repository includes `server/data/db.json` for the application's configured local fallback mechanism, where supported.
+
+The JSON fallback should not be treated as a replacement for durable production database storage without reviewing its implementation and deployment persistence characteristics.
+
+---
+
+## 🔐 Security
+
+Security-sensitive operations are handled primarily by the backend rather than relying on frontend restrictions alone.
+
+- **Password Hashing:** bcryptjs is used to hash passwords.
+- **JWT Authentication:** Signed tokens are used to authenticate protected requests.
+- **Role-Based Authorization:** Buyer, seller, and veterinarian operations are restricted according to application roles.
+- **Ownership Checks:** Listing modification endpoints validate the authenticated user's relationship to the resource.
+- **Input Validation:** Controllers restrict accepted listing fields to reduce unauthorized field updates.
+- **Rate Limiting:** Authentication endpoints use request throttling to help mitigate repeated login attempts.
+- **Security Headers:** Helmet configures HTTP security headers.
+- **Environment Variables:** Secrets and connection strings are configured outside source code.
+- **Error Handling:** Shared middleware helps keep API error responses consistent.
+
+These measures are part of the application's security design; they do not by themselves guarantee that every production security risk has been eliminated.
+
+---
+
+## ⚠️ Current Limitations
+
+PetPaws is a portfolio project with several workflows implemented for demonstration purposes.
+
+- **Simulated Payments:** Checkout options demonstrate the payment flow; they do not replace a production payment gateway with verified transactions and payment webhooks.
+- **Simulated Shipment Progress:** Tracking stages represent the application's order workflow rather than live carrier GPS data.
+- **Wishlist Persistence:** Wishlist data is stored in browser `localStorage`, so it is not automatically synchronized across devices.
+- **Production Readiness:** Real payment processing, automated refund reconciliation, comprehensive automated tests, and operational monitoring require further work.
+
+Users should not enter real payment credentials into the simulated checkout.
+
+---
+
+## 🛣️ Future Enhancements
+
+- [ ] Integrate a payment provider with secure server-side verification and webhooks.
+- [ ] Add automated tests for authentication, authorization, and order workflows.
+- [ ] Introduce real-time messaging between buyers, sellers, and veterinarians.
+- [ ] Implement email, SMS, or push notifications.
+- [ ] Synchronize wishlist data with authenticated user accounts.
+- [ ] Add production monitoring, structured logging, and error reporting.
+- [ ] Improve accessibility and expand cross-browser testing.
+- [ ] Integrate verified veterinary credentials and more robust health-document workflows.
+
+---
+
+## 👨‍💻 Author
+
+**Abhishek Jha**
+
+Full-Stack Web Development Project — PetPaws
+
+- **Live Application:** [petpaws-frontend.onrender.com](https://petpaws-frontend.onrender.com)
+- **GitHub:** [github.com/jhasabhishek17/PetPaws](https://github.com/jhasabhishek17/PetPaws)
+
+---
+
+## 📄 License
+
+This project is distributed under the MIT License if the repository's `LICENSE` file specifies that license. See the [`LICENSE`](LICENSE) file for the applicable terms.
