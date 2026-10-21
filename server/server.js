@@ -30,6 +30,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const vetRoutes = require('./routes/vetRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const supportRoutes = require('./routes/supportRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -93,6 +94,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/vets', vetRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // ==========================================
 // 3. 404 & GLOBAL ERROR HANDLING
