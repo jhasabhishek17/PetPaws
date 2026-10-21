@@ -127,7 +127,8 @@ export default function App() {
 
   const fetchPets = async () => {
     try {
-      const res = await fetch('/api/pets');
+      const apiUrl = (import.meta.env.VITE_API_URL || 'https://' + 'petpaws-backend.onrender.com').replace(/\/$/, '');
+      const res = await fetch(apiUrl + '/api/pets');
       const data = await res.json();
       if (data.success) {
         setPets(data.pets);
