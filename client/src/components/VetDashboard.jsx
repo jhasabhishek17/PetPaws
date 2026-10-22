@@ -12,9 +12,11 @@ import {
   Video,
   HeartPulse,
   ShieldCheck,
-  Save
+  Save,
+  Upload,
+  Loader2
 } from 'lucide-react';
-import { apiGet, apiPut } from '../utils/auth';
+import { apiGet, apiPut, apiUploadMedia } from '../utils/auth';
 
 /**
  * VetDashboard Component
@@ -38,6 +40,10 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
   const [consultationFee, setConsultationFee] = useState('');
   const [bio, setBio] = useState('');
   const [slotsText, setSlotsText] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imagePublicId, setImagePublicId] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState(0);
 
   useEffect(() => {
     if (currentUser?.role === 'vet') {
@@ -64,6 +70,8 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
         setConsultationFee(String(v.consultation_fee || 50));
         setBio(v.bio || '');
         setSlotsText((v.available_slots || []).join(', '));
+        setImageUrl(v.image_url || '');
+        setImagePublicId(v.image_public_id || '');
       }
       if (aptRes.success) {
         setAppointments(aptRes.appointments || []);
@@ -89,6 +97,32 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
     }
   };
 
+  const handleVetPhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      onAddToast?.('Please select an image file (JPG, PNG, WebP).', 'error');
+      return;
+    }
+    setUploadingPhoto(true);
+    setPhotoProgress(1);
+    try {
+      const res = await apiUploadMedia(file, {
+        context: 'profile',
+        oldPublicId: imagePublicId,
+        oldResourceType: 'image',
+        onProgress: (p) => setPhotoProgress(p)
+      });
+      setImageUrl(res.url);
+      setImagePublicId(res.public_id);
+      onAddToast?.('Profile photo uploaded! Click Save to update your profile.', 'success');
+    } catch (err) {
+      onAddToast?.(err.message || 'Failed to upload profile photo', 'error');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
@@ -105,6 +139,8 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
         clinic_address: clinicAddress,
         consultation_fee: Number(consultationFee),
         bio,
+        image_url: imageUrl,
+        image_public_id: imagePublicId,
         available_slots: parsedSlots
       });
 
@@ -406,6 +442,31 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
                 onChange={(e) => setBio(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs"
               />
+            </div>
+
+            <div className="p-3.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                {imageUrl && (
+                  <img src={imageUrl} alt={name} className="w-12 h-12 rounded-xl object-cover border border-[#E6DCCF]" />
+                )}
+                <div>
+                  <span className="block text-xs font-bold text-[#231F20]">Veterinarian Profile Photo</span>
+                  <span className="text-[11px] text-[#65605B]">
+                    {uploadingPhoto ? `Uploading to Cloudinary (${photoProgress}%)...` : 'Upload a clinical portrait from your device'}
+                  </span>
+                </div>
+              </div>
+              <label className="cursor-pointer inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white hover:bg-[#EAEFE9] text-[#52796F] border border-[#D1E7DD] rounded-xl text-xs font-extrabold self-start sm:self-auto">
+                {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                <span>{uploadingPhoto ? `${photoProgress}%` : 'Upload Photo'}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleVetPhotoChange}
+                  disabled={uploadingPhoto}
+                  className="hidden"
+                />
+              </label>
             </div>
 
             <button
