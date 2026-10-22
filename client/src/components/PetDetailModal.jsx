@@ -1,11 +1,54 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   X,
   ShieldCheck,
   ShoppingBag,
   Heart,
-  Stethoscope
+  Stethoscope,
+  Film,
+  Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+
+/**
+ * Build a deduplicated array of { url, resource_type } from a pet record
+ */
+const buildPetGallery = (pet) => {
+  if (!pet) return [];
+  const items = [];
+  const seen = new Set();
+
+  if (Array.isArray(pet.media)) {
+    for (const m of pet.media) {
+      if (m && m.url && !seen.has(m.url)) {
+        seen.add(m.url);
+        items.push({
+          url: m.url,
+          resource_type: m.resource_type === 'video' ? 'video' : 'image'
+        });
+      }
+    }
+  }
+
+  if (pet.image_url && !seen.has(pet.image_url)) {
+    seen.add(pet.image_url);
+    items.unshift({
+      url: pet.image_url,
+      resource_type: 'image'
+    });
+  }
+
+  if (pet.video_url && !seen.has(pet.video_url)) {
+    seen.add(pet.video_url);
+    items.push({
+      url: pet.video_url,
+      resource_type: 'video'
+    });
+  }
+
+  return items;
+};
 
 /**
  * PetDetailModal Component (Eye-Comfort Aesthetic)
@@ -18,6 +61,19 @@ export default function PetDetailModal({
   onClose,
   onBuyNow
 }) {
+  const galleryItems = useMemo(() => buildPetGallery(pet), [pet]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    if (!pet) return;
+    if (pet.media_type === 'video' && pet.video_url) {
+      const vidIdx = galleryItems.findIndex((g) => g.resource_type === 'video');
+      setActiveIndex(vidIdx >= 0 ? vidIdx : 0);
+    } else {
+      setActiveIndex(0);
+    }
+  }, [pet, galleryItems]);
+
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -27,6 +83,11 @@ export default function PetDetailModal({
   }, [onClose]);
 
   if (!pet) return null;
+
+  const currentItem = galleryItems[activeIndex] || {
+    url: pet.image_url,
+    resource_type: 'image'
+  };
 
   const isBuyer = currentUser?.role === 'buyer';
   const isWishlisted = wishlistIds.includes(pet.id);
@@ -45,16 +106,65 @@ export default function PetDetailModal({
         onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-3xl shadow-aesthetic max-w-2xl w-full overflow-hidden border border-[#EFE9DF] max-h-[90vh] flex flex-col"
       >
-        {/* Modal Header with Close Button */}
+        {/* Modal Header with Close Button & Media Viewer */}
         <div className="relative h-64 sm:h-72 bg-[#FAF6F0] flex-shrink-0">
-          <img
-            src={pet.image_url}
-            alt={pet.title}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#231F20]/80 via-transparent to-black/20" />
+          {currentItem.resource_type === 'video' ? (
+            <video
+              key={currentItem.url}
+              src={currentItem.url}
+              poster={pet.image_url}
+              controls
+              playsInline
+              className="w-full h-full object-cover bg-black"
+            />
+          ) : (
+            <>
+              <img
+                src={currentItem.url}
+                alt={`${pet.title} (${activeIndex + 1})`}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#231F20]/80 via-transparent to-black/20 pointer-events-none" />
+            </>
+          )}
 
-          <div className="absolute top-4 right-4 flex items-center space-x-2">
+          {/* Previous / Next Arrows when multiple media items exist */}
+          {galleryItems.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous media"
+                onClick={() =>
+                  setActiveIndex((prev) => (prev - 1 + galleryItems.length) % galleryItems.length)
+                }
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/45 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next media"
+                onClick={() =>
+                  setActiveIndex((prev) => (prev + 1) % galleryItems.length)
+                }
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/45 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <div className="absolute top-4 left-4 z-10 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur text-white text-[11px] font-extrabold flex items-center gap-1">
+                {currentItem.resource_type === 'video' ? (
+                  <Film className="w-3.5 h-3.5 text-[#F4A261]" />
+                ) : (
+                  <ImageIcon className="w-3.5 h-3.5 text-[#F4A261]" />
+                )}
+                <span>
+                  {activeIndex + 1} / {galleryItems.length}
+                </span>
+              </div>
+            </>
+          )}
+
+          <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
             {isBuyer && (
               <button
                 type="button"
@@ -75,18 +185,51 @@ export default function PetDetailModal({
             </button>
           </div>
 
-          <div className="absolute bottom-4 left-6 right-6 text-white">
-            <div className="flex items-center space-x-2 mb-1">
-              <span className="px-2.5 py-0.5 bg-[#E07A5F] text-white text-xs font-bold rounded-full shadow">
-                {pet.category}
-              </span>
-              <span className="px-2.5 py-0.5 bg-[#52796F] text-white text-xs font-bold rounded-full flex items-center shadow">
-                <ShieldCheck className="w-3 h-3 mr-1" /> Health Verified
-              </span>
+          {currentItem.resource_type !== 'video' && (
+            <div className="absolute bottom-4 left-6 right-6 text-white pointer-events-none">
+              <div className="flex items-center space-x-2 mb-1">
+                <span className="px-2.5 py-0.5 bg-[#E07A5F] text-white text-xs font-bold rounded-full shadow">
+                  {pet.category}
+                </span>
+                <span className="px-2.5 py-0.5 bg-[#52796F] text-white text-xs font-bold rounded-full flex items-center shadow">
+                  <ShieldCheck className="w-3 h-3 mr-1" /> Health Verified
+                </span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black font-display text-white">{pet.title}</h2>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black font-display text-white">{pet.title}</h2>
-          </div>
+          )}
         </div>
+
+        {/* Thumbnail Strip when multiple photos/videos exist */}
+        {galleryItems.length > 1 && (
+          <div className="px-6 py-2.5 bg-[#FAF6F0] border-b border-[#EFE9DF] flex items-center gap-2 overflow-x-auto flex-shrink-0">
+            {galleryItems.map((item, idx) => (
+              <button
+                key={item.url}
+                type="button"
+                onClick={() => setActiveIndex(idx)}
+                className={`relative w-14 h-12 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all ${
+                  activeIndex === idx
+                    ? 'border-[#E07A5F] ring-2 ring-[#E07A5F]/30 scale-105'
+                    : 'border-[#E6DCCF] opacity-75 hover:opacity-100'
+                }`}
+              >
+                {item.resource_type === 'video' ? (
+                  <div className="w-full h-full bg-[#231F20] text-white flex flex-col items-center justify-center text-[9px] font-bold">
+                    <Film className="w-3.5 h-3.5 text-[#F4A261]" />
+                    <span>Video</span>
+                  </div>
+                ) : (
+                  <img
+                    src={item.url}
+                    alt={`${pet.title} thumbnail ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Modal Scrollable Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
