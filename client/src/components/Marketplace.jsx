@@ -114,11 +114,27 @@ function PetCardItem({
     >
       {/* 4:3 Aspect Ratio Photo */}
       <div className="relative aspect-[4/3] overflow-hidden bg-[#FAF6F0]">
-        <img
-          src={pet.image_url}
-          alt={pet.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-        />
+        {pet.video_url && pet.media_type === 'video' ? (
+          <video
+            src={pet.video_url}
+            poster={pet.image_url}
+            muted
+            loop
+            playsInline
+            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+            onMouseLeave={(e) => {
+              e.currentTarget.pause();
+              e.currentTarget.currentTime = 0;
+            }}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+          />
+        ) : (
+          <img
+            src={pet.image_url}
+            alt={pet.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+          />
+        )}
 
         {isSoldOut && (
           <div className="absolute inset-0 bg-[#231F20]/45 flex items-center justify-center">
@@ -127,8 +143,20 @@ function PetCardItem({
             </span>
           </div>
         )}
-        <div className="absolute top-3 left-3 bg-[#231F20]/85 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1 rounded-full shadow">
-          {pet.category}
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+          <span className="bg-[#231F20]/85 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1 rounded-full shadow">
+            {pet.category}
+          </span>
+          {pet.video_url && (
+            <span className="bg-[#E07A5F]/90 backdrop-blur-md text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow">
+              🎬 Video
+            </span>
+          )}
+          {Array.isArray(pet.media) && pet.media.filter((m) => m.resource_type === 'image').length > 1 && (
+            <span className="bg-white/90 backdrop-blur-md text-[#231F20] text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow">
+              📷 {pet.media.filter((m) => m.resource_type === 'image').length}
+            </span>
+          )}
         </div>
 
         {isBuyer && (
