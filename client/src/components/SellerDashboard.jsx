@@ -12,16 +12,112 @@ import {
   TrendingUp,
   X,
   Lock,
-  Save
+  Save,
+  Upload,
+  Image as ImageIcon,
+  Film,
+  Loader2,
+  Star
 } from 'lucide-react';
-import { apiGet, apiPost, apiPut, apiDelete } from '../utils/auth';
+import {
+  apiGet,
+  apiPost,
+  apiPut,
+  apiDelete,
+  apiUploadMedia,
+  apiDeleteMedia
+} from '../utils/auth';
+
+const DEFAULT_FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80';
+const MAX_MEDIA_ITEMS = 6;
+
+/**
+ * Helper to normalize a pet's existing media into an array of { url, public_id, resource_type }
+ */
+const normalizeExistingPetMedia = (pet) => {
+  if (!pet) return [];
+  const items = [];
+  const seen = new Set();
+
+  if (Array.isArray(pet.media)) {
+    for (const m of pet.media) {
+      if (m && m.url && !seen.has(m.url)) {
+        seen.add(m.url);
+        items.push({
+          url: m.url,
+          public_id: m.public_id || '',
+          resource_type: m.resource_type === 'video' ? 'video' : 'image'
+        });
+      }
+    }
+  }
+
+  if (pet.image_url && !seen.has(pet.image_url)) {
+    seen.add(pet.image_url);
+    items.unshift({
+      url: pet.image_url,
+      public_id: pet.image_public_id || '',
+      resource_type: 'image'
+    });
+  }
+
+  if (pet.video_url && !seen.has(pet.video_url)) {
+    seen.add(pet.video_url);
+    items.push({
+      url: pet.video_url,
+      public_id: pet.video_public_id || '',
+      resource_type: 'video'
+    });
+  }
+
+  return items;
+};
+
+/**
+ * Derive top-level Pet fields (image_url, image_public_id, video_url, video_public_id, media_type, media)
+ * from the uploadedMedia array + optional fallback imageUrl.
+ */
+const buildMediaPayload = (mediaList, fallbackImageUrl = '') => {
+  const cleanList = (mediaList || []).filter((m) => m && m.url);
+  const firstImage = cleanList.find((m) => m.resource_type === 'image');
+  const firstVideo = cleanList.find((m) => m.resource_type === 'video');
+
+  const trimmedFallback = (fallbackImageUrl || '').trim();
+  const image_url = firstImage
+    ? firstImage.url
+    : trimmedFallback || DEFAULT_FALLBACK_IMAGE;
+  const image_public_id = firstImage ? firstImage.public_id || '' : '';
+  const video_url = firstVideo ? firstVideo.url : '';
+  const video_public_id = firstVideo ? firstVideo.public_id || '' : '';
+  const media_type =
+    firstVideo && !firstImage && !trimmedFallback ? 'video' : 'image';
+
+  const finalMedia = [...cleanList];
+  if (!firstImage && image_url && !finalMedia.some((m) => m.url === image_url)) {
+    finalMedia.unshift({
+      url: image_url,
+      public_id: image_public_id,
+      resource_type: 'image'
+    });
+  }
+
+  return {
+    image_url,
+    image_public_id,
+    video_url,
+    video_public_id,
+    media_type,
+    media: finalMedia
+  };
+};
 
 /**
  * SellerDashboard Component
  * Strictly accessible only to authenticated Seller accounts (currentUser.role === 'seller').
  * Displays only the authenticated seller's own inventory (/api/pets/seller/inventory),
  * customer orders for their listings (/api/orders?sellerId=<id>), new pet creation,
- * full listing editing, and private payout settings.
+ * full listing editing with multi-image & video Cloudinary uploads, and private payout settings.
  */
 export default function SellerDashboard({
   currentUser,
@@ -47,8 +143,20 @@ export default function SellerDashboard({
   const [imageUrl, setImageUrl] = useState('');
   const [stock, setStock] = useState('1');
 
-  // Edit Pet Modal state
+  // New Pet multi-file queue (selected before upload) & uploaded media items
+  const [queuedFiles, setQueuedFiles] = useState([]); // [{ id, file, previewUrl, resource_type, name, size }]
+  const [uploadedMedia, setUploadedMedia] = useState([]); // [{ url, public_id, resource_type }]
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
+
+  // Edit Pet Modal state + multi-file queue & uploaded media items
   const [editingPet, setEditingPet] = useState(null);
+  const [editQueuedFiles, setEditQueuedFiles] = useState([]);
+  const [editUploadedMedia, setEditUploadedMedia] = useState([]);
+  const [editUploading, setEditUploading] = useState(false);
+  const [editUploadProgress, setEditUploadProgress] = useState(0);
+  const [editUploadError, setEditUploadError] = useState('');
 
   // Payout Settings state
   const [upiId, setUpiId] = useState(currentUser?.upi_id || '');
@@ -62,7 +170,7 @@ export default function SellerDashboard({
     if (currentUser && currentUser.role === 'seller') {
       setUpiId(currentUser.upi_id || '');
       setBankName(currentUser.bank_name || '');
-      setBankAccount(currentUser.bank_account || '');
+      setBankAccount(currentUser.bank_name ? currentUser.bank_account || '' : '');
       setIfscCode(currentUser.ifsc_code || '');
       fetchSellerData();
     } else {
@@ -71,6 +179,14 @@ export default function SellerDashboard({
       setLoading(false);
     }
   }, [currentUser]);
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      queuedFiles.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+      editQueuedFiles.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+    };
+  }, []);
 
   const fetchSellerData = async () => {
     if (!currentUser || currentUser.role !== 'seller') return;
@@ -91,6 +207,272 @@ export default function SellerDashboard({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Validate a single File object on client
+  const validateSingleFile = (file) => {
+    if (!file) return 'Invalid file.';
+    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith('image/');
+    if (!isVideo && !isImage) {
+      return `"${file.name}" is not a supported format. Allowed: JPG, PNG, WebP, GIF, AVIF (images) and MP4, WebM, MOV (videos).`;
+    }
+    const maxBytes = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return `"${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Max allowed is ${isVideo ? '50 MB for videos' : '10 MB for images'}.`;
+    }
+    return '';
+  };
+
+  // Select 1 or multiple files in "Post New Pet"
+  const handleSelectNewFiles = (e) => {
+    const fileList = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (fileList.length === 0) return;
+
+    setUploadError('');
+    const currentTotal = queuedFiles.length + uploadedMedia.length;
+    if (currentTotal + fileList.length > MAX_MEDIA_ITEMS) {
+      const msg = `You can attach up to ${MAX_MEDIA_ITEMS} photos/videos per listing.`;
+      setUploadError(msg);
+      onAddToast?.(msg, 'error');
+      return;
+    }
+
+    const validEntries = [];
+    for (const file of fileList) {
+      const err = validateSingleFile(file);
+      if (err) {
+        setUploadError(err);
+        onAddToast?.(err, 'error');
+        return;
+      }
+      validEntries.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        resource_type: file.type.startsWith('video/') ? 'video' : 'image',
+        name: file.name,
+        size: file.size
+      });
+    }
+
+    setQueuedFiles((prev) => [...prev, ...validEntries]);
+  };
+
+  // Remove a single file from the pre-upload queue in "Post New Pet"
+  const handleRemoveQueuedFile = (queueId) => {
+    setQueuedFiles((prev) => {
+      const target = prev.find((item) => item.id === queueId);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((item) => item.id !== queueId);
+    });
+  };
+
+  // Upload all queued files in "Post New Pet" to Cloudinary
+  const uploadNewQueuedFiles = async (queueToUpload = queuedFiles) => {
+    if (!queueToUpload || queueToUpload.length === 0) return uploadedMedia;
+    setUploadingMedia(true);
+    setUploadError('');
+    setUploadProgress(1);
+
+    try {
+      const rawFiles = queueToUpload.map((q) => q.file);
+      const res = await apiUploadMedia(rawFiles, {
+        context: 'pets',
+        onProgress: (pct) => setUploadProgress(pct)
+      });
+
+      const returnedFiles = Array.isArray(res.files) && res.files.length > 0
+        ? res.files
+        : [{ url: res.url, public_id: res.public_id, resource_type: res.resource_type || 'image' }];
+
+      const newMediaItems = returnedFiles.map((f) => ({
+        url: f.url,
+        public_id: f.public_id || '',
+        resource_type: f.resource_type === 'video' ? 'video' : 'image'
+      }));
+
+      const combined = [...uploadedMedia, ...newMediaItems];
+      setUploadedMedia(combined);
+
+      // Sync primary image URL field if an image was uploaded
+      const firstImg = combined.find((m) => m.resource_type === 'image');
+      if (firstImg) setImageUrl(firstImg.url);
+
+      // Clear local preview queue
+      queueToUpload.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+      setQueuedFiles([]);
+      onAddToast?.(
+        `Uploaded ${newMediaItems.length} ${newMediaItems.length === 1 ? 'file' : 'files'} to Cloudinary!`,
+        'success'
+      );
+      return combined;
+    } catch (err) {
+      const msg = err.message || 'Media upload failed.';
+      setUploadError(msg);
+      onAddToast?.(msg, 'error');
+      throw err;
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  // Remove an already-uploaded media item from "Post New Pet"
+  const handleRemoveUploadedItem = async (itemToRemove) => {
+    setUploadError('');
+    try {
+      if (itemToRemove.public_id) {
+        await apiDeleteMedia({
+          public_id: itemToRemove.public_id,
+          resource_type: itemToRemove.resource_type || 'image'
+        });
+      }
+      setUploadedMedia((prev) => {
+        const next = prev.filter((m) => m.url !== itemToRemove.url);
+        const nextFirstImg = next.find((m) => m.resource_type === 'image');
+        setImageUrl(nextFirstImg ? nextFirstImg.url : '');
+        return next;
+      });
+      onAddToast?.('Media removed.', 'info');
+    } catch (err) {
+      onAddToast?.(err.message || 'Could not remove uploaded media.', 'error');
+    }
+  };
+
+  // Set an uploaded image as the primary cover photo in "Post New Pet"
+  const handleSetPrimaryNewMedia = (targetUrl) => {
+    setUploadedMedia((prev) => {
+      const chosen = prev.find((m) => m.url === targetUrl);
+      if (!chosen) return prev;
+      const rest = prev.filter((m) => m.url !== targetUrl);
+      return [chosen, ...rest];
+    });
+    setImageUrl(targetUrl);
+  };
+
+  // Open Edit Modal and initialize editUploadedMedia
+  const handleOpenEditModal = (pet) => {
+    editQueuedFiles.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+    setEditQueuedFiles([]);
+    setEditUploadError('');
+    setEditUploadProgress(0);
+    setEditUploadedMedia(normalizeExistingPetMedia(pet));
+    setEditingPet({ ...pet });
+  };
+
+  // Select 1 or multiple files in "Edit Listing" modal
+  const handleSelectEditFiles = (e) => {
+    const fileList = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (fileList.length === 0) return;
+
+    setEditUploadError('');
+    const currentTotal = editQueuedFiles.length + editUploadedMedia.length;
+    if (currentTotal + fileList.length > MAX_MEDIA_ITEMS) {
+      const msg = `Maximum ${MAX_MEDIA_ITEMS} photos/videos allowed per listing.`;
+      setEditUploadError(msg);
+      onAddToast?.(msg, 'error');
+      return;
+    }
+
+    const validEntries = [];
+    for (const file of fileList) {
+      const err = validateSingleFile(file);
+      if (err) {
+        setEditUploadError(err);
+        onAddToast?.(err, 'error');
+        return;
+      }
+      validEntries.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        resource_type: file.type.startsWith('video/') ? 'video' : 'image',
+        name: file.name,
+        size: file.size
+      });
+    }
+
+    setEditQueuedFiles((prev) => [...prev, ...validEntries]);
+  };
+
+  // Remove a queued file before upload in "Edit Listing" modal
+  const handleRemoveEditQueuedFile = (queueId) => {
+    setEditQueuedFiles((prev) => {
+      const target = prev.find((item) => item.id === queueId);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((item) => item.id !== queueId);
+    });
+  };
+
+  // Upload queued files in "Edit Listing" modal
+  const uploadEditQueuedFiles = async (queueToUpload = editQueuedFiles) => {
+    if (!queueToUpload || queueToUpload.length === 0) return editUploadedMedia;
+    setEditUploading(true);
+    setEditUploadError('');
+    setEditUploadProgress(1);
+
+    try {
+      const rawFiles = queueToUpload.map((q) => q.file);
+      const res = await apiUploadMedia(rawFiles, {
+        context: 'pets',
+        onProgress: (pct) => setEditUploadProgress(pct)
+      });
+
+      const returnedFiles = Array.isArray(res.files) && res.files.length > 0
+        ? res.files
+        : [{ url: res.url, public_id: res.public_id, resource_type: res.resource_type || 'image' }];
+
+      const newItems = returnedFiles.map((f) => ({
+        url: f.url,
+        public_id: f.public_id || '',
+        resource_type: f.resource_type === 'video' ? 'video' : 'image'
+      }));
+
+      const combined = [...editUploadedMedia, ...newItems];
+      setEditUploadedMedia(combined);
+
+      const firstImg = combined.find((m) => m.resource_type === 'image');
+      if (firstImg) {
+        setEditingPet((prev) => (prev ? { ...prev, image_url: firstImg.url } : prev));
+      }
+
+      queueToUpload.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+      setEditQueuedFiles([]);
+      onAddToast?.('Media uploaded! Click Save Changes to update the listing.', 'success');
+      return combined;
+    } catch (err) {
+      const msg = err.message || 'Media upload failed.';
+      setEditUploadError(msg);
+      onAddToast?.(msg, 'error');
+      throw err;
+    } finally {
+      setEditUploading(false);
+    }
+  };
+
+  // Remove an existing media item inside "Edit Listing" modal
+  const handleRemoveEditUploadedItem = (itemToRemove) => {
+    setEditUploadedMedia((prev) => {
+      const next = prev.filter((m) => m.url !== itemToRemove.url);
+      const nextImg = next.find((m) => m.resource_type === 'image');
+      setEditingPet((curr) =>
+        curr ? { ...curr, image_url: nextImg ? nextImg.url : DEFAULT_FALLBACK_IMAGE } : curr
+      );
+      return next;
+    });
+  };
+
+  // Set primary cover image in "Edit Listing" modal
+  const handleSetPrimaryEditMedia = (targetUrl) => {
+    setEditUploadedMedia((prev) => {
+      const chosen = prev.find((m) => m.url === targetUrl);
+      if (!chosen) return prev;
+      const rest = prev.filter((m) => m.url !== targetUrl);
+      return [chosen, ...rest];
+    });
+    setEditingPet((prev) => (prev ? { ...prev, image_url: targetUrl } : prev));
   };
 
   // Block non-sellers from viewing or fetching any seller portal data
@@ -127,6 +509,18 @@ export default function SellerDashboard({
   const handleUploadPet = async (e) => {
     e.preventDefault();
     setMessage('');
+
+    let finalMediaList = uploadedMedia;
+    if (queuedFiles.length > 0) {
+      try {
+        finalMediaList = await uploadNewQueuedFiles(queuedFiles);
+      } catch {
+        return; // Halt submission if media upload fails so incomplete listings are never created
+      }
+    }
+
+    const mediaPayload = buildMediaPayload(finalMediaList, imageUrl);
+
     try {
       const data = await apiPost('/api/pets', {
         title,
@@ -137,9 +531,7 @@ export default function SellerDashboard({
         gender,
         health_status: healthStatus,
         description,
-        image_url:
-          imageUrl ||
-          'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80',
+        ...mediaPayload,
         stock: Number(stock)
       });
       if (data.success) {
@@ -151,6 +543,8 @@ export default function SellerDashboard({
         setBreed('');
         setDescription('');
         setImageUrl('');
+        setUploadedMedia([]);
+        setQueuedFiles([]);
         setStock('1');
         await fetchSellerData();
         onPetsChanged?.();
@@ -185,22 +579,38 @@ export default function SellerDashboard({
   const handleSaveEditPet = async (e) => {
     e.preventDefault();
     if (!editingPet) return;
+
+    let finalMediaList = editUploadedMedia;
+    if (editQueuedFiles.length > 0) {
+      try {
+        finalMediaList = await uploadEditQueuedFiles(editQueuedFiles);
+      } catch {
+        return; // Halt save if media upload fails
+      }
+    }
+
+    const mediaPayload = buildMediaPayload(finalMediaList, editingPet.image_url);
+
+    const payload = {
+      title: editingPet.title,
+      category: editingPet.category,
+      price: Number(editingPet.price),
+      age: editingPet.age,
+      breed: editingPet.breed,
+      gender: editingPet.gender,
+      health_status: editingPet.health_status,
+      description: editingPet.description,
+      ...mediaPayload,
+      stock: Math.max(0, Number(editingPet.stock))
+    };
+
     try {
-      const data = await apiPut(`/api/pets/${editingPet.id}`, {
-        title: editingPet.title,
-        category: editingPet.category,
-        price: Number(editingPet.price),
-        age: editingPet.age,
-        breed: editingPet.breed,
-        gender: editingPet.gender,
-        health_status: editingPet.health_status,
-        description: editingPet.description,
-        image_url: editingPet.image_url,
-        stock: Math.max(0, Number(editingPet.stock))
-      });
+      const data = await apiPut(`/api/pets/${editingPet.id}`, payload);
       if (data.success) {
         onAddToast?.(`Updated listing "${editingPet.title}"!`, 'success');
         setEditingPet(null);
+        setEditQueuedFiles([]);
+        setEditUploadedMedia([]);
         await fetchSellerData();
         onPetsChanged?.();
       } else {
@@ -436,10 +846,34 @@ export default function SellerDashboard({
                 <tbody className="divide-y divide-[#EFE9DF] font-medium">
                   {pets.map((pet) => {
                     const isAvailable = Number(pet.stock) > 0 && pet.status !== 'sold';
+                    const mediaCount = Array.isArray(pet.media) ? pet.media.length : 1;
                     return (
                       <tr key={pet.id} className="hover:bg-[#FAF6F0]/60 transition-colors">
                         <td className="px-6 py-4 flex items-center space-x-3">
-                          <img src={pet.image_url} alt={pet.title} className="w-12 h-12 rounded-xl object-cover border border-[#E6DCCF]" />
+                          <div className="relative w-12 h-12 flex-shrink-0">
+                            {pet.video_url && pet.media_type === 'video' ? (
+                              <video
+                                src={pet.video_url}
+                                poster={pet.image_url}
+                                muted
+                                className="w-12 h-12 rounded-xl object-cover border border-[#E6DCCF]"
+                              />
+                            ) : (
+                              <img
+                                src={pet.image_url}
+                                alt={pet.title}
+                                className="w-12 h-12 rounded-xl object-cover border border-[#E6DCCF]"
+                              />
+                            )}
+                            {(pet.video_url || mediaCount > 1) && (
+                              <span
+                                title={`${mediaCount} media item(s)`}
+                                className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-[#231F20] text-white text-[9px] font-bold flex items-center justify-center"
+                              >
+                                {pet.video_url ? <Film className="w-2.5 h-2.5" /> : mediaCount}
+                              </span>
+                            )}
+                          </div>
                           <div>
                             <p className="font-extrabold text-[#231F20]">{pet.title}</p>
                             <p className="text-[11px] text-[#65605B]">
@@ -475,9 +909,9 @@ export default function SellerDashboard({
                         </td>
                         <td className="px-6 py-4 text-right space-x-1.5">
                           <button
-                            onClick={() => setEditingPet({ ...pet })}
+                            onClick={() => handleOpenEditModal(pet)}
                             className="p-2 text-[#4A4344] hover:text-[#E07A5F] rounded-lg hover:bg-[#FFF5F0] transition-colors inline-flex items-center"
-                            title="Edit Listing"
+                            title="Edit Listing & Media"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -673,15 +1107,220 @@ export default function SellerDashboard({
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-[#4A4344] mb-1">Image URL</label>
-              <input
-                type="url"
-                placeholder="https://images.unsplash.com/photo-..."
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs"
-              />
+            {/* Multi-Image & Video Upload Section */}
+            <div className="p-4 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-extrabold text-[#231F20]">
+                    Pet Photos & Videos ({uploadedMedia.length + queuedFiles.length}/{MAX_MEDIA_ITEMS})
+                  </label>
+                  <p className="text-[11px] text-[#65605B]">
+                    Select multiple images (JPG, PNG, WebP, GIF up to 10MB) and videos (MP4, WebM, MOV up to 50MB).
+                  </p>
+                </div>
+                <label className="cursor-pointer inline-flex items-center space-x-1.5 px-4 py-2 bg-[#E07A5F] hover:bg-[#D0654A] text-white rounded-xl text-xs font-extrabold shadow-sm transition-colors self-start sm:self-auto">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Photos/Videos</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm,video/quicktime"
+                    onChange={handleSelectNewFiles}
+                    disabled={uploadingMedia}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {uploadError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl">
+                  {uploadError}
+                </div>
+              )}
+
+              {/* Pre-upload Selected Files Queue */}
+              {queuedFiles.length > 0 && (
+                <div className="p-3 bg-white border border-[#E6DCCF] rounded-xl space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] font-extrabold text-[#4A4344]">
+                      Selected from device ({queuedFiles.length} {queuedFiles.length === 1 ? 'file' : 'files'} ready to upload)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={uploadingMedia}
+                        onClick={() => uploadNewQueuedFiles(queuedFiles)}
+                        className="px-3 py-1.5 bg-[#52796F] hover:bg-[#3A5A40] disabled:opacity-50 text-white rounded-lg text-[11px] font-extrabold flex items-center gap-1"
+                      >
+                        {uploadingMedia ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Uploading {uploadProgress}%</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3 h-3" />
+                            <span>Upload Selected Now</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={uploadingMedia}
+                        onClick={() => {
+                          queuedFiles.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+                          setQueuedFiles([]);
+                        }}
+                        className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[11px] font-bold"
+                      >
+                        Clear Queue
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {queuedFiles.map((item) => (
+                      <div
+                        key={item.id}
+                        className="relative bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl overflow-hidden p-2 flex flex-col justify-between"
+                      >
+                        <div className="relative h-28 bg-black/5 rounded-lg overflow-hidden">
+                          {item.resource_type === 'video' ? (
+                            <video
+                              src={item.previewUrl}
+                              controls
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <img
+                              src={item.previewUrl}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                          <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-[#231F20]/80 text-white text-[9px] font-bold flex items-center gap-1">
+                            {item.resource_type === 'video' ? (
+                              <>
+                                <Film className="w-2.5 h-2.5" /> Video
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="w-2.5 h-2.5" /> Photo
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex items-center justify-between gap-1">
+                          <span className="text-[10px] font-semibold text-[#4A4344] truncate" title={item.name}>
+                            {item.name} ({(item.size / (1024 * 1024)).toFixed(1)}MB)
+                          </span>
+                          <button
+                            type="button"
+                            disabled={uploadingMedia}
+                            onClick={() => handleRemoveQueuedFile(item.id)}
+                            className="text-[10px] font-bold text-red-600 hover:underline flex-shrink-0"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {uploadingMedia && (
+                    <div className="w-full bg-[#EFE9DF] h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-[#52796F] h-full transition-all duration-200"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Uploaded Cloudinary Media Gallery */}
+              {uploadedMedia.length > 0 && (
+                <div className="p-3 bg-[#EAEFE9]/60 border border-[#D1E7DD] rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold text-[#2A5C4A] flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#52796F]" />
+                      <span>Uploaded to Cloudinary ({uploadedMedia.length})</span>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {uploadedMedia.map((item, idx) => {
+                      const isPrimaryImage =
+                        item.resource_type === 'image' &&
+                        (imageUrl === item.url || (!imageUrl && idx === 0));
+                      return (
+                        <div
+                          key={item.url}
+                          className="bg-white p-2 rounded-xl border border-[#E6DCCF] flex flex-col justify-between"
+                        >
+                          <div className="relative h-28 rounded-lg overflow-hidden bg-black/5">
+                            {item.resource_type === 'video' ? (
+                              <video
+                                src={item.url}
+                                controls
+                                playsInline
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <img
+                                src={item.url}
+                                alt={`Uploaded media ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                            {isPrimaryImage && (
+                              <span className="absolute top-1.5 left-1.5 px-2 py-0.5 bg-[#E07A5F] text-white text-[9px] font-extrabold rounded-full">
+                                Cover Photo
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between gap-1">
+                            {item.resource_type === 'image' && !isPrimaryImage ? (
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimaryNewMedia(item.url)}
+                                className="text-[10px] font-bold text-[#52796F] hover:underline flex items-center gap-0.5"
+                              >
+                                <Star className="w-2.5 h-2.5" /> Set Cover
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold text-[#65605B]">
+                                {item.resource_type === 'video' ? 'Video Clip' : 'Primary Cover'}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUploadedItem(item)}
+                              className="text-[10px] font-bold text-red-600 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Optional Fallback Image URL Input */}
+              <div className="pt-1">
+                <label className="block text-[11px] font-bold text-[#65605B] mb-1">
+                  Or Optional Image URL (Placeholder / Fallback if not uploading from device)
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/photo-..."
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                />
+              </div>
             </div>
 
             <div>
@@ -698,9 +1337,12 @@ export default function SellerDashboard({
 
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] text-white font-extrabold text-sm rounded-xl shadow-lg shadow-[#E07A5F]/25 transition-all"
+              disabled={uploadingMedia}
+              className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-50 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-[#E07A5F]/25 transition-all"
             >
-              Publish Listing to Marketplace
+              {uploadingMedia
+                ? `Uploading Media (${uploadProgress}%)...`
+                : 'Publish Listing to Marketplace'}
             </button>
           </form>
         </div>
@@ -879,6 +1521,160 @@ export default function SellerDashboard({
                 </div>
               </div>
 
+              {/* Multi-Photo & Video Media Manager inside Edit Modal */}
+              <div className="p-3.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-[#231F20] block">
+                      Pet Photos & Videos ({editUploadedMedia.length + editQueuedFiles.length}/{MAX_MEDIA_ITEMS})
+                    </span>
+                    <span className="text-[10px] text-[#65605B]">
+                      Add or replace photos and videos for this listing
+                    </span>
+                  </div>
+                  <label className="cursor-pointer inline-flex items-center space-x-1 px-3 py-1.5 bg-[#E07A5F] hover:bg-[#D0654A] text-white rounded-xl text-[11px] font-extrabold shadow-sm">
+                    <Upload className="w-3 h-3" />
+                    <span>Upload Photos/Videos</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm,video/quicktime"
+                      onChange={handleSelectEditFiles}
+                      disabled={editUploading}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {editUploadError && (
+                  <div className="p-2 bg-red-50 border border-red-200 text-red-700 text-[11px] font-semibold rounded-lg">
+                    {editUploadError}
+                  </div>
+                )}
+
+                {/* Existing / Uploaded Media Items */}
+                {editUploadedMedia.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {editUploadedMedia.map((item, idx) => {
+                      const isCover =
+                        item.resource_type === 'image' &&
+                        (editingPet.image_url === item.url || idx === 0);
+                      return (
+                        <div
+                          key={item.url}
+                          className="p-2 bg-white rounded-xl border border-[#E6DCCF] flex flex-col justify-between"
+                        >
+                          <div className="relative h-20 rounded-lg overflow-hidden bg-black/5">
+                            {item.resource_type === 'video' ? (
+                              <video
+                                src={item.url}
+                                controls
+                                playsInline
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <img
+                                src={item.url}
+                                alt={editingPet.title}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                            {isCover && (
+                              <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-[#E07A5F] text-white text-[8px] font-extrabold rounded-full">
+                                Cover
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center justify-between">
+                            {item.resource_type === 'image' && !isCover ? (
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimaryEditMedia(item.url)}
+                                className="text-[10px] font-bold text-[#52796F] hover:underline"
+                              >
+                                Set Cover
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-[#65605B]">
+                                {item.resource_type === 'video' ? 'Video' : 'Cover'}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEditUploadedItem(item)}
+                              className="text-[10px] font-bold text-red-600 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Queued New Files in Edit Modal */}
+                {editQueuedFiles.length > 0 && (
+                  <div className="p-2.5 bg-white border border-[#E6DCCF] rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#4A4344]">
+                        Selected to upload ({editQueuedFiles.length})
+                      </span>
+                      <button
+                        type="button"
+                        disabled={editUploading}
+                        onClick={() => uploadEditQueuedFiles(editQueuedFiles)}
+                        className="px-2.5 py-1 bg-[#52796F] text-white rounded-lg text-[10px] font-extrabold"
+                      >
+                        {editUploading ? `Uploading ${editUploadProgress}%` : 'Upload Selected Now'}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {editQueuedFiles.map((item) => (
+                        <div key={item.id} className="p-1.5 bg-[#FAF6F0] rounded-lg border border-[#E6DCCF]">
+                          {item.resource_type === 'video' ? (
+                            <video src={item.previewUrl} controls playsInline className="h-16 w-full object-cover rounded" />
+                          ) : (
+                            <img src={item.previewUrl} alt={item.name} className="h-16 w-full object-cover rounded" />
+                          )}
+                          <div className="mt-1 flex items-center justify-between">
+                            <span className="text-[9px] text-[#4A4344] truncate max-w-[75px]">{item.name}</span>
+                            <button
+                              type="button"
+                              disabled={editUploading}
+                              onClick={() => handleRemoveEditQueuedFile(item.id)}
+                              className="text-[9px] font-bold text-red-600"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {editUploading && (
+                      <div className="w-full bg-[#EFE9DF] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-[#52796F] h-full transition-all duration-200"
+                          style={{ width: `${editUploadProgress}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[10px] font-bold text-[#65605B] mb-1">
+                    Cover Image URL (or leave as uploaded Cloudinary URL)
+                  </label>
+                  <input
+                    type="url"
+                    value={editingPet.image_url || ''}
+                    onChange={(e) => setEditingPet({ ...editingPet, image_url: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-[#4A4344] mb-1">Description</label>
                 <textarea
@@ -900,10 +1696,11 @@ export default function SellerDashboard({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#E07A5F] hover:bg-[#D0654A] text-white rounded-xl text-xs font-extrabold flex items-center space-x-1.5"
+                  disabled={editUploading}
+                  className="px-5 py-2 bg-[#E07A5F] hover:bg-[#D0654A] disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center space-x-1.5"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  <span>Save Changes</span>
+                  <span>{editUploading ? `Uploading (${editUploadProgress}%)...` : 'Save Changes'}</span>
                 </button>
               </div>
             </form>
