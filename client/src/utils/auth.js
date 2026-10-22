@@ -60,23 +60,39 @@ export const apiDelete = (url, body) =>
   }).then(parseJsonSafe);
 
 /**
- * Upload an image or video file to /api/upload with real-time progress reporting.
- * @param {File} file - Browser File object from <input type="file">
+ * Upload one or multiple image/video files to /api/upload with real-time progress reporting.
+ * @param {File|File[]|FileList} fileOrFiles - Browser File object(s) from <input type="file">
  * @param {Object} options - { onProgress, context, oldPublicId, oldResourceType }
  */
 export const apiUploadMedia = (
-  file,
+  fileOrFiles,
   { onProgress, context = 'pets', oldPublicId = '', oldResourceType = 'image' } = {}
 ) => {
   return new Promise((resolve, reject) => {
-    if (!file) {
+    const fileArray = Array.isArray(fileOrFiles)
+      ? fileOrFiles
+      : typeof FileList !== 'undefined' && fileOrFiles instanceof FileList
+      ? Array.from(fileOrFiles)
+      : fileOrFiles
+      ? [fileOrFiles]
+      : [];
+
+    if (fileArray.length === 0) {
       reject(new Error('No file selected for upload'));
       return;
     }
 
     const xhr = new XMLHttpRequest();
     const formData = new FormData();
-    formData.append('file', file);
+
+    if (fileArray.length === 1) {
+      formData.append('file', fileArray[0]);
+    } else {
+      for (const f of fileArray) {
+        formData.append('files', f);
+      }
+    }
+
     if (context) formData.append('context', context);
     if (oldPublicId) formData.append('old_public_id', oldPublicId);
     if (oldResourceType) formData.append('old_resource_type', oldResourceType);
