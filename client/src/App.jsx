@@ -224,6 +224,44 @@ export default function App() {
     addToast('Signed out successfully.', 'info');
   };
 
+
+  // Automatically log out after 5 minutes of inactivity
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let timeoutId;
+
+    const resetInactivityTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        handleLogout();
+      }, 5 * 60 * 1000);
+    };
+
+    const activityEvents = [
+      'mousemove',
+      'mousedown',
+      'keydown',
+      'scroll',
+      'touchstart',
+      'click'
+    ];
+
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, resetInactivityTimer, { passive: true });
+    });
+
+    resetInactivityTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, resetInactivityTimer);
+      });
+    };
+  }, [currentUser]);
+
+
   // Handle Order Placement completion
   const handleOrderPlaced = (order) => {
     fetchPets();
