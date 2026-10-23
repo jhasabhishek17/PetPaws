@@ -76,24 +76,6 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
     }
   };
 
-  // Quick Demo Login Helper: performs a real login against the seeded demo accounts (see `npm run seed:demo`)
-  const handleDemoLogin = async (demoRole) => {
-    setError('');
-    setLoading(true);
-    try {
-      const data = await apiPost('/api/auth/login', { email: `demo-${demoRole}@petpaws.demo`, password: 'password123', role: demoRole });
-      if (data.success) {
-        onLoginSuccess(data.user, data.token);
-      } else {
-        setError((data.message || 'Demo login failed') + ' — run "npm run seed:demo" in /server to create demo accounts.');
-      }
-    } catch (err) {
-      setError('Connection failed. Is the server running?');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/40 backdrop-blur-md animate-fadeIn">
       <div className="bg-white rounded-3xl shadow-aesthetic border border-[#EFE9DF] max-w-md w-full overflow-hidden relative">
@@ -305,39 +287,6 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
               </button>
             </form>
           )}
-
-          {/* Quick Demo Login Shortcut Helpers */}
-          <div className="mt-6 pt-4 border-t border-[#EFE9DF] text-center">
-            <span className="text-[11px] font-bold text-[#8C847C] uppercase tracking-wider block mb-2">
-              ⚡ Quick Testing Demo Login
-            </span>
-            <div className="flex justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('buyer')}
-                className="px-3 py-1.5 bg-[#FAF6F0] hover:bg-[#FFF5F0] text-[#4A4344] hover:text-[#E07A5F] border border-[#E6DCCF] rounded-lg text-xs font-semibold transition-colors"
-              >
-                Demo Buyer
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('seller')}
-                className="px-3 py-1.5 bg-[#FAF6F0] hover:bg-[#FFFDF0] text-[#4A4344] hover:text-[#D97706] border border-[#E6DCCF] rounded-lg text-xs font-semibold transition-colors"
-              >
-                Demo Seller
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('vet')}
-                className="px-3 py-1.5 bg-[#FAF6F0] hover:bg-[#EAEFE9] text-[#4A4344] hover:text-[#2A5C4A] border border-[#E6DCCF] rounded-lg text-xs font-semibold transition-colors"
-              >
-                Demo Vet
-              </button>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>
