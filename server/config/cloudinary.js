@@ -1,6 +1,7 @@
 const { v2: cloudinary } = require('cloudinary');
 const ExpressError = require('../utils/ExpressError');
 
+// Placeholder text from the example env file; these count as "not configured".
 const PLACEHOLDER_VALUES = new Set([
   '',
   'your_cloud_name',
@@ -66,6 +67,8 @@ const uploadBufferToCloudinary = (buffer, options = {}) => {
   const baseFolder = (process.env.CLOUDINARY_FOLDER || 'petpaws').replace(/\/$/, '');
   const subFolder = options.subFolder || 'pets';
 
+  // Options passed in by the caller (resource_type, tags...) are spread last, so they override the defaults.
+  // subFolder is only used to build 'folder', so it is deleted before the options go to Cloudinary.
   const uploadOptions = {
     folder: `${baseFolder}/${subFolder}`,
     resource_type: options.resource_type || 'auto',
@@ -73,6 +76,7 @@ const uploadBufferToCloudinary = (buffer, options = {}) => {
   };
   delete uploadOptions.subFolder;
 
+  // upload_stream works with a callback, so wrap it in a Promise to let callers use await.
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
       if (error) {
