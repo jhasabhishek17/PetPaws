@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Store,
@@ -53,6 +53,7 @@ const normalizeExistingPetMedia = (pet) => {
     }
   }
 
+  // Older listings only have image_url/video_url and no media array, so add those too (skipping URLs already listed).
   if (pet.image_url && !seen.has(pet.image_url)) {
     seen.add(pet.image_url);
     items.unshift({
@@ -84,12 +85,14 @@ const buildMediaPayload = (mediaList, fallbackImageUrl = '') => {
   const firstVideo = cleanList.find((m) => m.resource_type === 'video');
 
   const trimmedFallback = (fallbackImageUrl || '').trim();
+  // Cover image priority: first uploaded image, then the typed-in URL, then the default placeholder.
   const image_url = firstImage
     ? firstImage.url
     : trimmedFallback || DEFAULT_FALLBACK_IMAGE;
   const image_public_id = firstImage ? firstImage.public_id || '' : '';
   const video_url = firstVideo ? firstVideo.url : '';
   const video_public_id = firstVideo ? firstVideo.public_id || '' : '';
+  // The listing is marked as a video only when there is a video and no image or fallback URL at all.
   const media_type =
     firstVideo && !firstImage && !trimmedFallback ? 'video' : 'image';
 
@@ -167,6 +170,8 @@ export default function SellerDashboard({
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    // Re-sync payout fields and reload inventory/orders whenever the logged-in user changes;
+    // anyone who isn't a seller just gets empty lists.
     if (currentUser && currentUser.role === 'seller') {
       setUpiId(currentUser.upi_id || '');
       setBankName(currentUser.bank_name || '');
@@ -180,11 +185,19 @@ export default function SellerDashboard({
     }
   }, [currentUser]);
 
-  // Cleanup object URLs on unmount
+  // Cleanup object URLs on unmount using a ref so latest queued preview URLs are always revoked
+  const queuedFilesRef = useRef(queuedFiles);
+  const editQueuedFilesRef = useRef(editQueuedFiles);
+  useEffect(() => {
+    queuedFilesRef.current = queuedFiles;
+  }, [queuedFiles]);
+  useEffect(() => {
+    editQueuedFilesRef.current = editQueuedFiles;
+  }, [editQueuedFiles]);
   useEffect(() => {
     return () => {
-      queuedFiles.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
-      editQueuedFiles.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+      queuedFilesRef.current.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+      editQueuedFilesRef.current.forEach((q) => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
     };
   }, []);
 
@@ -977,17 +990,24 @@ export default function SellerDashboard({
 
                   <div className="flex items-center space-x-3">
                     <label className="text-[11px] font-bold text-[#65605B]">Status:</label>
-                    <select
-                      value={ord.tracking_status}
-                      onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
-                      className="px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-extrabold text-[#231F20]"
-                    >
-                      <option value="Order Placed">Order Placed</option>
-                      <option value="Health Check Completed">Health Check Completed</option>
-                      <option value="In Transit">In Transit</option>
-                      <option value="Out for Delivery">Out for Delivery</option>
-                      <option value="Delivered">Delivered</option>
-                    </select>
+                    {ord.tracking_status === 'Cancelled' ? (
+                      <span className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-extrabold">
+                        Cancelled
+                      </span>
+                    ) : (
+                      <select
+                        value={ord.tracking_status}
+                        disabled={ord.tracking_status === 'Delivered'}
+                        onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
+                        className="px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-extrabold text-[#231F20] disabled:opacity-60"
+                      >
+                        <option value="Order Placed">Order Placed</option>
+                        <option value="Health Check Completed">Health Check Completed</option>
+                        <option value="In Transit">In Transit</option>
+                        <option value="Out for Delivery">Out for Delivery</option>
+                        <option value="Delivered">Delivered</option>
+                      </select>
+                    )}
                   </div>
                 </div>
               ))}
