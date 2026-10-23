@@ -33,29 +33,73 @@ const createCheckoutOrder = async (req, res) => {
   if (!req.user) {
     throw new ExpressError('Authentication required to place an order', 401);
   }
+  if (req.user.role !== 'buyer') {
+    throw new ExpressError('Only buyer accounts can place pet orders', 403);
+  }
 
-  const { buyer_name, buyer_email, buyer_phone, shipping_address, pet_id, payment_method } = req.body;
+  const { buyer_phone, shipping_address, pet_id, payment_method, payment_details } = req.body;
   const buyer_id = req.user.id;
 
-  if (!pet_id) {
+  if (!pet_id || typeof pet_id !== 'string' || !pet_id.trim()) {
     throw new ExpressError('Pet ID is required for checkout', 400);
+  }
+
+  const trimmedAddress = typeof shipping_address === 'string' ? shipping_address.trim() : '';
+  if (!trimmedAddress || trimmedAddress.length < 5) {
+    throw new ExpressError('A valid delivery address is required for checkout', 400);
+  }
+
+  const trimmedPhone = typeof buyer_phone === 'string' ? buyer_phone.trim() : '';
+  if (!trimmedPhone || trimmedPhone.replace(/\D/g, '').length < 7) {
+    throw new ExpressError('A valid contact phone number is required for checkout', 400);
+  }
+
+  const ALLOWED_METHODS = ['UPI', 'NetBanking', 'Card'];
+  if (!payment_method || !ALLOWED_METHODS.includes(payment_method)) {
+    throw new ExpressError('Valid payment method (UPI, NetBanking, or Card) is required', 400);
+  }
+
+  if (payment_method === 'UPI') {
+    const upi = typeof payment_details?.upi_id === 'string' ? payment_details.upi_id.trim() : '';
+    if (!upi || !/^[\w.-]+@[\w.-]+$/.test(upi)) {
+      throw new ExpressError('A valid UPI ID is required for UPI payment', 400);
+    }
+  } else if (payment_method === 'NetBanking') {
+    const bank = typeof payment_details?.bank_name === 'string' ? payment_details.bank_name.trim() : '';
+    if (!bank) {
+      throw new ExpressError('Bank selection is required for NetBanking payment', 400);
+    }
+  } else if (payment_method === 'Card') {
+    const last4 = typeof payment_details?.card_last4 === 'string' ? payment_details.card_last4.trim() : '';
+    if (!/^\d{4}$/.test(last4)) {
+      throw new ExpressError('Valid card details are required for card payment', 400);
+    }
   }
 
   // MongoDB Branch
   if (isMongoConnected()) {
-    const pet = await findDocByAnyId(Pet, pet_id);
+    const petLookup = await findDocByAnyId(Pet, pet_id);
 
-    if (!pet) throw new ExpressError('Pet listing not found', 404);
-    if (pet.seller_id === req.user.id) {
+    if (!petLookup) throw new ExpressError('Pet listing not found', 404);
+    if (petLookup.seller_id === req.user.id) {
       throw new ExpressError('Sellers cannot order their own listings', 403);
     }
-    if (pet.stock <= 0 || pet.status !== 'active') {
+
+    // Atomically decrement stock only if stock > 0 and status === 'active'
+    const pet = await Pet.findOneAndUpdate(
+      { _id: petLookup._id, stock: { $gt: 0 }, status: 'active' },
+      { $inc: { stock: -1 } },
+      { new: true }
+    );
+
+    if (!pet) {
       throw new ExpressError('Sorry, this pet is no longer available!', 400);
     }
 
-    pet.stock -= 1;
-    if (pet.stock === 0) pet.status = 'sold';
-    await pet.save();
+    if (pet.stock === 0 && pet.status !== 'sold') {
+      pet.status = 'sold';
+      await pet.save();
+    }
 
     const { tax, total_amount } = calculateOrderTotals(pet.price);
     const { orderId, trackingCode } = generateOrderIds();
@@ -63,10 +107,10 @@ const createCheckoutOrder = async (req, res) => {
     const newOrder = await Order.create({
       custom_id: orderId,
       buyer_id,
-      buyer_name: req.user.name || buyer_name || 'Verified Buyer',
-      buyer_email: req.user.email || buyer_email || '',
-      buyer_phone: buyer_phone || '+1 (555) 234-5678',
-      shipping_address: shipping_address || '123 Main Street, City',
+      buyer_name: req.user.name || 'Verified Buyer',
+      buyer_email: req.user.email || '',
+      buyer_phone: trimmedPhone,
+      shipping_address: trimmedAddress,
       pet_id: pet.custom_id || pet._id.toString(),
       pet_title: pet.title,
       pet_category: pet.category,
@@ -76,8 +120,8 @@ const createCheckoutOrder = async (req, res) => {
       price: pet.price,
       tax,
       total_amount,
-      payment_method: payment_method || 'UPI',
-      payment_status: 'Completed',
+      payment_method,
+      payment_status: 'Simulated Paid',
       tracking_code: trackingCode,
       tracking_status: 'Order Placed',
       estimated_delivery: 'Within 2-3 Business Days'
@@ -106,10 +150,10 @@ const createCheckoutOrder = async (req, res) => {
   const newOrder = {
     id: orderId,
     buyer_id,
-    buyer_name: req.user.name || buyer_name || 'Verified Buyer',
-    buyer_email: req.user.email || buyer_email || '',
-    buyer_phone: buyer_phone || '+1 (555) 234-5678',
-    shipping_address: shipping_address || '123 Main Street, City',
+    buyer_name: req.user.name || 'Verified Buyer',
+    buyer_email: req.user.email || '',
+    buyer_phone: trimmedPhone,
+    shipping_address: trimmedAddress,
     pet_id: pet.id,
     pet_title: pet.title,
     pet_category: pet.category,
@@ -119,8 +163,8 @@ const createCheckoutOrder = async (req, res) => {
     price: pet.price,
     tax,
     total_amount,
-    payment_method: payment_method || 'UPI',
-    payment_status: 'Completed',
+    payment_method,
+    payment_status: 'Simulated Paid',
     tracking_code: trackingCode,
     tracking_status: 'Order Placed',
     estimated_delivery: 'Within 2-3 Business Days',
@@ -230,12 +274,27 @@ const updateOrderStatus = async (req, res) => {
     throw new ExpressError('Invalid tracking status', 400);
   }
 
+  const validateTransition = (currentStatus, nextStatus) => {
+    if (currentStatus === 'Cancelled') {
+      throw new ExpressError('Cancelled orders cannot be updated', 400);
+    }
+    if (currentStatus === 'Delivered' && nextStatus !== 'Delivered') {
+      throw new ExpressError('Delivered orders cannot be reverted to an earlier status', 400);
+    }
+    const currentIndex = VALID_STATUSES.indexOf(currentStatus);
+    const nextIndex = VALID_STATUSES.indexOf(nextStatus);
+    if (currentIndex !== -1 && nextIndex < currentIndex) {
+      throw new ExpressError(`Cannot move order backwards from "${currentStatus}" to "${nextStatus}"`, 400);
+    }
+  };
+
   if (isMongoConnected()) {
     const order = await findDocByAnyId(Order, id);
     if (!order) throw new ExpressError('Order not found', 404);
     if (order.seller_id !== req.user.id) {
       throw new ExpressError('Not authorized to update this order', 403);
     }
+    validateTransition(order.tracking_status, tracking_status);
     order.tracking_status = tracking_status;
     if (tracking_status === 'Delivered') order.estimated_delivery = 'Delivered';
     await order.save();
@@ -248,6 +307,7 @@ const updateOrderStatus = async (req, res) => {
   if (db.orders[idx].seller_id !== req.user.id) {
     throw new ExpressError('Not authorized to update this order', 403);
   }
+  validateTransition(db.orders[idx].tracking_status, tracking_status);
   db.orders[idx].tracking_status = tracking_status;
   if (tracking_status === 'Delivered') db.orders[idx].estimated_delivery = 'Delivered';
   saveData(db);
