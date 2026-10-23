@@ -19,13 +19,13 @@ import { apiPost } from '../utils/auth';
  */
 export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced }) {
   const [paymentMethod, setPaymentMethod] = useState('UPI'); // UPI, NetBanking, Card
-  const [upiId, setUpiId] = useState(currentUser?.upi_id || 'buyer@upi');
-  const [selectedBank, setSelectedBank] = useState('HDFC Bank');
-  const [cardNumber, setCardNumber] = useState('4532 •••• •••• 8821');
+  const [upiId, setUpiId] = useState(currentUser?.upi_id || '');
+  const [selectedBank, setSelectedBank] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
   const [shippingAddress, setShippingAddress] = useState(
-    currentUser?.address || '742 Evergreen Terrace, Springfield'
+    currentUser?.address || ''
   );
-  const [buyerPhone, setBuyerPhone] = useState(currentUser?.phone || '+1 (555) 234-5678');
+  const [buyerPhone, setBuyerPhone] = useState(currentUser?.phone || '');
 
   const [loading, setLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
@@ -48,9 +48,48 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
   // Handle Checkout submission
   const handleConfirmPurchase = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    if (!currentUser || currentUser.role !== 'buyer') {
+      setError('Only authenticated buyer accounts can place pet orders.');
+      return;
+    }
     if (isOwnListing) {
       setError('Sellers cannot purchase their own listings.');
       return;
+    }
+
+    const trimmedAddress = shippingAddress.trim();
+    const trimmedPhone = buyerPhone.trim();
+    if (!trimmedAddress || trimmedAddress.length < 5) {
+      setError('Please enter a valid delivery address.');
+      return;
+    }
+    if (!trimmedPhone || trimmedPhone.replace(/\D/g, '').length < 7) {
+      setError('Please enter a valid contact phone number.');
+      return;
+    }
+
+    let paymentDetails = {};
+    if (paymentMethod === 'UPI') {
+      const trimmedUpi = upiId.trim();
+      if (!trimmedUpi || !/^[\w.-]+@[\w.-]+$/.test(trimmedUpi)) {
+        setError('Please enter a valid UPI ID (e.g. name@upi).');
+        return;
+      }
+      paymentDetails = { upi_id: trimmedUpi };
+    } else if (paymentMethod === 'NetBanking') {
+      if (!selectedBank.trim()) {
+        setError('Please select a bank for NetBanking.');
+        return;
+      }
+      paymentDetails = { bank_name: selectedBank.trim() };
+    } else if (paymentMethod === 'Card') {
+      const digits = cardNumber.replace(/\D/g, '');
+      if (digits.length < 12 || digits.length > 19) {
+        setError('Please enter a valid 12-19 digit card number.');
+        return;
+      }
+      paymentDetails = { card_last4: digits.slice(-4) };
     }
 
     setLoading(true);
@@ -58,10 +97,11 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
 
     try {
       const data = await apiPost('/api/orders/checkout', {
-        buyer_phone: buyerPhone,
-        shipping_address: shippingAddress,
+        buyer_phone: trimmedPhone,
+        shipping_address: trimmedAddress,
         pet_id: pet.id,
-        payment_method: paymentMethod
+        payment_method: paymentMethod,
+        payment_details: paymentDetails
       });
 
       if (!data.success) {
@@ -151,16 +191,30 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
               </div>
             )}
 
-            {/* Shipping Address */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Delivery Address</label>
-              <input
-                type="text"
-                required
-                value={shippingAddress}
-                onChange={(e) => setShippingAddress(e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-orange-500"
-              />
+            {/* Shipping Address & Phone */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Delivery Address</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Street address, city, state, zip"
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-orange-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Phone Number</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. +1 (555) 234-5678"
+                  value={buyerPhone}
+                  onChange={(e) => setBuyerPhone(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-orange-500"
+                />
+              </div>
             </div>
 
             {/* Payment Method Selector Tabs */}
@@ -234,10 +288,12 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                 <label className="block text-xs font-semibold text-slate-700">Choose Bank for NetBanking</label>
                 <select
+                  required
                   value={selectedBank}
                   onChange={(e) => setSelectedBank(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold"
                 >
+                  <option value="">-- Select Your Bank --</option>
                   <option value="HDFC Bank">HDFC Bank</option>
                   <option value="State Bank of India">State Bank of India (SBI)</option>
                   <option value="ICICI Bank">ICICI Bank</option>
@@ -250,9 +306,10 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
                 <label className="block text-xs font-semibold text-slate-700">Card Details</label>
                 <input
                   type="text"
+                  required
                   value={cardNumber}
                   onChange={(e) => setCardNumber(e.target.value)}
-                  placeholder="Card Number"
+                  placeholder="Enter 16-digit card number"
                   className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
                 />
               </div>
