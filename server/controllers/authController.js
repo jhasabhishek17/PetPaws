@@ -49,6 +49,11 @@ const loginUser = async (req, res) => {
     throw new ExpressError('Please provide email and password', 400);
   }
 
+  const normalizedEmail = String(email).toLowerCase().trim();
+  if (process.env.NODE_ENV === 'production' && normalizedEmail.endsWith('@petpaws.demo')) {
+    throw new ExpressError('Demo accounts are disabled in production', 403);
+  }
+
   // MongoDB / Atlas Persistence Branch
   if (isMongoConnected()) {
     const user = await User.findOne({ email: email.toLowerCase().trim() });
@@ -57,7 +62,7 @@ const loginUser = async (req, res) => {
     let isMatch = false;
     if (user.password && user.password.startsWith('$2')) {
       isMatch = await bcrypt.compare(password, user.password);
-    } else {
+    } else if (process.env.NODE_ENV !== 'production') {
       isMatch = user.password === password;
     }
     if (!isMatch) throw new ExpressError('Invalid email or password', 401);
