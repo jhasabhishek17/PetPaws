@@ -7,28 +7,73 @@ import { Truck, Navigation, ShieldCheck, Thermometer, Wind, Radio, Activity, Ref
  * Simulates real-time climate-controlled transport tracking with animated radar pulse rings,
  * live vehicle telemetry (21.8°C Climate, 98.4% Oxygen), and interactive route waypoints.
  */
-export default function LiveTransportRadar() {
+export default function LiveTransportRadar({ order }) {
+  const status = order?.tracking_status || 'Order Placed';
+  const isActivelyMoving = status === 'In Transit' || status === 'Out for Delivery';
   const [temperature, setTemperature] = useState(21.8);
   const [oxygen, setOxygen] = useState(98.4);
-  const [speed, setSpeed] = useState(62);
-  const [activeLogIndex, setActiveLogIndex] = useState(0);
+  const [speed, setSpeed] = useState(isActivelyMoving ? 62 : 0);
 
-  const logs = [
-    { time: '10:42 AM', text: 'Vehicle passed Checkpoint A (Midwest Hub). Climate stable at 21.8°C.' },
-    { time: '11:15 AM', text: 'Automated hydration & feeding interval completed by climate attendant.' },
-    { time: '11:50 AM', text: 'En route to Destination Hub - Oxygen telemetry optimal at 98.4%.' }
-  ];
+  const getStatusLog = (currentStatus) => {
+    switch (currentStatus) {
+      case 'Order Placed':
+        return {
+          badge: 'Awaiting Dispatch',
+          checkpoint: 'Order received. Awaiting seller health check & dispatch.',
+          etaNote: 'Vehicle telemetry will activate once the seller dispatches your order.'
+        };
+      case 'Health Check Completed':
+        return {
+          badge: 'Pre-Transit Check',
+          checkpoint: 'Veterinary health inspection passed. Preparing climate-controlled carrier.',
+          etaNote: 'Ready for transport pickup.'
+        };
+      case 'In Transit':
+        return {
+          badge: 'In Transit',
+          checkpoint: 'En route to destination hub in climate-controlled vehicle.',
+          etaNote: 'Active transport monitoring enabled.'
+        };
+      case 'Out for Delivery':
+        return {
+          badge: 'Out for Delivery',
+          checkpoint: 'Local delivery specialist is approaching your delivery address.',
+          etaNote: 'Arriving soon at destination.'
+        };
+      case 'Delivered':
+        return {
+          badge: 'Delivered',
+          checkpoint: 'Pet safely handed over to buyer at destination.',
+          etaNote: 'Transport completed.'
+        };
+      case 'Cancelled':
+        return {
+          badge: 'Cancelled',
+          checkpoint: 'Order was cancelled and transport was halted.',
+          etaNote: 'No active transport.'
+        };
+      default:
+        return {
+          badge: currentStatus,
+          checkpoint: `Current order status: ${currentStatus}`,
+          etaNote: 'Status updates when seller progresses the order.'
+        };
+    }
+  };
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Micro-fluctuations in climate telemetry for realistic simulation
-      setTemperature(prev => Number((21.5 + Math.random() * 0.6).toFixed(1)));
-      setOxygen(prev => Number((98.2 + Math.random() * 0.4).toFixed(1)));
-      setSpeed(prev => Math.floor(60 + Math.random() * 6));
-      setActiveLogIndex(prev => (prev + 1) % logs.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+    setSpeed(isActivelyMoving ? 58 : 0);
+    setTemperature(21.8);
+    setOxygen(98.4);
+  }, [isActivelyMoving, status]);
+
+  const statusInfo = getStatusLog(status);
+  const logs = [
+    { time: 'Current Stage', text: statusInfo.checkpoint },
+    { time: 'Destination', text: order?.shipping_address ? `Delivery to: ${order.shipping_address}` : 'Verified buyer address on file' },
+    { time: 'Status Note', text: statusInfo.etaNote }
+  ];
+  const activeLogIndex = 0;
 
   return (
     <div className="bg-white border border-[#EFE9DF] rounded-3xl p-6 sm:p-8 text-[#231F20] shadow-aesthetic relative overflow-hidden my-10 animate-fadeIn">
@@ -42,9 +87,9 @@ export default function LiveTransportRadar() {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="text-xl font-black font-display text-[#231F20]">Live Transport GPS Radar & Telemetry</h3>
+              <h3 className="text-xl font-black font-display text-[#231F20]">Transport Status & Climate Summary</h3>
               <span className="px-2.5 py-0.5 bg-[#EAEFE9] text-[#2A5C4A] text-[10px] font-extrabold uppercase rounded-full border border-[#D1E7DD] flex items-center">
-                <Radio className="w-3 h-3 mr-1 text-[#52796F] animate-pulse" /> Live Telemetry
+                <Radio className="w-3 h-3 mr-1 text-[#52796F]" /> {statusInfo.badge}
               </span>
             </div>
             <p className="text-[#65605B] text-xs mt-0.5">Real-time climate-controlled vehicle monitoring for safe pet delivery</p>
@@ -108,7 +153,7 @@ export default function LiveTransportRadar() {
               <div className="absolute inset-0 rounded-full border-2 border-[#52796F] animate-radarRing"></div>
             </div>
             <span className="mt-2 bg-white text-[#2A5C4A] text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-[#D1E7DD] shadow-sm">
-              VEHICLE-TRACK-8492
+              {order?.tracking_code || 'TRACKING-STANDBY'} • {status}
             </span>
           </div>
 
