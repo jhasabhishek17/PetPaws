@@ -122,7 +122,7 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
   }
 
   const trackingSteps = [
-    { label: 'Order Placed', desc: 'Booking confirmed & paid' },
+    { label: 'Order Placed', desc: 'Awaiting seller confirmation & vet check' },
     { label: 'Health Check Completed', desc: 'Vet inspection passed' },
     { label: 'In Transit', desc: 'Live climate controlled transport' },
     { label: 'Out for Delivery', desc: 'Driver near your location' },
@@ -142,7 +142,7 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
       case 'Delivered':
         return 4;
       default:
-        return 2;
+        return 0;
     }
   };
 
@@ -264,8 +264,8 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
                     <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 relative z-10">
                       {trackingSteps.map((step, idx) => {
                         const currentIdx = getStepIndex(activeOrder.tracking_status);
-                        const isPassed = idx <= currentIdx;
-                        const isCurrent = idx === currentIdx;
+                        const isCompleted = idx < currentIdx || activeOrder.tracking_status === 'Delivered';
+                        const isCurrent = idx === currentIdx && activeOrder.tracking_status !== 'Delivered';
 
                         return (
                           <div
@@ -276,17 +276,17 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
                               className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs mb-2 transition-all ${
                                 isCurrent
                                   ? 'bg-[#E07A5F] text-white ring-4 ring-[#FFE7DC] scale-110'
-                                  : isPassed
+                                  : isCompleted
                                   ? 'bg-[#52796F] text-white'
                                   : 'bg-[#FAF6F0] text-[#8C847C] border border-[#E6DCCF]'
                               }`}
                             >
-                              {isPassed ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
+                              {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
                             </div>
                             <div>
                               <p
                                 className={`text-xs font-extrabold ${
-                                  isPassed ? 'text-[#231F20]' : 'text-[#8C847C]'
+                                  isCompleted || isCurrent ? 'text-[#231F20]' : 'text-[#8C847C]'
                                 }`}
                               >
                                 {step.label}
@@ -478,7 +478,7 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
           </div>
 
           {/* Interactive Live GPS Transport Radar Widget */}
-          <LiveTransportRadar />
+          <LiveTransportRadar order={activeOrder} />
         </>
       )}
     </div>
