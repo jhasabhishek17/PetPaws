@@ -30,7 +30,7 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
   const [loading, setLoading] = useState(true);
 
   // Appointment Form state
-  const [petName, setPetName] = useState('Biscuit (Golden Retriever)');
+  const [petName, setPetName] = useState('');
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const defaultDate = tomorrow.toISOString().split('T')[0];
@@ -39,6 +39,7 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
   const [consultationType, setConsultationType] = useState('General Checkup');
   const [notes, setNotes] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchVetsAndAppointments();
@@ -80,10 +81,16 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
   // Handle Scheduling Meeting
   const handleScheduleAppointment = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    if (!petName.trim()) {
+      onAddToast?.('Please enter your pet name and breed.', 'error');
+      return;
+    }
+    setSubmitting(true);
     try {
       const data = await apiPost('/api/vets/appointments', {
         vet_id: selectedVet.id,
-        pet_name: petName,
+        pet_name: petName.trim(),
         appointment_date: appointmentDate,
         time_slot: selectedSlot,
         type: consultationType,
@@ -99,6 +106,8 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
       }
     } catch (err) {
       onAddToast?.('Failed to schedule appointment. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
