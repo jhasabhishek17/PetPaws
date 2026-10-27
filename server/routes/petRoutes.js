@@ -2,7 +2,7 @@
  * Pet Marketplace Express Router
  * 
  * Maps HTTP pet marketplace routes (/api/pets) to petController methods.
- * Demonstrates clean modular route design using router.route() chains.
+ * Supports both application/json payloads and multipart/form-data file uploads.
  */
 
 const express = require('express');
@@ -10,6 +10,7 @@ const router = express.Router();
 const petController = require('../controllers/petController');
 const asyncHandler = require('../middleware/asyncHandler');
 const { protect, optionalAuth, requireRole } = require('../middleware/authMiddleware');
+const { handleMediaUpload } = require('../middleware/uploadMiddleware');
 
 // Seller-only inventory endpoint (returns all listings owned by the authenticated seller)
 router.get('/seller/inventory', protect, requireRole('seller'), asyncHandler(petController.getSellerInventory));
@@ -17,12 +18,12 @@ router.get('/seller/inventory', protect, requireRole('seller'), asyncHandler(pet
 // Root /api/pets endpoints: GET (Fetch all pets), POST (Create pet — seller only)
 router.route('/')
   .get(optionalAuth, asyncHandler(petController.getPets))
-  .post(protect, requireRole('seller'), asyncHandler(petController.createPet));
+  .post(protect, requireRole('seller'), handleMediaUpload, asyncHandler(petController.createPet));
 
 // Single item /api/pets/:id endpoints: GET (Details), PUT (Update — owner seller only), DELETE (Remove — owner seller only)
 router.route('/:id')
   .get(optionalAuth, asyncHandler(petController.getPetById))
-  .put(protect, requireRole('seller'), asyncHandler(petController.updatePet))
+  .put(protect, requireRole('seller'), handleMediaUpload, asyncHandler(petController.updatePet))
   .delete(protect, requireRole('seller'), asyncHandler(petController.deletePet));
 
 module.exports = router;
