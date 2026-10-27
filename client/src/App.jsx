@@ -235,7 +235,7 @@ export default function App() {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         handleLogout();
-      }, 5 * 60 * 1000);
+      }, 5 * 60 * 60  * 1000);
     };
 
     const activityEvents = [
