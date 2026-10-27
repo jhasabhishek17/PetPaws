@@ -20,7 +20,7 @@ const protect = (req, res, next) => {
   if (!token) throw new ExpressError('Authentication required', 401);
   try {
     const decoded = jwt.verify(token, getJwtSecret());
-    req.user = decoded;
+    req.user = decoded; // later handlers read the logged-in user's id and role from here
     next();
   } catch (err) {
     throw new ExpressError('Invalid or expired token', 401);
@@ -52,7 +52,7 @@ const requireRole = (...roles) => (req, res, next) => {
   if (!req.user) {
     throw new ExpressError('Authentication required', 401);
   }
-  if (!roles.includes(req.user.role)) {
+  if (!roles.includes(req.user.role)) { // role comes from the verified token, not from the request body
     throw new ExpressError(`Access denied. Required role: ${roles.join(' or ')}`, 403);
   }
   next();
