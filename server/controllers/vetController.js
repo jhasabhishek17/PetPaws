@@ -87,8 +87,9 @@ const createAppointment = async (req, res) => {
   const buyer_id = req.user.id;
   const buyer_name = req.user.name;
 
-  if (!vet_id || !appointment_date || !time_slot) {
-    throw new ExpressError('Vet ID, date, and time slot are required', 400);
+  const trimmedPetName = typeof pet_name === 'string' ? pet_name.trim() : '';
+  if (!vet_id || !appointment_date || !time_slot || !trimmedPetName) {
+    throw new ExpressError('Vet ID, pet name, date, and time slot are required', 400);
   }
 
   const customId = `apt-${Date.now()}`;
@@ -104,7 +105,7 @@ const createAppointment = async (req, res) => {
       buyer_name: buyer_name || 'Verified Pet Owner',
       vet_id: vet.custom_id || vet.id || vet._id.toString(),
       vet_name: vet.name,
-      pet_name: pet_name || 'Pet',
+      pet_name: trimmedPetName,
       appointment_date,
       time_slot,
       type: type || 'General Consultation',
@@ -130,7 +131,7 @@ const createAppointment = async (req, res) => {
     buyer_name: buyer_name || 'Verified Pet Owner',
     vet_id: vet.id,
     vet_name: vet.name,
-    pet_name: pet_name || 'Pet',
+    pet_name: trimmedPetName,
     appointment_date,
     time_slot,
     type: type || 'General Consultation',
@@ -204,7 +205,7 @@ const updateMyVetProfile = async (req, res) => {
   }
 
   const profile = await ensureVetProfile(req.user);
-  const ALLOWED = ['name', 'specialization', 'experience', 'qualifications', 'clinic_address', 'consultation_fee', 'bio', 'image_url', 'available_days', 'available_slots'];
+  const ALLOWED = ['name', 'specialization', 'experience', 'qualifications', 'clinic_address', 'consultation_fee', 'bio', 'image_url', 'image_public_id', 'available_days', 'available_slots'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => ALLOWED.includes(k)));
   if (updates.consultation_fee !== undefined) updates.consultation_fee = Math.max(0, Number(updates.consultation_fee));
 
