@@ -8,6 +8,9 @@ const DATA_FILE = path.join(__dirname, 'petpaws_data.json');
  * Load raw data from petpaws_data.json
  */
 const loadData = () => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Database unavailable: local JSON fallback is disabled in production.');
+  }
   try {
     if (!fs.existsSync(DATA_FILE)) {
       return {
@@ -42,6 +45,9 @@ const loadData = () => {
  * Save data to petpaws_data.json
  */
 const saveData = (data) => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Database unavailable: local JSON fallback is disabled in production.');
+  }
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (error) {
