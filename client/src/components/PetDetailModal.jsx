@@ -61,10 +61,12 @@ export default function PetDetailModal({
   onClose,
   onBuyNow
 }) {
+  // Rebuilt only when the pet changes, not on every re-render (e.g. when moving between slides).
   const galleryItems = useMemo(() => buildPetGallery(pet), [pet]);
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
+    // When a different pet is opened, start on its video if that is its main media, otherwise on the first photo.
     if (!pet) return;
     if (pet.media_type === 'video' && pet.video_url) {
       const vidIdx = galleryItems.findIndex((g) => g.resource_type === 'video');
@@ -78,7 +80,7 @@ export default function PetDetailModal({
     const onKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
     };
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown); // removed again in the cleanup below so handlers don't pile up
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
