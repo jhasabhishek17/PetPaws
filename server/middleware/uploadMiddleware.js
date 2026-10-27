@@ -20,6 +20,8 @@ const MAX_IMAGE_SIZE_BYTES = Number(process.env.MAX_IMAGE_UPLOAD_MB || 10) * 102
 const MAX_VIDEO_SIZE_BYTES = Number(process.env.MAX_VIDEO_UPLOAD_MB || 50) * 1024 * 1024; // 50 MB default
 const MAX_UPLOAD_FILES = Number(process.env.MAX_UPLOAD_FILES || 6); // Up to 6 files per upload request
 
+// Files stay in memory (req.files[].buffer) and are streamed straight to Cloudinary.
+// Nothing is written to disk, which matters on hosts like Render where local files don't persist.
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
@@ -39,6 +41,8 @@ const fileFilter = (req, file, cb) => {
 const rawUpload = multer({
   storage,
   limits: {
+    // Multer only takes one size limit, so use the bigger (video) one here.
+    // The smaller image limit is checked per file further down.
     fileSize: MAX_VIDEO_SIZE_BYTES,
     files: MAX_UPLOAD_FILES
   },
@@ -52,11 +56,13 @@ const rawUpload = multer({
  */
 const handleMediaUpload = (req, res, next) => {
   const contentType = (req.headers['content-type'] || '').toLowerCase();
+  // Plain JSON requests (e.g. creating a pet with image URLs only) skip multer entirely.
   if (!contentType.includes('multipart/form-data')) {
     req.uploadedFiles = [];
     return next();
   }
 
+  // The client sends one file as 'file' and several as 'files'; 'media' is also accepted.
   const acceptFields = rawUpload.fields([
     { name: 'file', maxCount: MAX_UPLOAD_FILES },
     { name: 'files', maxCount: MAX_UPLOAD_FILES },
@@ -117,6 +123,7 @@ const handleMediaUpload = (req, res, next) => {
     }
 
     req.uploadedFiles = collected;
+    // Keep req.file pointing at the first file so code that expects a single upload still works.
     if (collected.length > 0 && !req.file) {
       req.file = collected[0];
     }
