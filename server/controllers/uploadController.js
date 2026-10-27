@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Pet = require('../models/Pet');
 const VetProfile = require('../models/VetProfile');
 const { loadData, saveData, isMongoConnected } = require('../db');
@@ -25,20 +26,27 @@ const isPublicIdUsedElsewhere = async (publicId, { excludePetId = null, excludeV
         { 'media.public_id': publicId }
       ]
     };
+    // Leave out the pet being edited/deleted, otherwise its own reference would always count as "in use".
     if (excludePetId) {
       petQuery.custom_id = { $ne: String(excludePetId) };
+      if (mongoose.Types.ObjectId.isValid(excludePetId)) {
+        petQuery._id = { $ne: excludePetId };
+      }
     }
     const otherPet = await Pet.findOne(petQuery);
-    if (otherPet && String(otherPet._id) !== String(excludePetId)) {
+    if (otherPet) {
       return true;
     }
 
     const vetQuery = { image_public_id: publicId };
     if (excludeVetId) {
       vetQuery.custom_id = { $ne: String(excludeVetId) };
+      if (mongoose.Types.ObjectId.isValid(excludeVetId)) {
+        vetQuery._id = { $ne: excludeVetId };
+      }
     }
     const otherVet = await VetProfile.findOne(vetQuery);
-    if (otherVet && String(otherVet._id) !== String(excludeVetId)) {
+    if (otherVet) {
       return true;
     }
     return false;
@@ -67,21 +75,18 @@ const isPublicIdUsedElsewhere = async (publicId, { excludePetId = null, excludeV
 
 /**
  * Helper to verify that a public_id either belongs to a pet/profile owned by userId
- * or is an unattached upload in the petpaws folder, and safely delete it if not used elsewhere.
+ * or is an unattached upload in the petpaws folder.
  */
-const verifyAndCleanupPublicId = async (
-  publicId,
-  resourceType,
-  userId,
-  { excludePetId = null, excludeVetId = null } = {}
-) => {
+const verifyPublicIdOwnership = async (publicId, userId) => {
   if (!publicId || typeof publicId !== 'string') return false;
   const baseFolder = (process.env.CLOUDINARY_FOLDER || 'petpaws').replace(/\/$/, '');
+  // Only touch assets inside our own Cloudinary folder, so a request can't target unrelated files.
   if (!publicId.startsWith(`${baseFolder}/`)) {
     throw new ExpressError('Invalid media identifier', 403);
   }
 
   if (isMongoConnected()) {
+    // The same asset can be linked to more than one pet; if any of them belongs to another seller, refuse.
     const linkedPets = await Pet.find({
       $or: [
         { image_public_id: publicId },
@@ -111,6 +116,22 @@ const verifyAndCleanupPublicId = async (
       throw new ExpressError("Not authorized to modify media for another seller's listing", 403);
     }
   }
+
+  return true;
+};
+
+/**
+ * Helper to verify that a public_id either belongs to a pet/profile owned by userId
+ * or is an unattached upload in the petpaws folder, and safely delete it if not used elsewhere.
+ */
+const verifyAndCleanupPublicId = async (
+  publicId,
+  resourceType,
+  userId,
+  { excludePetId = null, excludeVetId = null } = {}
+) => {
+  if (!publicId || typeof publicId !== 'string') return false;
+  await verifyPublicIdOwnership(publicId, userId);
 
   const usedElsewhere = await isPublicIdUsedElsewhere(publicId, { excludePetId, excludeVetId });
   if (!usedElsewhere) {
@@ -175,9 +196,14 @@ const uploadMedia = async (req, res) => {
     throw new ExpressError('Please select at least one image or video file to upload.', 400);
   }
 
+  // 'context' decides the Cloudinary subfolder: vet profile photos vs. pet listing media.
   const context = req.body?.context === 'profile' ? 'profiles' : 'pets';
+  // Pet listing media is seller-only; profile uploads are restricted to veterinarian accounts.
   if (context === 'pets' && req.user?.role !== 'seller') {
     throw new ExpressError('Only authenticated seller accounts can upload pet listing media.', 403);
+  }
+  if (context === 'profiles' && req.user?.role !== 'vet') {
+    throw new ExpressError('Only authenticated veterinarian accounts can upload profile photos.', 403);
   }
 
   if (!isCloudinaryConfigured()) {
@@ -187,8 +213,14 @@ const uploadMedia = async (req, res) => {
     );
   }
 
+  // When replacing a photo, the client sends the old asset's id. Verify ownership BEFORE
+  // uploading new files so unauthorized requests never leave orphaned uploads in Cloudinary.
   const oldPublicId = typeof req.body?.old_public_id === 'string' ? req.body.old_public_id.trim() : '';
   const oldResourceType = req.body?.old_resource_type === 'video' ? 'video' : 'image';
+
+  if (oldPublicId) {
+    await verifyPublicIdOwnership(oldPublicId, req.user.id);
+  }
 
   const uploadedItems = await uploadFilesBatchToCloudinary(files, {
     context,
@@ -198,7 +230,11 @@ const uploadMedia = async (req, res) => {
   const primary = uploadedItems[0];
 
   if (oldPublicId && oldPublicId !== primary.public_id) {
-    await verifyAndCleanupPublicId(oldPublicId, oldResourceType, req.user.id);
+    try {
+      await verifyAndCleanupPublicId(oldPublicId, oldResourceType, req.user.id);
+    } catch (cleanupErr) {
+      console.warn('Warning: failed to clean up previous Cloudinary asset:', cleanupErr.message);
+    }
   }
 
   return res.status(201).json({
@@ -279,6 +315,7 @@ const deleteMedia = async (req, res) => {
     }
   }
 
+  // Remove the file from Cloudinary only if no other listing still references it.
   await verifyAndCleanupPublicId(trimmedId, resource_type, req.user.id, {
     excludePetId: pet_id || null
   });
