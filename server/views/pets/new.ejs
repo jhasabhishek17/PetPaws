@@ -2,9 +2,9 @@
   <div class="col-lg-8">
     <div class="card border-0 shadow-lg rounded-4 p-4 p-md-5 bg-white">
       <h2 class="fw-bold text-slate-900 mb-2">List a Pet for Sale 🐾</h2>
-      <p class="text-muted mb-4">Provide accurate pet details, health certifications, and pricing.</p>
+      <p class="text-muted mb-4">Provide accurate pet details, health certifications, photos/videos, and pricing.</p>
 
-      <form action="/api/pets" method="POST" id="newPetForm">
+      <form action="/api/pets" method="POST" id="newPetForm" enctype="multipart/form-data">
         <div class="row g-3">
           <div class="col-md-8">
             <label class="form-label fw-semibold">Listing Title</label>
@@ -47,7 +47,16 @@
           </div>
 
           <div class="col-12">
-            <label class="form-label fw-semibold">Image URL</label>
+            <label class="form-label fw-semibold">Upload Photos/Videos (Select up to 6 files)</label>
+            <input type="file" name="files" id="media_file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm,video/quicktime" class="form-control rounded-3">
+            <div id="media_preview_wrap" class="d-none mt-3 p-3 bg-light rounded-3">
+              <div id="media_preview_grid" class="row g-2"></div>
+              <div id="upload_status" class="small text-secondary mt-2 fw-semibold text-center"></div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Or Optional Image URL (Fallback)</label>
             <input type="url" name="image_url" class="form-control rounded-3" placeholder="https://images.unsplash.com/...">
           </div>
 
@@ -65,3 +74,36 @@
     </div>
   </div>
 </div>
+
+<script>
+  (function () {
+    const fileInput = document.getElementById('media_file');
+    const previewWrap = document.getElementById('media_preview_wrap');
+    const previewGrid = document.getElementById('media_preview_grid');
+    const statusText = document.getElementById('upload_status');
+
+    if (!fileInput) return;
+
+    fileInput.addEventListener('change', function (e) {
+      const files = Array.from(e.target.files || []);
+      previewGrid.innerHTML = '';
+      if (files.length === 0) {
+        previewWrap.classList.add('d-none');
+        return;
+      }
+      previewWrap.classList.remove('d-none');
+      files.forEach(function (file) {
+        const col = document.createElement('div');
+        col.className = 'col-6 col-md-4';
+        const url = URL.createObjectURL(file);
+        if (file.type.indexOf('video/') === 0) {
+          col.innerHTML = '<video src="' + url + '" controls class="w-100 rounded-3" style="height: 120px; object-fit: cover;"></video>';
+        } else {
+          col.innerHTML = '<img src="' + url + '" class="img-fluid w-100 rounded-3" style="height: 120px; object-fit: cover;" alt="Preview">';
+        }
+        previewGrid.appendChild(col);
+      });
+      statusText.textContent = files.length + ' file(s) selected for upload';
+    });
+  })();
+</script>
