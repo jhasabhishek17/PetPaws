@@ -19,6 +19,7 @@ const vetProfileSchema = new mongoose.Schema({
   rating: { type: Number, default: 4.8 },
   reviews_count: { type: Number, default: 50 },
   image_url: { type: String, default: '' },
+  image_public_id: { type: String, default: '' },
   bio: { type: String, default: '' },
   available_days: [{ type: String }],
   available_slots: [{ type: String }]
