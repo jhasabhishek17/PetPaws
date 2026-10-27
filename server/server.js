@@ -6,7 +6,7 @@
  * 
  * Features:
  * - Dual Rendering: EJS Templated Web Views + RESTful API endpoints for SPAs
- * - Modularized Routers: /api/auth, /api/pets, /api/orders, /api/vets, /api/services, /api/support
+ * - Modularized Routers: /api/auth, /api/pets, /api/orders, /api/vets, /api/services, /api/support, /api/upload
  * - Centralized Error Handling & Request Logging Middleware
  * - Database Support: MongoDB Local / MongoDB Atlas with fallback JSON persistence
  */
