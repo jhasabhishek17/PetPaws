@@ -1,8 +1,25 @@
 <div class="row g-4 animate-fade-in">
   <div class="col-lg-6">
     <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-      <img src="<%= pet.image_url %>" class="img-fluid w-100" style="max-height: 450px; object-fit: cover;" alt="<%= pet.title %>">
+      <% if (pet.video_url) { %>
+        <video src="<%= pet.video_url %>" poster="<%= pet.image_url %>" controls playsinline class="w-100" style="max-height: 450px; object-fit: cover;"></video>
+      <% } else { %>
+        <img src="<%= pet.image_url %>" class="img-fluid w-100" style="max-height: 450px; object-fit: cover;" alt="<%= pet.title %>">
+      <% } %>
     </div>
+    <% if (Array.isArray(pet.media) && pet.media.length > 1) { %>
+      <div class="row g-2 mt-2">
+        <% pet.media.forEach(function(item) { %>
+          <div class="col-3">
+            <% if (item.resource_type === 'video') { %>
+              <video src="<%= item.url %>" controls class="w-100 rounded-3 border" style="height: 72px; object-fit: cover;"></video>
+            <% } else { %>
+              <img src="<%= item.url %>" alt="<%= pet.title %>" class="img-fluid w-100 rounded-3 border" style="height: 72px; object-fit: cover;">
+            <% } %>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
   </div>
 
   <div class="col-lg-6">
@@ -43,9 +60,9 @@
       <p class="text-secondary leading-relaxed mb-4"><%= pet.description %></p>
 
       <div class="mt-auto pt-3 border-top d-flex gap-3">
-        <button class="btn btn-primary btn-gradient rounded-pill px-5 py-3 fw-bold flex-grow-1 shadow" onclick="alert('Order Checkout Initiated for <%= pet.title %>! Redirecting to orders...')">
-          <i class="fa-solid fa-cart-shopping me-2"></i> Buy Now ($<%= pet.price %>)
-        </button>
+        <a href="/login" class="btn btn-primary btn-gradient rounded-pill px-5 py-3 fw-bold flex-grow-1 shadow">
+          <i class="fa-solid fa-cart-shopping me-2"></i> Sign In to Adopt ($<%= pet.price %>)
+        </a>
         <a href="/" class="btn btn-outline-secondary rounded-pill px-4 py-3 fw-bold">Back</a>
       </div>
     </div>
