@@ -10,15 +10,19 @@ import VetDashboard from './components/VetDashboard';
 import VetSection from './components/VetSection';
 import GroomingCareSection from './components/GroomingCareSection';
 import CustomerSupport from './components/CustomerSupport';
+import ProductsMarketplace from './components/ProductsMarketplace';
+import BusinessSaaSPortal from './components/BusinessSaaSPortal';
 import AuthModal from './components/AuthModal';
 import FloatingQuickActions from './components/FloatingQuickActions';
 import ToastContainer, { useToast } from './components/Toast';
 import PawBackdrop from './components/PawBackdrop';
-import { setToken, removeToken, apiGet, apiPost } from './utils/auth';
+import { getToken, setToken, removeToken, apiGet, apiPost } from './utils/auth';
 import { ShieldCheck } from 'lucide-react';
 
 const VALID_TABS = [
   'marketplace',
+  'products',
+  'saas-portal',
   'seller',
   'buyer-dashboard',
   'vet-dashboard',
@@ -61,6 +65,7 @@ export default function App() {
   // Persisted Buyer Wishlist state
   const [wishlistIds, setWishlistIds] = useState([]);
   const [wishlistPets, setWishlistPets] = useState([]);
+  const [productWishlistIds, setProductWishlistIds] = useState([]);
 
   // Listen to browser navigation (Back / Forward buttons) and hash changes
   useEffect(() => {
@@ -103,6 +108,34 @@ export default function App() {
     }
   };
 
+  // Verify persisted session token on initial mount so expired or missing tokens sign out cleanly
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!getToken()) {
+      setCurrentUser(null);
+      localStorage.removeItem('petpaws_user');
+      return;
+    }
+    let cancelled = false;
+    apiGet('/api/auth/me')
+      .then((data) => {
+        if (cancelled) return;
+        if (data && data.success && data.user) {
+          setCurrentUser(data.user);
+        } else if (data && data.statusCode === 401) {
+          removeToken();
+          setCurrentUser(null);
+          localStorage.removeItem('petpaws_user');
+        }
+      })
+      .catch(() => {
+        // Network error: preserve offline state rather than forcibly logging out
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Fetch pet listings on mount & category filter changes
   useEffect(() => {
     fetchPets();
@@ -117,19 +150,19 @@ export default function App() {
       } else {
         setWishlistIds([]);
         setWishlistPets([]);
+        setProductWishlistIds([]);
       }
     } else {
       localStorage.removeItem('petpaws_user');
       setWishlistIds([]);
       setWishlistPets([]);
+      setProductWishlistIds([]);
     }
   }, [currentUser]);
 
   const fetchPets = async () => {
     try {
-      const apiUrl = (import.meta.env.VITE_API_URL || 'https://' + 'petpaws-backend.onrender.com').replace(/\/$/, '');
-      const res = await fetch(apiUrl + '/api/pets');
-      const data = await res.json();
+      const data = await apiGet('/api/pets');
       if (data.success) {
         setPets(data.pets);
       }
@@ -146,9 +179,28 @@ export default function App() {
       if (data.success) {
         setWishlistIds(data.wishlistIds || []);
         setWishlistPets(data.pets || []);
+        setProductWishlistIds(data.productWishlistIds || []);
       }
     } catch (err) {
       console.error('Error loading buyer wishlist:', err);
+    }
+  };
+
+  const handleToggleProductWishlist = async (productId) => {
+    if (!currentUser) {
+      requireAuth('Please sign in to save pet products to your wishlist.', () => {});
+      return;
+    }
+    try {
+      const data = await apiPost(`/api/auth/product-wishlist/${encodeURIComponent(productId)}`, {});
+      if (data.success) {
+        setProductWishlistIds(data.productWishlistIds || []);
+        addToast(data.message || 'Product wishlist updated', 'success');
+      } else {
+        addToast(data.message || 'Could not update product wishlist', 'error');
+      }
+    } catch {
+      addToast('Failed to update product wishlist', 'error');
     }
   };
 
@@ -208,6 +260,7 @@ export default function App() {
       setPendingAction(null);
     } else {
       if (user.role === 'seller') handleSelectTab('seller');
+      else if (user.role === 'shopkeeper' || user.role === 'groomer' || user.role === 'admin') handleSelectTab('saas-portal');
       else if (user.role === 'vet') handleSelectTab('vet-dashboard');
       else if (user.role === 'buyer') handleSelectTab('marketplace');
     }
@@ -219,13 +272,14 @@ export default function App() {
     setCurrentUser(null);
     setWishlistIds([]);
     setWishlistPets([]);
+    setProductWishlistIds([]);
     localStorage.removeItem('petpaws_user');
     handleSelectTab('marketplace');
     addToast('Signed out successfully.', 'info');
   };
 
 
-  // Automatically log out after 5 minutes of inactivity
+  // Automatically log out after 30 minutes of inactivity
   useEffect(() => {
     if (!currentUser) return;
 
@@ -235,7 +289,7 @@ export default function App() {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         handleLogout();
-      }, 5 * 60 * 60  * 1000);
+      }, 30 * 60 * 1000);
     };
 
     const activityEvents = [
@@ -304,6 +358,30 @@ export default function App() {
             loading={petsLoading}
             onNavigate={handleSelectTab}
             onBuyPetRequest={handleBuyPetRequest}
+          />
+        )}
+
+        {activeTab === 'products' && (
+          <ProductsMarketplace
+            currentUser={currentUser}
+            productWishlistIds={productWishlistIds}
+            onToggleProductWishlist={handleToggleProductWishlist}
+            onRequireAuth={(msg, callback) => requireAuth(msg, callback)}
+            onOrderComplete={() => handleSelectTab('orders')}
+            onNavigate={handleSelectTab}
+            onAddToast={addToast}
+          />
+        )}
+
+        {activeTab === 'saas-portal' && (
+          <BusinessSaaSPortal
+            currentUser={currentUser}
+            onOpenAuth={() => {
+              setAuthMessage('Please sign in with a Business, Shopkeeper, Seller, or Admin account.');
+              setIsAuthOpen(true);
+            }}
+            onNavigate={handleSelectTab}
+            onAddToast={addToast}
           />
         )}
 
