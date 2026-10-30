@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  User, 
-  Lock, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Store, 
-  Stethoscope, 
+import {
+  X,
+  User,
+  Lock,
+  Mail,
+  Store,
+  Stethoscope,
   ShoppingBag,
   Sparkles,
   ArrowRight,
@@ -15,26 +13,21 @@ import {
 } from 'lucide-react';
 import { apiPost } from '../utils/auth';
 
-/**
- * Highly Animated & Interactive Auth Modal Component (Eye-Comfort Theme)
- */
 export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) {
   const [isRegister, setIsRegister] = useState(false);
-  const [role, setRole] = useState('buyer'); // 'buyer', 'seller', 'vet'
-  
-  // Form input fields
+  const [role, setRole] = useState('buyer');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  // Submit Login
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -48,14 +41,13 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
       } else {
         setError(data.message || 'Invalid email or password');
       }
-    } catch (err) {
+    } catch {
       setError('Connection failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Submit Register
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -69,7 +61,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
       } else {
         setError(data.message || 'Registration failed');
       }
-    } catch (err) {
+    } catch {
       setError('Connection failed. Please try again.');
     } finally {
       setLoading(false);
@@ -79,8 +71,6 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/40 backdrop-blur-md animate-fadeIn">
       <div className="bg-white rounded-3xl shadow-aesthetic border border-[#EFE9DF] max-w-md w-full overflow-hidden relative">
-        
-        {/* Modal Top Header Bar */}
         <div className="bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] p-6 text-white text-center relative">
           <button
             onClick={onClose}
@@ -98,7 +88,6 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
           </p>
         </div>
 
-        {/* Action Prompt Message (if user attempted a protected action) */}
         {message && (
           <div className="bg-[#FFF5F0] border-b border-[#F4C4B7] p-3 text-center flex items-center justify-center space-x-2 text-xs font-semibold text-[#E07A5F]">
             <Sparkles className="w-4 h-4 text-[#F4A261] flex-shrink-0 animate-spin" />
@@ -106,11 +95,13 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
           </div>
         )}
 
-        {/* Tab Switcher */}
         <div className="flex border-b border-[#EFE9DF] bg-[#FAF6F0]">
           <button
             type="button"
-            onClick={() => { setIsRegister(false); setError(''); }}
+            onClick={() => {
+              setIsRegister(false);
+              setError('');
+            }}
             className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 ${
               !isRegister
                 ? 'border-[#E07A5F] text-[#E07A5F] bg-white'
@@ -121,7 +112,11 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
           </button>
           <button
             type="button"
-            onClick={() => { setIsRegister(true); setError(''); }}
+            onClick={() => {
+              setIsRegister(true);
+              if (role === 'admin') setRole('buyer');
+              setError('');
+            }}
             className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 ${
               isRegister
                 ? 'border-[#E07A5F] text-[#E07A5F] bg-white'
@@ -133,51 +128,90 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
         </div>
 
         <div className="p-6">
-          
-          {/* Role Selector Cards */}
           <div className="mb-5">
             <label className="block text-xs font-bold text-[#4A4344] mb-2 uppercase tracking-wider">
               Select Your Role
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setRole('buyer')}
-                className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center ${
+                className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
                   role === 'buyer'
                     ? 'border-[#E07A5F] bg-[#FFF5F0] text-[#E07A5F] font-bold ring-2 ring-[#E07A5F]/30'
                     : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
                 }`}
               >
-                <ShoppingBag className="w-5 h-5 mb-1" />
-                <span className="text-xs">Buyer</span>
+                <ShoppingBag className="w-4 h-4 mb-1" />
+                <span className="text-[11px]">Buyer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRole('shopkeeper')}
+                className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                  role === 'shopkeeper'
+                    ? 'border-[#52796F] bg-[#EAEFE9] text-[#2A5C4A] font-bold ring-2 ring-[#52796F]/30'
+                    : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
+                }`}
+              >
+                <Store className="w-4 h-4 mb-1" />
+                <span className="text-[11px]">Shopkeeper</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setRole('seller')}
-                className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center ${
+                className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
                   role === 'seller'
                     ? 'border-[#F4A261] bg-[#FFFDF0] text-[#D97706] font-bold ring-2 ring-[#F4A261]/30'
                     : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
                 }`}
               >
-                <Store className="w-5 h-5 mb-1" />
-                <span className="text-xs">Breeder / Seller</span>
+                <Store className="w-4 h-4 mb-1" />
+                <span className="text-[11px]">Breeder / Seller</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setRole('vet')}
-                className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center ${
+                className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
                   role === 'vet'
                     ? 'border-[#52796F] bg-[#EAEFE9] text-[#2A5C4A] font-bold ring-2 ring-[#52796F]/30'
                     : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
                 }`}
               >
-                <Stethoscope className="w-5 h-5 mb-1" />
-                <span className="text-xs">Veterinarian</span>
+                <Stethoscope className="w-4 h-4 mb-1" />
+                <span className="text-[11px]">Veterinarian</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setRole('groomer')}
+                className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                  role === 'groomer'
+                    ? 'border-[#E07A5F] bg-[#FFF5F0] text-[#E07A5F] font-bold ring-2 ring-[#E07A5F]/30'
+                    : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 mb-1" />
+                <span className="text-[11px]">Groomer</span>
+              </button>
+
+              {!isRegister && (
+                <button
+                  type="button"
+                  onClick={() => setRole('admin')}
+                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                    role === 'admin'
+                      ? 'border-[#231F20] bg-[#FAF6F0] text-[#231F20] font-bold ring-2 ring-[#231F20]/20'
+                      : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4 mb-1" />
+                  <span className="text-[11px]">Platform Admin</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -187,7 +221,6 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
             </div>
           )}
 
-          {/* Login Form */}
           {!isRegister ? (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
@@ -230,10 +263,11 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
               </button>
             </form>
           ) : (
-            /* Register Form */
             <form onSubmit={handleRegisterSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[#4A4344] mb-1">Full Name</label>
+                <label className="block text-xs font-semibold text-[#4A4344] mb-1">
+                  {role === 'shopkeeper' || role === 'seller' ? 'Full Name or Shop Name' : 'Full Name'}
+                </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-[#8C847C] absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
