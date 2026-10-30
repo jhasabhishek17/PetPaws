@@ -172,10 +172,10 @@ export default function SellerDashboard({
   useEffect(() => {
     // Re-sync payout fields and reload inventory/orders whenever the logged-in user changes;
     // anyone who isn't a seller just gets empty lists.
-    if (currentUser && currentUser.role === 'seller') {
+    if (currentUser && (currentUser.role === 'seller' || currentUser.role === 'shopkeeper')) {
       setUpiId(currentUser.upi_id || '');
       setBankName(currentUser.bank_name || '');
-      setBankAccount(currentUser.bank_name ? currentUser.bank_account || '' : '');
+      setBankAccount(currentUser.bank_account || '');
       setIfscCode(currentUser.ifsc_code || '');
       fetchSellerData();
     } else {
@@ -1335,7 +1335,7 @@ export default function SellerDashboard({
                 </label>
                 <input
                   type="url"
-                  placeholder="https://images.unsplash.com/photo-..."
+                  placeholder="enter image url"
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
                   className="w-full px-3.5 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
