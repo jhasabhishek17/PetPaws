@@ -1,5 +1,6 @@
 // Token & API utilities with production VITE_API_URL and media upload progress support
-const rawApiBase = (import.meta.env.VITE_API_URL || 'https://' + 'petpaws-backend.onrender.com').trim().replace(/\/$/, '');
+const fallbackBase = import.meta.env.DEV ? '' : 'https://' + 'petpaws-backend.onrender.com';
+const rawApiBase = (import.meta.env.VITE_API_URL || fallbackBase).trim().replace(/\/$/, '');
 export const API_BASE = rawApiBase;
 
 export const resolveApiUrl = (url) => {
