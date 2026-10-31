@@ -21,3 +21,6 @@ npm-debug.log*
 
 docs/docs/
 docs/
+
+# Local development database
+server/petpaws_data.json
