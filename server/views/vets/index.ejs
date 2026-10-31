@@ -1,3 +1,4 @@
+<%- include('../partials/header') %>
 <div class="row mb-4 animate-fade-in">
   <div class="col-12 text-center py-4">
     <span class="badge bg-primary rounded-pill px-3 py-2 mb-2 text-uppercase fw-bold">Healthcare & Telehealth</span>
@@ -12,10 +13,10 @@
       <div class="col-lg-4 col-md-6">
         <div class="card pet-card h-100 p-4">
           <div class="d-flex align-items-center gap-3 mb-3">
-            <img src="<%= vet.avatar %>" class="rounded-circle object-cover shadow-sm" width="70" height="70" alt="<%= vet.name %>">
+            <img src="<%= vet.image_url || vet.avatar %>" class="rounded-circle object-cover shadow-sm" width="70" height="70" alt="<%= vet.name %>">
             <div>
               <h5 class="fw-bold mb-1"><%= vet.name %></h5>
-              <p class="text-primary small mb-0 fw-semibold"><%= vet.specialty %></p>
+              <p class="text-primary small mb-0 fw-semibold"><%= vet.specialization || vet.specialty %></p>
               <span class="text-warning small"><i class="fa-solid fa-star"></i> <%= vet.rating %> (<%= vet.experience %> exp)</span>
             </div>
           </div>
@@ -31,3 +32,4 @@
     <% }) %>
   <% } %>
 </div>
+<%- include('../partials/page-end') %>
