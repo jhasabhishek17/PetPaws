@@ -109,6 +109,7 @@ const createAppointment = async (req, res) => {
       appointment_date,
       time_slot,
       type: type || 'General Consultation',
+      fee: Number(vet.consultation_fee) || 40,
       status: 'Confirmed',
       notes: notes || ''
     });
@@ -135,6 +136,7 @@ const createAppointment = async (req, res) => {
     appointment_date,
     time_slot,
     type: type || 'General Consultation',
+    fee: Number(vet.consultation_fee) || 40,
     status: 'Confirmed',
     notes: notes || '',
     created_at: new Date().toISOString()
