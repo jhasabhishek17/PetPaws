@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
 
 /**
+ * Escapes special regular-expression characters in user-supplied query strings
+ * to prevent regex injection and catastrophic backtracking (ReDoS).
+ */
+const escapeRegex = (value) => {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Finds a document by either its custom string id (e.g. 'pet-123', 'ORD-123')
  * or Mongoose ObjectId. Returns null if id is empty.
  */
@@ -16,4 +24,4 @@ const findDocByAnyId = async (Model, id) => {
   });
 };
 
-module.exports = { findDocByAnyId };
+module.exports = { findDocByAnyId, escapeRegex };
