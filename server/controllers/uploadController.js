@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Pet = require('../models/Pet');
+const Product = require('../models/Product');
 const VetProfile = require('../models/VetProfile');
 const { loadData, saveData, isMongoConnected } = require('../db');
 const { findDocByAnyId } = require('../utils/dbHelpers');
@@ -47,6 +48,16 @@ const isPublicIdUsedElsewhere = async (publicId, { excludePetId = null, excludeV
     }
     const otherVet = await VetProfile.findOne(vetQuery);
     if (otherVet) {
+      return true;
+    }
+
+    const otherProduct = await Product.findOne({
+      $or: [
+        { image_public_id: publicId },
+        { 'media.public_id': publicId }
+      ]
+    });
+    if (otherProduct) {
       return true;
     }
     return false;
@@ -102,6 +113,17 @@ const verifyPublicIdOwnership = async (publicId, userId) => {
     const linkedVet = await VetProfile.findOne({ image_public_id: publicId });
     if (linkedVet && linkedVet.user_id !== userId && linkedVet.custom_id !== userId) {
       throw new ExpressError("Not authorized to modify another veterinarian's profile media", 403);
+    }
+
+    const linkedProducts = await Product.find({
+      $or: [
+        { image_public_id: publicId },
+        { 'media.public_id': publicId }
+      ]
+    });
+    const unauthorizedProduct = linkedProducts.find((p) => p.seller_id !== userId);
+    if (unauthorizedProduct) {
+      throw new ExpressError("Not authorized to modify media for another vendor's product", 403);
     }
   } else if (process.env.NODE_ENV !== 'production') {
     const db = loadData();
@@ -196,13 +218,23 @@ const uploadMedia = async (req, res) => {
     throw new ExpressError('Please select at least one image or video file to upload.', 400);
   }
 
-  // 'context' decides the Cloudinary subfolder: vet profile photos vs. pet listing media.
-  const context = req.body?.context === 'profile' ? 'profiles' : 'pets';
-  // Pet listing media is seller-only; profile uploads are restricted to veterinarian accounts.
-  if (context === 'pets' && req.user?.role !== 'seller') {
+  // 'context' decides the Cloudinary subfolder: vet profile photos, product media, or pet listing media.
+  const rawContext = String(req.body?.context || '').trim().toLowerCase();
+  const context =
+    rawContext === 'profile' || rawContext === 'profiles'
+      ? 'profiles'
+      : rawContext === 'product' || rawContext === 'products'
+      ? 'products'
+      : 'pets';
+
+  // Enforce role-based upload permissions per media context.
+  if (context === 'pets' && !['seller', 'admin'].includes(req.user?.role)) {
     throw new ExpressError('Only authenticated seller accounts can upload pet listing media.', 403);
   }
-  if (context === 'profiles' && req.user?.role !== 'vet') {
+  if (context === 'products' && !['seller', 'shopkeeper', 'admin'].includes(req.user?.role)) {
+    throw new ExpressError('Only authenticated shopkeeper or seller accounts can upload product media.', 403);
+  }
+  if (context === 'profiles' && !['vet', 'admin'].includes(req.user?.role)) {
     throw new ExpressError('Only authenticated veterinarian accounts can upload profile photos.', 403);
   }
 
