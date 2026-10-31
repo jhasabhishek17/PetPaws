@@ -9,7 +9,7 @@
 const Pet = require('../models/Pet');
 const { loadData, saveData, isMongoConnected } = require('../db');
 const { normalizeItem } = require('../utils/normalize');
-const { findDocByAnyId } = require('../utils/dbHelpers');
+const { findDocByAnyId, escapeRegex } = require('../utils/dbHelpers');
 const { deleteFromCloudinary } = require('../config/cloudinary');
 const {
   isPublicIdUsedElsewhere,
@@ -215,11 +215,11 @@ const getPets = async (req, res) => {
     }
 
     if (category && category !== 'All') {
-      query.category = new RegExp(`^${category}$`, 'i');
+      query.category = new RegExp(`^${escapeRegex(category)}$`, 'i');
     }
 
     if (search) {
-      const searchRegex = { $regex: search, $options: 'i' };
+      const searchRegex = { $regex: escapeRegex(search), $options: 'i' };
       query.$or = [
         { title: searchRegex },
         { breed: searchRegex },
