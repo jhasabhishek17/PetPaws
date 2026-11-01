@@ -4,6 +4,23 @@ const mongoose = require('mongoose');
 
 const DATA_FILE = path.join(__dirname, 'petpaws_data.json');
 
+const DEFAULT_DB_SHAPE = () => ({
+  users: [],
+  businesses: [],
+  business_memberships: [],
+  subscription_transactions: [],
+  audit_logs: [],
+  pets: [],
+  products: [],
+  orders: [],
+  product_orders: [],
+  vet_profiles: [],
+  vet_appointments: [],
+  grooming_services: [],
+  grooming_bookings: [],
+  support_tickets: []
+});
+
 /**
  * Load raw data from petpaws_data.json
  */
@@ -13,31 +30,14 @@ const loadData = () => {
   }
   try {
     if (!fs.existsSync(DATA_FILE)) {
-      return {
-        users: [],
-        pets: [],
-        orders: [],
-        vet_profiles: [],
-        vet_appointments: [],
-        grooming_services: [],
-        grooming_bookings: [],
-        support_tickets: []
-      };
+      return DEFAULT_DB_SHAPE();
     }
     const data = fs.readFileSync(DATA_FILE, 'utf8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    return { ...DEFAULT_DB_SHAPE(), ...parsed };
   } catch (error) {
     console.error('Error reading JSON DB file:', error);
-    return {
-      users: [],
-      pets: [],
-      orders: [],
-      vet_profiles: [],
-      vet_appointments: [],
-      grooming_services: [],
-      grooming_bookings: [],
-      support_tickets: []
-    };
+    return DEFAULT_DB_SHAPE();
   }
 };
 
