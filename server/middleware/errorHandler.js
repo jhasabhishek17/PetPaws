@@ -21,7 +21,13 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // Fallback for traditional HTML rendering
+  // Fallback for traditional HTML rendering (escape special characters to prevent reflected XSS)
+  const safeHtmlMessage = String(message)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
   res.status(statusCode).send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -35,7 +41,7 @@ const errorHandler = (err, req, res, next) => {
         <div class="card shadow border-0 mx-auto" style="max-width: 500px; border-radius: 16px;">
           <div class="card-body p-5">
             <h1 class="display-4 text-danger mb-3">🐾 ${statusCode}</h1>
-            <h4 class="fw-bold mb-3">${message}</h4>
+            <h4 class="fw-bold mb-3">${safeHtmlMessage}</h4>
             <p class="text-muted mb-4">Something went wrong while processing your request.</p>
             <a href="/" class="btn btn-primary rounded-pill px-4">Back to Home</a>
           </div>
