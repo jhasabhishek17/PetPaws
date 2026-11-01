@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node seed.js",
+    "seed:products": "node seedProducts.js",
     "seed:demo": "node seed-demo.js"
   },
   "dependencies": {
