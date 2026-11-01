@@ -5,10 +5,12 @@
  *   npm run seed:demo -- --remove -> delete ONLY the demo records (custom_id starting with "demo-")
  *
  * Safety rules:
+ * 
  *  - Every demo record has a custom_id starting with "demo-" (seller/vet names also say "(Demo)").
  *  - Records are inserted with upsert + $setOnInsert, so re-running never duplicates or overwrites anything.
  *  - Real users, pets, orders, etc. are never modified or deleted.
- *  - Demo logins: demo-buyer@petpaws.demo / demo-seller@petpaws.demo / demo-vet@petpaws.demo, password "password123".
+ *    - Demo logins: demo-buyer@petpaws.demo / demo-seller@petpaws.demo / demo-vet@petpaws.demo.
+ *  - Set DEMO_USER_INITIAL_PASSWORD in server/.env to configure the demo password.
  */
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
@@ -17,12 +19,14 @@ const connectDB = require('./config/db');
 
 const User = require('./models/User');
 const Pet = require('./models/Pet');
+const Product = require('./models/Product');
 const Order = require('./models/Order');
 const VetProfile = require('./models/VetProfile');
 const VetAppointment = require('./models/VetAppointment');
 const GroomingService = require('./models/GroomingService');
 const GroomingBooking = require('./models/GroomingBooking');
 const SupportTicket = require('./models/SupportTicket');
+const { SAMPLE_PRODUCTS } = require('./seedProducts');
 
 const U = (id, w = 800) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
@@ -34,7 +38,13 @@ const SELLER = { id: 'demo-seller-1', name: 'Sunny Meadows Kennel (Demo)' };
 const SELLER2 = { id: 'demo-seller-2', name: 'Whisker Haven Cattery (Demo)' };
 
 const makeUsers = async () => {
-  const password = await bcrypt.hash('password123', 10);
+  const demoPassword = process.env.DEMO_USER_INITIAL_PASSWORD;
+
+  if (!demoPassword) {
+    throw new Error('DEMO_USER_INITIAL_PASSWORD must be set before creating demo accounts.');
+  }
+
+  const password = await bcrypt.hash(demoPassword, 10);
   return [
     { id: BUYER.id, name: BUYER.name, email: BUYER.email, password, role: 'buyer', phone: '+1 (555) 010-0001', address: '18 Maple Lane, Portland, OR' },
     { id: BUYER2.id, name: BUYER2.name, email: BUYER2.email, password, role: 'buyer', phone: '+1 (555) 010-0002', address: '77 Harbor St, Seattle, WA' },
@@ -120,7 +130,8 @@ const tickets = [
 const upsertAll = async (Model, rows, label) => {
   let created = 0;
   for (const r of rows) {
-    const { id, ...rest } = r;
+    const id = r.custom_id || r.id;
+    const { id: _idField, ...rest } = r;
     const res = await Model.updateOne({ custom_id: id }, { $setOnInsert: { ...rest, custom_id: id } }, { upsert: true });
     if (res.upsertedCount) created += 1;
   }
@@ -134,7 +145,7 @@ const run = async () => {
     process.exit(1);
   }
 
-  const models = [User, Pet, Order, VetProfile, VetAppointment, GroomingService, GroomingBooking, SupportTicket];
+  const models = [User, Pet, Product, Order, VetProfile, VetAppointment, GroomingService, GroomingBooking, SupportTicket];
 
   if (process.argv.includes('--remove')) {
     for (const M of models) {
@@ -148,13 +159,14 @@ const run = async () => {
   console.log('Seeding demo data (existing records are never touched)...');
   await upsertAll(User, await makeUsers(), 'Users');
   await upsertAll(Pet, pets, 'Pets');
+  await upsertAll(Product, SAMPLE_PRODUCTS, 'Products (INR Demo Catalog)');
   await upsertAll(Order, orders, 'Orders');
   await upsertAll(VetProfile, vets, 'Vet profiles');
   await upsertAll(VetAppointment, appointments, 'Vet appointments');
   await upsertAll(GroomingService, services, 'Grooming services');
   await upsertAll(GroomingBooking, bookings, 'Grooming bookings');
   await upsertAll(SupportTicket, tickets, 'Support tickets');
-  console.log('Done. Demo logins (password "password123"): demo-buyer@petpaws.demo, demo-seller@petpaws.demo, demo-vet@petpaws.demo');
+  console.log('Done. Demo accounts created. Use DEMO_USER_INITIAL_PASSWORD to sign in.');
   await mongoose.connection.close();
 };
 
