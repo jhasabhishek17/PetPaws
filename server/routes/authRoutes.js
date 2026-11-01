@@ -24,19 +24,20 @@ const loginLimiter = rateLimit({
 // User Login Endpoint
 router.post('/login', loginLimiter, asyncHandler(authController.loginUser));
 
-// User Registration Endpoint
-router.post('/register', asyncHandler(authController.registerUser));
+// User Registration Endpoint (rate-limited to mitigate automated account spam)
+router.post('/register', loginLimiter, asyncHandler(authController.registerUser));
 
 // Current User Profile Endpoints
 router.get('/me', protect, asyncHandler(authController.getMe));
 router.put('/profile', protect, asyncHandler(authController.updateProfile));
 
-// Seller Payout Settings Update Endpoint (protected, seller only)
-router.put('/update-payout', protect, requireRole('seller'), asyncHandler(authController.updatePayout));
+// Seller / Shopkeeper Payout Settings Update Endpoint (protected)
+router.put('/update-payout', protect, requireRole('seller', 'shopkeeper', 'admin'), asyncHandler(authController.updatePayout));
 
-// Buyer Wishlist Endpoints (protected, buyer only)
-router.get('/wishlist', protect, requireRole('buyer'), asyncHandler(authController.getWishlist));
+// Buyer Wishlist Endpoints (protected)
+router.get('/wishlist', protect, asyncHandler(authController.getWishlist));
 router.post('/wishlist/:petId', protect, requireRole('buyer'), asyncHandler(authController.toggleWishlistItem));
 router.delete('/wishlist/:petId', protect, requireRole('buyer'), asyncHandler(authController.removeWishlistItem));
+router.post('/product-wishlist/:productId', protect, asyncHandler(authController.toggleProductWishlistItem));
 
 module.exports = router;
