@@ -33,11 +33,16 @@ const userSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Password is required'] 
   },
-  // System role: buyer, seller (breeder), or vet (veterinarian)
+  // System role: buyer, seller (breeder/shop), shopkeeper (retail vendor), vet, groomer, or admin
   role: { 
     type: String, 
-    enum: ['buyer', 'seller', 'vet'], 
+    enum: ['buyer', 'seller', 'shopkeeper', 'vet', 'groomer', 'admin'], 
     default: 'buyer' 
+  },
+  // Optional primary business tenant ID for quick lookup
+  business_id: {
+    type: String,
+    default: ''
   },
   // Phone contact number
   phone: { 
@@ -69,6 +74,11 @@ const userSchema = new mongoose.Schema({
   },
   // Saved pet listing IDs for buyer wishlist
   wishlist: {
+    type: [String],
+    default: []
+  },
+  // Saved product IDs for buyer product wishlist
+  product_wishlist: {
     type: [String],
     default: []
   }
