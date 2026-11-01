@@ -12,9 +12,13 @@ const groomingBookingSchema = new mongoose.Schema({
   buyer_name: { type: String, required: true },
   service_id: { type: String, required: true },
   service_title: { type: String, required: true },
+  business_id: { type: String, default: '' },
+  provider_id: { type: String, default: '' },
+  price: { type: Number, default: 55 },
   booking_date: { type: String, required: true },
   time_slot: { type: String, required: true },
-  status: { type: String, default: 'Scheduled' }
+  status: { type: String, default: 'Scheduled' },
+  notes: { type: String, default: '' }
 }, {
   timestamps: true
 });
