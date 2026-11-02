@@ -1,91 +1,117 @@
-require('dotenv').config();
+/**
+ * PetPaws Safe, Idempotent Database Seeder
+ *
+ * Usage:
+ *   cd server && npm run seed
+ *
+ * Guarantees:
+ * - Never deletes existing products, users, businesses, orders, pets, or appointments.
+ * - Uses atomic `updateOne(..., { $setOnInsert: ... }, { upsert: true })` keyed by stable
+ *   `custom_id` (and unique `email` / `slug` where applicable) so running it multiple times
+ *   never creates duplicates.
+ */
+
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const { loadData } = require('./db');
+const { SAMPLE_PRODUCTS, syncLocalJsonFallback } = require('./seedProducts');
 
 const User = require('./models/User');
+const Business = require('./models/Business');
+const BusinessMembership = require('./models/BusinessMembership');
+const SubscriptionTransaction = require('./models/SubscriptionTransaction');
+const AuditLog = require('./models/AuditLog');
 const Pet = require('./models/Pet');
+const Product = require('./models/Product');
 const Order = require('./models/Order');
+const ProductOrder = require('./models/ProductOrder');
 const VetProfile = require('./models/VetProfile');
 const VetAppointment = require('./models/VetAppointment');
 const GroomingService = require('./models/GroomingService');
 const GroomingBooking = require('./models/GroomingBooking');
 const SupportTicket = require('./models/SupportTicket');
 
+const upsertCollection = async (Model, records, label, filterBuilder) => {
+  if (!Array.isArray(records) || records.length === 0) return { inserted: 0, existing: 0 };
+  let inserted = 0;
+  let existing = 0;
+
+  for (const raw of records) {
+    const customId = raw.custom_id || raw.id;
+    if (!customId) continue;
+    const { id, _id, ...rest } = raw;
+    const docToInsert = { ...rest, custom_id: customId };
+    const filter = filterBuilder ? filterBuilder(docToInsert) : { custom_id: customId };
+
+    const res = await Model.updateOne(filter, { $setOnInsert: docToInsert }, { upsert: true });
+    if (res.upsertedCount && res.upsertedCount > 0) {
+      inserted += 1;
+    } else {
+      existing += 1;
+    }
+  }
+
+  console.log(`  ✅ ${label.padEnd(26)}: ${inserted} inserted, ${existing} already present`);
+  return { inserted, existing };
+};
+
 const seedData = async () => {
   const connected = await connectDB();
   if (!connected) {
-    console.error('❌ Could not connect to MongoDB. Make sure MongoDB daemon is running at MONGODB_URI.');
+    console.error('❌ Could not connect to MongoDB. Check MONGODB_URI in server/.env.');
     process.exit(1);
   }
 
   try {
+    // Synchronize local fallback JSON with the 20 INR sample products first
+    syncLocalJsonFallback();
     const data = loadData();
 
-    // Clear existing collections
-    await User.deleteMany({});
-    await Pet.deleteMany({});
-    await Order.deleteMany({});
-    await VetProfile.deleteMany({});
-    await VetAppointment.deleteMany({});
-    await GroomingService.deleteMany({});
-    await GroomingBooking.deleteMany({});
-    await SupportTicket.deleteMany({});
+    console.log(`📦 Connected to MongoDB database: "${mongoose.connection.name}"`);
+    console.log('🌱 Running non-destructive idempotent seed (existing records are preserved)...');
 
-    console.log('🧹 Existing MongoDB collections cleared.');
-
-    // Seed Users
-    if (data.users && data.users.length) {
-      await User.insertMany(data.users.map(u => ({ ...u, custom_id: u.id })));
-      console.log(`✅ Seeded ${data.users.length} Users`);
+    // Hash plaintext seed passwords if needed
+    const preparedUsers = [];
+    for (const u of data.users || []) {
+      const copy = { ...u };
+      if (copy.password && !copy.password.startsWith('$2')) {
+        copy.password = await bcrypt.hash(copy.password, 10);
+      }
+      preparedUsers.push(copy);
     }
 
-    // Seed Pets
-    if (data.pets && data.pets.length) {
-      await Pet.insertMany(data.pets.map(p => ({ ...p, custom_id: p.id })));
-      console.log(`✅ Seeded ${data.pets.length} Pets`);
-    }
+    await upsertCollection(User, preparedUsers, 'Users', (doc) => ({
+      $or: [{ custom_id: doc.custom_id }, { email: doc.email }]
+    }));
 
-    // Seed Orders
-    if (data.orders && data.orders.length) {
-      await Order.insertMany(data.orders.map(o => ({ ...o, custom_id: o.id })));
-      console.log(`✅ Seeded ${data.orders.length} Orders`);
-    }
+    await upsertCollection(Business, data.businesses, 'Businesses', (doc) => ({
+      $or: [{ custom_id: doc.custom_id }, { slug: doc.slug }]
+    }));
 
-    // Seed Vet Profiles
-    if (data.vet_profiles && data.vet_profiles.length) {
-      await VetProfile.insertMany(data.vet_profiles.map(v => ({ ...v, custom_id: v.id })));
-      console.log(`✅ Seeded ${data.vet_profiles.length} Vet Profiles`);
-    }
+    await upsertCollection(BusinessMembership, data.business_memberships, 'Business Memberships');
+    await upsertCollection(SubscriptionTransaction, data.subscription_transactions, 'Subscription Transactions');
+    await upsertCollection(AuditLog, data.audit_logs, 'Audit Logs');
+    await upsertCollection(Product, SAMPLE_PRODUCTS, 'Marketplace Products (INR)');
+    await upsertCollection(ProductOrder, data.product_orders, 'Product Orders');
+    await upsertCollection(Pet, data.pets, 'Pets');
+    await upsertCollection(Order, data.orders, 'Pet Orders');
+    await upsertCollection(VetProfile, data.vet_profiles, 'Vet Profiles');
+    await upsertCollection(VetAppointment, data.vet_appointments, 'Vet Appointments');
+    await upsertCollection(GroomingService, data.grooming_services, 'Grooming Services');
+    await upsertCollection(GroomingBooking, data.grooming_bookings, 'Grooming Bookings');
+    await upsertCollection(SupportTicket, data.support_tickets, 'Support Tickets');
 
-    // Seed Vet Appointments
-    if (data.vet_appointments && data.vet_appointments.length) {
-      await VetAppointment.insertMany(data.vet_appointments.map(a => ({ ...a, custom_id: a.id })));
-      console.log(`✅ Seeded ${data.vet_appointments.length} Vet Appointments`);
-    }
+    const totalProducts = await Product.countDocuments();
+    console.log(`🎉 Seed complete! Total products in "${Product.collection.name}" collection: ${totalProducts}`);
 
-    // Seed Grooming Services
-    if (data.grooming_services && data.grooming_services.length) {
-      await GroomingService.insertMany(data.grooming_services.map(s => ({ ...s, custom_id: s.id })));
-      console.log(`✅ Seeded ${data.grooming_services.length} Grooming Services`);
-    }
-
-    // Seed Grooming Bookings
-    if (data.grooming_bookings && data.grooming_bookings.length) {
-      await GroomingBooking.insertMany(data.grooming_bookings.map(b => ({ ...b, custom_id: b.id })));
-      console.log(`✅ Seeded ${data.grooming_bookings.length} Grooming Bookings`);
-    }
-
-    // Seed Support Tickets
-    if (data.support_tickets && data.support_tickets.length) {
-      await SupportTicket.insertMany(data.support_tickets.map(t => ({ ...t, custom_id: t.id })));
-      console.log(`✅ Seeded ${data.support_tickets.length} Support Tickets`);
-    }
-
-    console.log('🎉 MongoDB database successfully seeded!');
+    await mongoose.connection.close();
     process.exit(0);
   } catch (error) {
     console.error('❌ Error seeding MongoDB:', error);
+    await mongoose.connection.close();
     process.exit(1);
   }
 };
