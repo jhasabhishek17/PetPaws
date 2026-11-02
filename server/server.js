@@ -15,6 +15,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const helmet = require('helmet');
 const connectDB = require('./config/db');
 
 // Custom Utilities & Middlewares
@@ -26,11 +27,14 @@ const ExpressError = require('./utils/ExpressError');
 const viewRoutes = require('./routes/viewRoutes');
 const authRoutes = require('./routes/authRoutes');
 const petRoutes = require('./routes/petRoutes');
+const productRoutes = require('./routes/productRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const productOrderRoutes = require('./routes/productOrderRoutes');
 const vetRoutes = require('./routes/vetRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const saasRoutes = require('./routes/saasRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -45,6 +49,12 @@ app.set('views', path.join(__dirname, 'views'));
 
 // Serve static assets from public/ folder (CSS, client JS, images)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// HTTP Security Headers via Helmet
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: false
+}));
 
 // Middlewares: Enable CORS & Body Parsers
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
@@ -68,8 +78,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // HTTP Request Logger
 app.use(requestLogger);
@@ -90,11 +100,14 @@ app.use('/', viewRoutes);
 // REST API Endpoints (For React / Mobile / SPA Clients)
 app.use('/api/auth', authRoutes);
 app.use('/api/pets', petRoutes);
+app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/product-orders', productOrderRoutes);
 app.use('/api/vets', vetRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/saas', saasRoutes);
 
 // ==========================================
 // 3. 404 & GLOBAL ERROR HANDLING
