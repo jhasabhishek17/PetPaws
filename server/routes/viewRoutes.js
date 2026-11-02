@@ -14,6 +14,7 @@ const GroomingService = require('../models/GroomingService');
 const Order = require('../models/Order');
 const { loadData, isMongoConnected } = require('../db');
 const { normalizeItem } = require('../utils/normalize');
+const { escapeRegex } = require('../utils/dbHelpers');
 const asyncHandler = require('../middleware/asyncHandler');
 const { protect, requireRole } = require('../middleware/authMiddleware');
 const mongoose = require('mongoose');
@@ -28,12 +29,13 @@ router.get('/', asyncHandler(async (req, res) => {
   if (isMongoConnected()) {
     let query = { status: 'active', stock: { $gt: 0 } };
     if (category && category !== 'All') {
-      query.category = new RegExp(`^${category}$`, 'i');
+      query.category = new RegExp(`^${escapeRegex(category)}$`, 'i');
     }
     if (search) {
+      const safeSearch = escapeRegex(search);
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { breed: { $regex: search, $options: 'i' } }
+        { title: { $regex: safeSearch, $options: 'i' } },
+        { breed: { $regex: safeSearch, $options: 'i' } }
       ];
     }
     const docs = await Pet.find(query).sort({ createdAt: -1 });
