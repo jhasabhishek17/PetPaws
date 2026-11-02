@@ -1,9 +1,10 @@
+
 /**
  * PetPaws Main Server Entry Point
- * 
+ *
  * Architecture Pattern: MVC (Model-View-Controller)
  * Stack: Node.js, Express.js, MongoDB (Mongoose), EJS Views, Bootstrap 5, Custom CSS Animations.
- * 
+ *
  * Features:
  * - Dual Rendering: EJS Templated Web Views + RESTful API endpoints for SPAs
  * - Modularized Routers: /api/auth, /api/pets, /api/orders, /api/vets, /api/services, /api/support, /api/upload
@@ -47,7 +48,7 @@ const PORT = process.env.PORT || 5001;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Serve static assets from public/ folder (CSS, client JS, images)
+// Serve static assets from public/ folder
 app.use(express.static(path.join(__dirname, 'public')));
 
 // HTTP Security Headers via Helmet
@@ -56,7 +57,7 @@ app.use(helmet({
   crossOriginResourcePolicy: false
 }));
 
-// Middlewares: Enable CORS & Body Parsers
+// Middleware: Enable CORS & Body Parsers
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim().replace(/\/$/, ''))
@@ -65,30 +66,39 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
+
     const normalizedOrigin = origin.replace(/\/$/, '');
+
     if (allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, normalizedOrigin);
     }
+
     if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
-    return callback(new ExpressError(`Origin ${origin} not allowed by CORS`, 403));
+
+    return callback(
+      new ExpressError(`Origin ${origin} not allowed by CORS`, 403)
+    );
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // HTTP Request Logger
 app.use(requestLogger);
 
-// Health check (used by uptime monitors and deploy platforms)
-app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
-
-// Initialize Database Connection (MongoDB / MongoDB Atlas)
-connectDB();
+// Health check used by uptime monitors and deployment platforms
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // ==========================================
 // 2. MOUNT MODULAR ROUTERS
@@ -97,7 +107,7 @@ connectDB();
 // EJS Server-Rendered Web Page Routes
 app.use('/', viewRoutes);
 
-// REST API Endpoints (For React / Mobile / SPA Clients)
+// REST API Endpoints for React / Mobile / SPA Clients
 app.use('/api/auth', authRoutes);
 app.use('/api/pets', petRoutes);
 app.use('/api/products', productRoutes);
@@ -125,15 +135,33 @@ app.use(errorHandler);
 // 4. SERVER LISTENER
 // ==========================================
 
-const server = app.listen(PORT, () => {
-  console.log(`==================================================`);
-  console.log(`🚀 PetPaws Server running on port http://localhost:${PORT}`);
-  console.log(`📁 EJS Web Views: http://localhost:${PORT}`);
-  console.log(`🔌 REST API Base: http://localhost:${PORT}/api/pets`);
-  console.log(`==================================================`);
-});
+const startServer = async () => {
+  const connected = await connectDB();
 
-// Graceful shutdown so in-flight requests finish and the DB connection closes cleanly
-const shutdown = () => server.close(() => require('mongoose').connection.close().finally(() => process.exit(0)));
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+  if (!connected) {
+    console.error(
+      '❌ Server startup aborted: MongoDB connection failed.'
+    );
+    process.exit(1);
+  }
+
+  const server = app.listen(PORT, () => {
+    console.log('==================================================');
+    console.log(`🚀 PetPaws Server running on port ${PORT}`);
+    console.log('🔌 REST API Base: /api/pets');
+    console.log('==================================================');
+  });
+
+  // Gracefully close the server and MongoDB connection during shutdown.
+  const shutdown = () => {
+    server.close(() => {
+      require('mongoose').connection.close()
+        .finally(() => process.exit(0));
+    });
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+};
+
+startServer();
