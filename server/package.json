@@ -8,7 +8,8 @@
     "dev": "node --watch server.js",
     "seed": "node seed.js",
     "seed:products": "node seedProducts.js",
-    "seed:demo": "node seed-demo.js"
+    "seed:demo": "node seed-demo.js",
+    "test": "node --test tests/platformAudit.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
