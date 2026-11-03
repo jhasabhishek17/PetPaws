@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingBag,
   Heart,
@@ -62,6 +62,32 @@ export default function BuyerDashboard({
     setSection(initialSection);
   }, [initialSection]);
 
+  const fetchBuyerData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [orderRes, vetRes, svcRes] = await Promise.all([
+        apiGet('/api/orders'),
+        apiGet('/api/vets/appointments'),
+        apiGet('/api/services/bookings')
+      ]);
+
+      if (orderRes?.success && Array.isArray(orderRes.orders)) {
+        setOrders(orderRes.orders);
+      }
+      if (vetRes?.success && Array.isArray(vetRes.appointments)) {
+        setAppointments(vetRes.appointments);
+      }
+      if (svcRes?.success && Array.isArray(svcRes.bookings)) {
+        setBookings(svcRes.bookings);
+      }
+    } catch (err) {
+      console.error('Failed to load buyer dashboard data:', err);
+      onAddToast?.('Failed to load your dashboard activity records.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [onAddToast]);
+
   useEffect(() => {
     if (currentUser?.role === 'buyer') {
       setName(currentUser.name || '');
@@ -72,7 +98,7 @@ export default function BuyerDashboard({
       setAvatarPublicId(currentUser.avatar_public_id || '');
       fetchBuyerData();
     }
-  }, [currentUser]);
+  }, [currentUser, fetchBuyerData]);
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -465,7 +491,11 @@ export default function BuyerDashboard({
             )}
           </div>
 
-          {orders.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
+              <p className="text-xs font-bold text-[#65605B] animate-pulse">Loading pet orders...</p>
+            </div>
+          ) : orders.length === 0 ? (
             <div className="text-center py-8 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
               <p className="text-xs font-bold text-[#65605B]">You have not placed any pet orders yet.</p>
             </div>
@@ -545,7 +575,11 @@ export default function BuyerDashboard({
                 + Book Vet
               </button>
             </div>
-            {appointments.length === 0 ? (
+            {loading ? (
+              <p className="text-xs text-[#65605B] py-6 text-center bg-[#FAF6F0] rounded-2xl animate-pulse">
+                Loading veterinary consultations...
+              </p>
+            ) : appointments.length === 0 ? (
               <p className="text-xs text-[#65605B] py-6 text-center bg-[#FAF6F0] rounded-2xl">
                 No scheduled veterinary consultations yet.
               </p>
@@ -596,7 +630,11 @@ export default function BuyerDashboard({
                 + Book Spa
               </button>
             </div>
-            {bookings.length === 0 ? (
+            {loading ? (
+              <p className="text-xs text-[#65605B] py-6 text-center bg-[#FAF6F0] rounded-2xl animate-pulse">
+                Loading grooming sessions...
+              </p>
+            ) : bookings.length === 0 ? (
               <p className="text-xs text-[#65605B] py-6 text-center bg-[#FAF6F0] rounded-2xl">
                 No grooming or training sessions booked yet.
               </p>
