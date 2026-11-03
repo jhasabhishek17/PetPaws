@@ -34,6 +34,9 @@ const bookService = async (req, res) => {
   if (!req.user) {
     throw new ExpressError('Authentication required to book a service', 401);
   }
+  if (req.user.role !== 'buyer' && req.user.role !== 'admin') {
+    throw new ExpressError('Service provider accounts cannot book grooming services as customers. Please use a customer account.', 403);
+  }
   const { service_id, booking_date, time_slot } = req.body;
   const buyer_id = req.user.id;
   const buyer_name = req.user.name;
