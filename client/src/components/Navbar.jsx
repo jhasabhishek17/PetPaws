@@ -31,14 +31,14 @@ const getNavItems = (role, wishlistCount) => [
   ] : []),
   ...(role === 'seller' ? [
     { id: 'seller', label: 'Breeder Portal', icon: Store, activeClass: 'bg-[#D97706] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' },
-    { id: 'saas-portal', label: 'SaaS & Shop', icon: LayoutDashboard, activeClass: 'bg-[#231F20] text-white shadow-md' }
+    { id: 'saas-portal', label: 'Business Dashboard', icon: LayoutDashboard, activeClass: 'bg-[#231F20] text-white shadow-md' }
   ] : []),
   ...(role === 'shopkeeper' || role === 'groomer' || role === 'admin' ? [
-    { id: 'saas-portal', label: role === 'admin' ? 'SaaS & Admin' : 'Shop SaaS Portal', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' }
+    { id: 'saas-portal', label: role === 'admin' ? 'Admin Portal' : 'Business Dashboard', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' }
   ] : []),
   ...(role === 'vet' ? [
     { id: 'vet-dashboard', label: 'Vet Portal', icon: LayoutDashboard, activeClass: 'bg-[#243D36] text-white shadow-md', customInactive: 'text-[#2A5C4A] bg-[#EAEFE9] border border-[#D1E7DD] hover:bg-[#D1E7DD]' },
-    { id: 'saas-portal', label: 'Clinic SaaS', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md' }
+    { id: 'saas-portal', label: 'Business Plans', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md' }
   ] : []),
   { id: 'support', label: 'Support', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
 ];
@@ -116,7 +116,7 @@ export default function Navbar({
           {/* Desktop Search Bar */}
           <form
             onSubmit={handleSearchSubmit}
-            className="hidden md:flex items-center w-28 lg:w-32 xl:w-44 2xl:w-56 flex-shrink min-w-[105px] mx-1 xl:mx-2"
+            className="hidden xl:flex items-center w-36 2xl:w-52 flex-shrink min-w-[120px] mx-1 xl:mx-2"
           >
             <div className="relative w-full">
               <button
@@ -147,8 +147,8 @@ export default function Navbar({
             </div>
           </form>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex flex-wrap items-center justify-center gap-1 flex-1 min-w-0">
+          {/* Desktop Navigation Links - Single Row, No Wrapping */}
+          <nav className="hidden lg:flex items-center justify-center gap-1 xl:gap-1.5 flex-1 min-w-0 flex-nowrap">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -166,7 +166,7 @@ export default function Navbar({
                   <span>{item.label}</span>
                   {item.badge !== null && item.badge !== undefined && (
                     <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black leading-none flex-shrink-0 ${
                         isActive ? 'bg-white text-[#E07A5F]' : 'bg-[#FFF5F0] text-[#E07A5F] border border-[#F4C4B7]'
                       }`}
                     >
@@ -191,8 +191,12 @@ export default function Navbar({
                     aria-label="User account menu"
                     className="flex items-center space-x-1.5 hover:opacity-85 transition-opacity text-left cursor-pointer focus:outline-none"
                   >
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-r from-[#E07A5F] to-[#F4A261] text-white flex items-center justify-center text-xs font-extrabold shadow-xs flex-shrink-0">
-                      {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-r from-[#E07A5F] to-[#F4A261] text-white flex items-center justify-center text-xs font-extrabold shadow-xs flex-shrink-0 overflow-hidden">
+                      {currentUser.avatar_url ? (
+                        <img src={currentUser.avatar_url} alt={currentUser.name} className="w-full h-full object-cover" />
+                      ) : (
+                        currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'
+                      )}
                     </div>
                     <div className="text-left leading-tight pr-0.5">
                       <span
@@ -229,8 +233,12 @@ export default function Navbar({
                 {userDropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-xl border border-[#EFE9DF] py-3 px-3 z-50 animate-fadeIn">
                     <div className="flex items-center space-x-3 pb-3 mb-2 border-b border-[#EFE9DF] px-1">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#E07A5F] to-[#F4A261] text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0">
-                        {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#E07A5F] to-[#F4A261] text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0 overflow-hidden">
+                        {currentUser.avatar_url ? (
+                          <img src={currentUser.avatar_url} alt={currentUser.name} className="w-full h-full object-cover" />
+                        ) : (
+                          currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-extrabold text-[#231F20] break-words">
@@ -376,8 +384,12 @@ export default function Navbar({
                   aria-label="User account badge"
                   className="flex items-center space-x-1.5 bg-[#F3ECE0] px-2 py-1 rounded-full border border-[#E6DCCF] text-left cursor-pointer"
                 >
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-[#E07A5F] to-[#F4A261] text-white flex items-center justify-center text-[10px] font-extrabold flex-shrink-0">
-                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-[#E07A5F] to-[#F4A261] text-white flex items-center justify-center text-[10px] font-extrabold flex-shrink-0 overflow-hidden">
+                    {currentUser.avatar_url ? (
+                      <img src={currentUser.avatar_url} alt={currentUser.name} className="w-full h-full object-cover" />
+                    ) : (
+                      currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'
+                    )}
                   </div>
                   <span
                     className="text-xs font-bold text-[#231F20] max-w-[80px] sm:max-w-[110px] truncate"
