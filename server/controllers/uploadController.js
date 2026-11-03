@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const User = require('../models/User');
 const Pet = require('../models/Pet');
 const Product = require('../models/Product');
 const VetProfile = require('../models/VetProfile');
@@ -115,6 +116,11 @@ const verifyPublicIdOwnership = async (publicId, userId) => {
       throw new ExpressError("Not authorized to modify another veterinarian's profile media", 403);
     }
 
+    const linkedUser = await User.findOne({ avatar_public_id: publicId });
+    if (linkedUser && linkedUser.custom_id !== userId && linkedUser._id.toString() !== userId) {
+      throw new ExpressError("Not authorized to modify another user's profile avatar", 403);
+    }
+
     const linkedProducts = await Product.find({
       $or: [
         { image_public_id: publicId },
@@ -218,10 +224,10 @@ const uploadMedia = async (req, res) => {
     throw new ExpressError('Please select at least one image or video file to upload.', 400);
   }
 
-  // 'context' decides the Cloudinary subfolder: vet profile photos, product media, or pet listing media.
+  // 'context' decides the Cloudinary subfolder: user profile avatars, product media, or pet listing media.
   const rawContext = String(req.body?.context || '').trim().toLowerCase();
   const context =
-    rawContext === 'profile' || rawContext === 'profiles'
+    rawContext === 'avatar' || rawContext === 'avatars' || rawContext === 'profile' || rawContext === 'profiles'
       ? 'profiles'
       : rawContext === 'product' || rawContext === 'products'
       ? 'products'
@@ -234,8 +240,8 @@ const uploadMedia = async (req, res) => {
   if (context === 'products' && !['seller', 'shopkeeper', 'admin'].includes(req.user?.role)) {
     throw new ExpressError('Only authenticated shopkeeper or seller accounts can upload product media.', 403);
   }
-  if (context === 'profiles' && !['vet', 'admin'].includes(req.user?.role)) {
-    throw new ExpressError('Only authenticated veterinarian accounts can upload profile photos.', 403);
+  if (context === 'profiles' && !req.user) {
+    throw new ExpressError('Authentication required to upload profile photos.', 401);
   }
 
   if (!isCloudinaryConfigured()) {
