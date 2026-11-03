@@ -21,11 +21,24 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for password reset requests to mitigate spam & enumeration
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Too many password recovery requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // User Login Endpoint
 router.post('/login', loginLimiter, asyncHandler(authController.loginUser));
 
 // User Registration Endpoint (rate-limited to mitigate automated account spam)
 router.post('/register', loginLimiter, asyncHandler(authController.registerUser));
+
+// Password Recovery & Reset Endpoints
+router.post('/forgot-password', passwordResetLimiter, asyncHandler(authController.forgotPassword));
+router.post('/reset-password', passwordResetLimiter, asyncHandler(authController.resetPassword));
 
 // Current User Profile Endpoints
 router.get('/me', protect, asyncHandler(authController.getMe));
