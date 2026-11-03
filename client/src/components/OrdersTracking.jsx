@@ -54,7 +54,7 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
         apiGet('/api/product-orders')
       ]);
 
-      if (petRes.success && Array.isArray(petRes.orders) && petRes.orders.length > 0) {
+      if (petRes?.success && Array.isArray(petRes.orders) && petRes.orders.length > 0) {
         setOrders(petRes.orders);
         setActiveOrder(petRes.orders[0]);
       } else {
@@ -62,7 +62,7 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
         setActiveOrder(null);
       }
 
-      if (prodRes.success && Array.isArray(prodRes.orders) && prodRes.orders.length > 0) {
+      if (prodRes?.success && Array.isArray(prodRes.orders) && prodRes.orders.length > 0) {
         setProductOrders(prodRes.orders);
         setActiveProductOrder(prodRes.orders[0]);
       } else {
