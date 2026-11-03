@@ -17,6 +17,7 @@ const { normalizeItem } = require('../utils/normalize');
 const { findDocByAnyId, escapeRegex } = require('../utils/dbHelpers');
 const { ensureUserBusiness, checkSubscriptionLimit, recordAuditLog } = require('../middleware/tenantMiddleware');
 const { uploadBufferToCloudinary, deleteFromCloudinary, isCloudinaryConfigured } = require('../config/cloudinary');
+const { calculateEffectivePrice, isDiscountActive } = require('../utils/paymentGateway');
 const ExpressError = require('../utils/ExpressError');
 
 const PRODUCT_CATEGORIES = [
@@ -156,6 +157,57 @@ const parseFeatures = (rawFeatures) => {
   return [];
 };
 
+const parseDiscount = (rawDiscount, basePrice) => {
+  if (!rawDiscount) return null;
+  let d = rawDiscount;
+  if (typeof rawDiscount === 'string') {
+    try {
+      d = JSON.parse(rawDiscount);
+    } catch {
+      return null;
+    }
+  }
+  if (!d || typeof d !== 'object') return null;
+
+  const type = d.type === 'fixed' ? 'fixed' : 'percentage';
+  const val = Number(d.value);
+  if (!Number.isFinite(val) || val <= 0) {
+    return {
+      type: 'percentage',
+      value: 0,
+      start_date: '',
+      end_date: '',
+      is_active: false,
+      title: ''
+    };
+  }
+
+  // Validate discount bounds
+  if (type === 'percentage' && (val < 1 || val > 90)) {
+    throw new ExpressError('Percentage discount must be between 1% and 90%', 400);
+  }
+  if (type === 'fixed' && val > Number(basePrice)) {
+    throw new ExpressError('Fixed discount cannot exceed the product base price', 400);
+  }
+
+  if (d.start_date && d.end_date) {
+    const s = new Date(d.start_date);
+    const e = new Date(d.end_date);
+    if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && e < s) {
+      throw new ExpressError('Promotional offer end date cannot be earlier than start date', 400);
+    }
+  }
+
+  return {
+    type,
+    value: val,
+    start_date: d.start_date ? String(d.start_date).trim() : '',
+    end_date: d.end_date ? String(d.end_date).trim() : '',
+    is_active: Boolean(d.is_active),
+    title: d.title ? String(d.title).trim() : ''
+  };
+};
+
 const resolveUploadedMedia = async (req, body) => {
   const uploadedItems = [];
   const incomingFiles = Array.isArray(req.uploadedFiles) && req.uploadedFiles.length > 0
@@ -267,12 +319,38 @@ const getProducts = async (req, res) => {
       query.status = 'active';
     }
     const docs = await Product.find(query).sort({ createdAt: -1 });
-    products = docs.map(normalizeItem);
+    products = docs.map(p => {
+      const pObj = normalizeItem(p);
+      const eff = calculateEffectivePrice(pObj);
+      pObj.effective_price = eff.finalPrice;
+      pObj.has_active_discount = eff.isDiscountActive;
+      pObj.discount_info = eff.isDiscountActive ? {
+        title: eff.discountTitle,
+        type: eff.discountType,
+        value: eff.discountValue,
+        discount_amount: eff.discountAmount,
+        original_price: eff.basePrice
+      } : null;
+      return pObj;
+    });
   } else {
     const db = loadData();
     products = (db.products || []).filter(
       p => (p.status === 'active' || p.status === 'out_of_stock') && (p.moderation_status || 'approved') === 'approved'
-    );
+    ).map(p => {
+      const pObj = normalizeItem(p);
+      const eff = calculateEffectivePrice(pObj);
+      pObj.effective_price = eff.finalPrice;
+      pObj.has_active_discount = eff.isDiscountActive;
+      pObj.discount_info = eff.isDiscountActive ? {
+        title: eff.discountTitle,
+        type: eff.discountType,
+        value: eff.discountValue,
+        discount_amount: eff.discountAmount,
+        original_price: eff.basePrice
+      } : null;
+      return pObj;
+    });
     if (category && category !== 'All') {
       products = products.filter(p => p.category.toLowerCase() === category.toLowerCase());
     }
@@ -385,14 +463,39 @@ const getProductById = async (req, res) => {
   if (isMongoConnected()) {
     const doc = await findDocByAnyId(Product, id);
     if (!doc) throw new ExpressError('Product not found', 404);
-    return res.json({ success: true, product: normalizeItem(doc) });
+    const item = normalizeItem(doc);
+    const eff = calculateEffectivePrice(item);
+    item.effective_price = eff.finalPrice;
+    item.has_active_discount = eff.isDiscountActive;
+    item.discount_info = eff.isDiscountActive ? {
+      title: eff.discountTitle,
+      type: eff.discountType,
+      value: eff.discountValue,
+      discount_amount: eff.discountAmount,
+      amount_saved: eff.discountAmount,
+      original_price: eff.basePrice
+    } : null;
+    return res.json({ success: true, product: item });
   }
 
   const db = loadData();
   const product = (db.products || []).find(p => p.id === id || p.custom_id === id);
   if (!product) throw new ExpressError('Product not found', 404);
 
-  res.json({ success: true, product });
+  const item = normalizeItem(product);
+  const eff = calculateEffectivePrice(item);
+  item.effective_price = eff.finalPrice;
+  item.has_active_discount = eff.isDiscountActive;
+  item.discount_info = eff.isDiscountActive ? {
+    title: eff.discountTitle,
+    type: eff.discountType,
+    value: eff.discountValue,
+    discount_amount: eff.discountAmount,
+    amount_saved: eff.discountAmount,
+    original_price: eff.basePrice
+  } : null;
+
+  res.json({ success: true, product: item });
 };
 
 /**
@@ -426,7 +529,8 @@ const createProduct = async (req, res) => {
     description,
     features,
     ingredients_or_materials,
-    safety_notes
+    safety_notes,
+    discount
   } = req.body;
 
   if (!title || !String(title).trim() || !category || !String(category).trim() || price === undefined || price === '') {
@@ -480,6 +584,7 @@ const createProduct = async (req, res) => {
     image_url: resolvedMedia.image_url || defaultImg,
     image_public_id: resolvedMedia.image_public_id || '',
     media: resolvedMedia.media,
+    discount: parseDiscount(discount, numericPrice),
     rating: 4.9,
     reviews_count: 1,
     moderation_status: 'approved',
@@ -599,6 +704,10 @@ const updateProduct = async (req, res) => {
 
   if (req.body.features !== undefined) {
     updates.features = parseFeatures(req.body.features);
+  }
+
+  if (req.body.discount !== undefined) {
+    updates.discount = parseDiscount(req.body.discount, updates.price !== undefined ? updates.price : 999999);
   }
 
   if (updates.stock !== undefined && !updates.status) {
@@ -784,6 +893,111 @@ const reportProduct = async (req, res) => {
   });
 };
 
+/**
+ * POST /api/products/:id/reviews
+ * Allows verified buyers who ordered this product to submit a review
+ */
+const createProductReview = async (req, res) => {
+  if (!req.user) {
+    throw new ExpressError('Authentication required to review a product', 401);
+  }
+  if (req.user.role !== 'buyer' && req.user.role !== 'admin') {
+    throw new ExpressError('Only customer accounts can submit product reviews', 403);
+  }
+
+  const { id } = req.params;
+  const { rating, comment } = req.body;
+
+  const numRating = Number(rating);
+  if (!Number.isFinite(numRating) || numRating < 1 || numRating > 5) {
+    throw new ExpressError('Rating must be an integer between 1 and 5 stars', 400);
+  }
+  if (!comment || !String(comment).trim()) {
+    throw new ExpressError('Review comment text is required', 400);
+  }
+
+  // Verify buyer has purchased this product
+  let hasPurchased = false;
+  const safeId = String(id).trim();
+
+  if (isMongoConnected()) {
+    const ProductOrder = require('../models/ProductOrder');
+    const orderMatch = await ProductOrder.findOne({
+      buyer_id: req.user.id,
+      'items.product_id': safeId
+    });
+    if (orderMatch) hasPurchased = true;
+  } else {
+    const db = loadData();
+    const orderMatch = (db.product_orders || []).find(
+      o => o.buyer_id === req.user.id && (o.items || []).some(i => i.product_id === safeId)
+    );
+    if (orderMatch) hasPurchased = true;
+  }
+
+  if (!hasPurchased && req.user.role !== 'admin') {
+    throw new ExpressError('Only verified purchasers of this product can submit a review', 403);
+  }
+
+  const reviewDoc = {
+    review_id: `rev-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+    user_id: req.user.id,
+    user_name: req.user.name || 'Verified Customer',
+    rating: Math.round(numRating),
+    comment: String(comment).trim(),
+    verified_purchase: true,
+    created_at: new Date().toISOString()
+  };
+
+  if (isMongoConnected()) {
+    const product = await findDocByAnyId(Product, id);
+    if (!product) throw new ExpressError('Product not found', 404);
+
+    if (!Array.isArray(product.reviews)) product.reviews = [];
+    const existing = product.reviews.find(r => r.user_id === req.user.id);
+    if (existing) {
+      throw new ExpressError('You have already submitted a review for this product', 400);
+    }
+
+    product.reviews.unshift(reviewDoc);
+    product.reviews_count = product.reviews.length;
+    const avg = product.reviews.reduce((sum, r) => sum + Number(r.rating || 5), 0) / product.reviews_count;
+    product.rating = Number(avg.toFixed(1));
+    await product.save();
+
+    return res.status(201).json({
+      success: true,
+      review: reviewDoc,
+      product: normalizeItem(product),
+      message: 'Product review submitted successfully'
+    });
+  }
+
+  const db = loadData();
+  const idx = (db.products || []).findIndex(p => p.id === id || p.custom_id === id);
+  if (idx === -1) throw new ExpressError('Product not found', 404);
+
+  const product = db.products[idx];
+  if (!Array.isArray(product.reviews)) product.reviews = [];
+  const existing = product.reviews.find(r => r.user_id === req.user.id);
+  if (existing) {
+    throw new ExpressError('You have already submitted a review for this product', 400);
+  }
+
+  product.reviews.unshift(reviewDoc);
+  product.reviews_count = product.reviews.length;
+  const avg = product.reviews.reduce((sum, r) => sum + Number(r.rating || 5), 0) / product.reviews_count;
+  product.rating = Number(avg.toFixed(1));
+  saveData(db);
+
+  res.status(201).json({
+    success: true,
+    review: reviewDoc,
+    product,
+    message: 'Product review submitted successfully'
+  });
+};
+
 module.exports = {
   PRODUCT_CATEGORIES,
   getCategories,
@@ -793,5 +1007,6 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
-  reportProduct
+  reportProduct,
+  createProductReview
 };
