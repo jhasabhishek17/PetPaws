@@ -36,6 +36,69 @@ const productReportSchema = new mongoose.Schema({
   created_at: { type: String, default: () => new Date().toISOString() }
 }, { _id: false });
 
+const productDiscountSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    enum: ['percentage', 'fixed'],
+    default: 'percentage'
+  },
+  value: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
+  start_date: {
+    type: String,
+    default: ''
+  },
+  end_date: {
+    type: String,
+    default: ''
+  },
+  is_active: {
+    type: Boolean,
+    default: false
+  },
+  title: {
+    type: String,
+    default: ''
+  }
+}, { _id: false });
+
+const productReviewSchema = new mongoose.Schema({
+  review_id: {
+    type: String,
+    required: true
+  },
+  user_id: {
+    type: String,
+    required: true
+  },
+  user_name: {
+    type: String,
+    default: 'Verified Customer'
+  },
+  rating: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 5
+  },
+  comment: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  verified_purchase: {
+    type: Boolean,
+    default: true
+  },
+  created_at: {
+    type: String,
+    default: () => new Date().toISOString()
+  }
+}, { _id: false });
+
 const productSchema = new mongoose.Schema({
   custom_id: {
     type: String,
@@ -140,6 +203,14 @@ const productSchema = new mongoose.Schema({
   },
   media: {
     type: [mediaItemSchema],
+    default: []
+  },
+  discount: {
+    type: productDiscountSchema,
+    default: null
+  },
+  reviews: {
+    type: [productReviewSchema],
     default: []
   },
   rating: {
