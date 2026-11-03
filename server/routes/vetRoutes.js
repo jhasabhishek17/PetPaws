@@ -21,7 +21,7 @@ router.route('/my-profile')
 // Appointment Routes (protected)
 router.route('/appointments')
   .get(protect, asyncHandler(vetController.getAppointments))
-  .post(protect, asyncHandler(vetController.createAppointment));
+  .post(protect, requireRole('buyer', 'admin'), asyncHandler(vetController.createAppointment));
 
 router.put('/appointments/:id/status', protect, requireRole('vet'), asyncHandler(vetController.updateAppointmentStatus));
 router.put('/appointments/:id/cancel', protect, asyncHandler(vetController.cancelAppointment));
