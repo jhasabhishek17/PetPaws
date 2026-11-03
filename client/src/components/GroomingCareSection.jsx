@@ -44,6 +44,10 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
   };
 
   const handleBookClick = (srv) => {
+    if (currentUser && ['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser.role)) {
+      onAddToast?.('Service provider accounts cannot book grooming appointments. Please sign in as a customer.', 'error');
+      return;
+    }
     const openModal = () => {
       setSelectedService(srv);
       setBookingSuccess(null);
@@ -57,6 +61,10 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
 
   const handleBookService = async (e) => {
     e.preventDefault();
+    if (currentUser && ['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser.role)) {
+      onAddToast?.('Service provider accounts cannot book grooming appointments.', 'error');
+      return;
+    }
     try {
       const data = await apiPost('/api/services/book', {
         service_id: selectedService.id,
@@ -296,9 +304,20 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
                     <option value="04:30 PM">04:30 PM</option>
                   </select>
                 </div>
+                {['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser?.role) && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-bold">
+                    Provider accounts cannot book customer appointments. Please sign in as a customer account.
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] text-white font-extrabold text-xs rounded-xl shadow-lg shadow-[#E07A5F]/20"
+                  disabled={['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser?.role)}
+                  className={`w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] text-white font-extrabold text-xs rounded-xl shadow-lg shadow-[#E07A5F]/20 ${
+                    ['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser?.role)
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'cursor-pointer'
+                  }`}
                 >
                   Confirm Booking (${selectedService.price})
                 </button>
