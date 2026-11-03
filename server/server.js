@@ -164,4 +164,8 @@ const startServer = async () => {
   process.on('SIGINT', shutdown);
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer };
