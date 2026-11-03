@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const serviceController = require('../controllers/serviceController');
-const { protect, optionalAuth } = require('../middleware/authMiddleware');
+const { protect, optionalAuth, requireRole } = require('../middleware/authMiddleware');
 const asyncHandler = require('../middleware/asyncHandler');
 
 // Fetch Grooming Services (public)
@@ -16,8 +16,8 @@ router.get('/', optionalAuth, asyncHandler(serviceController.getServices));
 // Fetch Scheduled Grooming Bookings (protected)
 router.get('/bookings', protect, asyncHandler(serviceController.getBookings));
 
-// Book Grooming Session (protected)
-router.post('/book', protect, asyncHandler(serviceController.bookService));
+// Book Grooming Session (protected - buyers only)
+router.post('/book', protect, requireRole('buyer', 'admin'), asyncHandler(serviceController.bookService));
 
 // Cancel Grooming Booking (protected)
 router.put('/bookings/:id/cancel', protect, asyncHandler(serviceController.cancelBooking));
