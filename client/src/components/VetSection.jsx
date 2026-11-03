@@ -64,8 +64,12 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
     }
   };
 
-  // Handle Schedule click with Guest protection
+  // Handle Schedule click with Guest protection & Provider guard
   const handleScheduleClick = (vet) => {
+    if (currentUser && ['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser.role)) {
+      onAddToast?.('Service provider accounts cannot book veterinary appointments. Please sign in as a customer.', 'error');
+      return;
+    }
     const openModal = () => {
       setSelectedVet(vet);
       setSelectedSlot(vet.available_slots?.[0] || '10:00 AM');
@@ -82,6 +86,10 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
   const handleScheduleAppointment = async (e) => {
     e.preventDefault();
     if (submitting) return;
+    if (currentUser && ['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser.role)) {
+      onAddToast?.('Service provider accounts cannot book veterinary appointments.', 'error');
+      return;
+    }
     if (!petName.trim()) {
       onAddToast?.('Please enter your pet name and breed.', 'error');
       return;
@@ -387,9 +395,20 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
                   />
                 </div>
 
+                {['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser?.role) && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-bold">
+                    Provider accounts cannot book customer appointments. Please sign in as a customer account.
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] text-white font-extrabold text-xs rounded-xl shadow-lg shadow-[#E07A5F]/20 transition-all"
+                  disabled={['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser?.role)}
+                  className={`w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] text-white font-extrabold text-xs rounded-xl shadow-lg shadow-[#E07A5F]/20 transition-all ${
+                    ['seller', 'shopkeeper', 'vet', 'groomer'].includes(currentUser?.role)
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'cursor-pointer'
+                  }`}
                 >
                   Confirm & Schedule Meeting (${selectedVet.consultation_fee})
                 </button>
