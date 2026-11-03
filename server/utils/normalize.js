@@ -21,6 +21,8 @@ const normalizeItem = (item) => {
 
   // Strip sensitive / internal fields before sending to client
   delete obj.password;
+  delete obj.reset_password_token_hash;
+  delete obj.reset_password_expires_at;
   delete obj.__v;
 
   return obj;
