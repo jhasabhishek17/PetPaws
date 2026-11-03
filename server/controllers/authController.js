@@ -21,7 +21,9 @@ const { ensureUserBusiness } = require('../middleware/tenantMiddleware');
 const ExpressError = require('../utils/ExpressError');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { getJwtSecret } = require('../config/jwt');
+const { deleteFromCloudinary } = require('../config/cloudinary');
 const mongoose = require('mongoose');
 
 // ---------------------------------------------------------------------------
@@ -228,26 +230,42 @@ const getMe = async (req, res) => {
  */
 const updateProfile = async (req, res) => {
   const userId = req.user.id;
-  const { name, phone, address, upi_id } = req.body;
+  const { name, phone, address, upi_id, avatar_url, avatar_public_id } = req.body;
   const updates = {};
   if (name !== undefined && name.trim()) updates.name = name.trim();
   if (phone !== undefined) updates.phone = String(phone).trim();
   if (address !== undefined) updates.address = String(address).trim();
   if (upi_id !== undefined) updates.upi_id = String(upi_id).trim();
 
+  let oldAvatarPublicId = '';
+  if (avatar_url !== undefined) {
+    updates.avatar_url = String(avatar_url).trim();
+    updates.avatar_public_id = avatar_public_id ? String(avatar_public_id).trim() : '';
+  }
+
   if (isMongoConnected()) {
-    const updatedUser = await User.findOneAndUpdate(
-      { $or: [{ custom_id: userId }, { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null }] },
-      { $set: updates },
-      { new: true }
-    );
-    if (!updatedUser) throw new ExpressError('User not found', 404);
+    const existing = await findUserDoc(userId);
+    if (!existing) throw new ExpressError('User not found', 404);
+    oldAvatarPublicId = existing.avatar_public_id;
+
+    if (avatar_url !== undefined && oldAvatarPublicId && oldAvatarPublicId !== updates.avatar_public_id) {
+      await deleteFromCloudinary(oldAvatarPublicId, 'image').catch(() => {});
+    }
+
+    Object.assign(existing, updates);
+    const updatedUser = await existing.save();
     return res.json({ success: true, user: normalizeItem(updatedUser), message: 'Account details updated successfully' });
   }
 
   const db = loadData();
   const uIndex = db.users.findIndex(u => u.id === userId);
   if (uIndex === -1) throw new ExpressError('User not found', 404);
+
+  oldAvatarPublicId = db.users[uIndex].avatar_public_id;
+  if (avatar_url !== undefined && oldAvatarPublicId && oldAvatarPublicId !== updates.avatar_public_id) {
+    await deleteFromCloudinary(oldAvatarPublicId, 'image').catch(() => {});
+  }
+
   Object.assign(db.users[uIndex], updates);
   saveData(db);
   const safeUser = { ...db.users[uIndex] };
@@ -494,6 +512,106 @@ const toggleProductWishlistItem = async (req, res) => {
   });
 };
 
+/**
+ * Initiates single-use, short-lived password reset token generation
+ * POST /api/auth/forgot-password
+ */
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email || !String(email).trim()) {
+    throw new ExpressError('Please provide your registered email address', 400);
+  }
+
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const rawResetToken = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(rawResetToken).digest('hex');
+  const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes expiry
+
+  if (isMongoConnected()) {
+    const user = await User.findOne({ email: normalizedEmail });
+    if (user) {
+      user.reset_password_token_hash = hashedToken;
+      user.reset_password_expires_at = tokenExpiresAt;
+      await user.save();
+    }
+  } else {
+    const db = loadData();
+    const uIdx = (db.users || []).findIndex(u => u.email.toLowerCase() === normalizedEmail);
+    if (uIdx !== -1) {
+      db.users[uIdx].reset_password_token_hash = hashedToken;
+      db.users[uIdx].reset_password_expires_at = tokenExpiresAt.toISOString();
+      saveData(db);
+    }
+  }
+
+  const isEmailConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
+
+  // Return generic anti-enumeration response
+  return res.json({
+    success: true,
+    email_service_configured: isEmailConfigured,
+    dev_reset_token: !isEmailConfigured && process.env.NODE_ENV !== 'production' ? rawResetToken : undefined,
+    message: 'If an account exists with that email address, password recovery instructions have been dispatched.'
+  });
+};
+
+/**
+ * Verifies single-use cryptographic token and updates user password
+ * POST /api/auth/reset-password
+ */
+const resetPassword = async (req, res) => {
+  const { token, new_password, password } = req.body;
+  const targetPassword = new_password || password;
+
+  if (!token || !String(token).trim()) {
+    throw new ExpressError('Password reset token is required', 400);
+  }
+  if (!targetPassword || String(targetPassword).length < 6) {
+    throw new ExpressError('New password must be at least 6 characters long', 400);
+  }
+
+  const hashedToken = crypto.createHash('sha256').update(String(token).trim()).digest('hex');
+  const now = new Date();
+
+  if (isMongoConnected()) {
+    const user = await User.findOne({
+      reset_password_token_hash: hashedToken,
+      reset_password_expires_at: { $gt: now }
+    });
+    if (!user) {
+      throw new ExpressError('Password reset token is invalid, expired, or has already been used.', 400);
+    }
+
+    user.password = await bcrypt.hash(targetPassword, 10);
+    user.reset_password_token_hash = null;
+    user.reset_password_expires_at = null;
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: 'Password reset successfully. Please log in with your new credentials.'
+    });
+  }
+
+  const db = loadData();
+  const uIdx = (db.users || []).findIndex(
+    u => u.reset_password_token_hash === hashedToken && u.reset_password_expires_at && new Date(u.reset_password_expires_at) > now
+  );
+  if (uIdx === -1) {
+    throw new ExpressError('Password reset token is invalid, expired, or has already been used.', 400);
+  }
+
+  db.users[uIdx].password = await bcrypt.hash(targetPassword, 10);
+  db.users[uIdx].reset_password_token_hash = null;
+  db.users[uIdx].reset_password_expires_at = null;
+  saveData(db);
+
+  res.json({
+    success: true,
+    message: 'Password reset successfully. Please log in with your new credentials.'
+  });
+};
+
 module.exports = {
   loginUser,
   registerUser,
@@ -503,5 +621,7 @@ module.exports = {
   getWishlist,
   toggleWishlistItem,
   removeWishlistItem,
-  toggleProductWishlistItem
+  toggleProductWishlistItem,
+  forgotPassword,
+  resetPassword
 };
