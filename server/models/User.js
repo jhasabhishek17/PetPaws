@@ -81,6 +81,24 @@ const userSchema = new mongoose.Schema({
   product_wishlist: {
     type: [String],
     default: []
+  },
+  // Profile picture image URL and Cloudinary public ID
+  avatar_url: {
+    type: String,
+    default: ''
+  },
+  avatar_public_id: {
+    type: String,
+    default: ''
+  },
+  // Cryptographically hashed password reset token and expiration
+  reset_password_token_hash: {
+    type: String,
+    default: null
+  },
+  reset_password_expires_at: {
+    type: Date,
+    default: null
   }
 }, {
   // Automatically creates createdAt and updatedAt timestamps
