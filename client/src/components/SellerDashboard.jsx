@@ -17,7 +17,8 @@ import {
   Image as ImageIcon,
   Film,
   Loader2,
-  Star
+  Star,
+  Camera
 } from 'lucide-react';
 import {
   apiGet,
@@ -161,11 +162,14 @@ export default function SellerDashboard({
   const [editUploadProgress, setEditUploadProgress] = useState(0);
   const [editUploadError, setEditUploadError] = useState('');
 
-  // Payout Settings state
+  // Payout & Profile Settings state
   const [upiId, setUpiId] = useState(currentUser?.upi_id || '');
   const [bankName, setBankName] = useState(currentUser?.bank_name || '');
   const [bankAccount, setBankAccount] = useState(currentUser?.bank_account || '');
   const [ifscCode, setIfscCode] = useState(currentUser?.ifsc_code || '');
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar_url || '');
+  const [avatarPublicId, setAvatarPublicId] = useState(currentUser?.avatar_public_id || '');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [message, setMessage] = useState('');
 
@@ -177,6 +181,8 @@ export default function SellerDashboard({
       setBankName(currentUser.bank_name || '');
       setBankAccount(currentUser.bank_account || '');
       setIfscCode(currentUser.ifsc_code || '');
+      setAvatarUrl(currentUser.avatar_url || '');
+      setAvatarPublicId(currentUser.avatar_public_id || '');
       fetchSellerData();
     } else {
       setPets([]);
@@ -184,6 +190,66 @@ export default function SellerDashboard({
       setLoading(false);
     }
   }, [currentUser]);
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      onAddToast?.('Please choose an image file (JPEG, PNG, WebP).', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      onAddToast?.('Profile picture must be under 5MB.', 'error');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const uploadRes = await apiUploadMedia(file, { context: 'profiles' });
+      if (uploadRes.success && uploadRes.url) {
+        setAvatarUrl(uploadRes.url);
+        setAvatarPublicId(uploadRes.public_id || '');
+
+        const profileRes = await apiPut('/api/auth/profile', {
+          avatar_url: uploadRes.url,
+          avatar_public_id: uploadRes.public_id || ''
+        });
+
+        if (profileRes.success && profileRes.user) {
+          onUserUpdated?.(profileRes.user);
+          onAddToast?.('Profile photo updated successfully!', 'success');
+        }
+      } else {
+        onAddToast?.(uploadRes.message || 'Image upload failed', 'error');
+      }
+    } catch {
+      onAddToast?.('Failed to upload profile picture.', 'error');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true);
+    try {
+      const profileRes = await apiPut('/api/auth/profile', {
+        avatar_url: '',
+        avatar_public_id: ''
+      });
+      if (profileRes.success && profileRes.user) {
+        setAvatarUrl('');
+        setAvatarPublicId('');
+        onUserUpdated?.(profileRes.user);
+        onAddToast?.('Profile picture removed.', 'success');
+      }
+    } catch {
+      onAddToast?.('Failed to remove profile picture.', 'error');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   // Cleanup object URLs on unmount using a ref so latest queued preview URLs are always revoked
   const queuedFilesRef = useRef(queuedFiles);
@@ -1372,10 +1438,60 @@ export default function SellerDashboard({
       {activeTab === 'payouts' && (
         <div className="bg-white rounded-3xl border border-[#EFE9DF] p-8 shadow-aesthetic max-w-2xl mx-auto space-y-6">
           <div>
-            <h3 className="text-xl font-bold text-[#231F20] font-display">Seller Payment & Payout Configurations</h3>
+            <h3 className="text-xl font-bold text-[#231F20] font-display">Seller Profile & Payout Settings</h3>
             <p className="text-xs text-[#65605B] mt-1">
-              Private payout settings for <strong>{currentUser.name}</strong>. These details are never shown on public listings.
+              Profile avatar and private payout accounts for <strong>{currentUser.name}</strong>.
             </p>
+          </div>
+
+          {/* Profile Picture Card */}
+          <div className="p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF] flex flex-col sm:flex-row items-center gap-4">
+            <div className="relative w-16 h-16 rounded-full overflow-hidden bg-white border-2 border-[#E07A5F] flex-shrink-0 flex items-center justify-center shadow-sm">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={currentUser.name || 'Avatar'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-xl font-black text-[#231F20]">
+                  {(currentUser.name || 'S').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+
+            <div className="flex-1 text-center sm:text-left">
+              <h4 className="text-xs font-extrabold text-[#231F20]">Seller Avatar Picture</h4>
+              <p className="text-[11px] text-[#65605B] mt-0.5">
+                Displays on your listings and seller profile. Max 5MB (JPEG, PNG, WebP).
+              </p>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
+                <label className="px-3 py-1.5 bg-[#231F20] hover:bg-[#E07A5F] text-white text-[11px] font-bold rounded-xl cursor-pointer flex items-center space-x-1.5 transition-colors">
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{uploadingAvatar ? 'Uploading…' : avatarUrl ? 'Change Picture' : 'Upload Picture'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingAvatar}
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    disabled={uploadingAvatar}
+                    onClick={handleRemoveAvatar}
+                    className="px-3 py-1.5 bg-white text-red-600 hover:bg-red-50 border border-red-200 text-[11px] font-bold rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove</span>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           <form onSubmit={handleSavePayouts} className="space-y-4">
