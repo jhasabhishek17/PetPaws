@@ -128,9 +128,9 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/40 backdrop-blur-md animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-aesthetic border border-[#EFE9DF] max-w-md w-full overflow-hidden relative">
-        <div className="bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] p-6 text-white text-center relative">
+    <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4 md:p-6 flex items-center justify-center bg-[#231F20]/40 backdrop-blur-md animate-fadeIn">
+      <div className="relative bg-white rounded-3xl shadow-aesthetic border border-[#EFE9DF] max-w-md w-full max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto overflow-hidden">
+        <div className="bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] p-5 sm:p-6 text-white text-center relative flex-shrink-0 z-10">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-1 text-white/80 hover:text-white rounded-full bg-white/20 hover:bg-white/30 transition-colors"
@@ -161,7 +161,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
         )}
 
         {/* Tab switchers */}
-        <div className="flex border-b border-[#EFE9DF] bg-[#FAF6F0]">
+        <div className="flex border-b border-[#EFE9DF] bg-[#FAF6F0] flex-shrink-0 z-10">
           <button
             type="button"
             onClick={() => {
@@ -195,7 +195,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {/* Role selector (shown on login & register) */}
           {(authMode === 'login' || authMode === 'register') && (
             <div className="mb-5">

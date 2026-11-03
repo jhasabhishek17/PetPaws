@@ -990,7 +990,8 @@ export default function SellerDashboard({
                           <button
                             onClick={() => handleOpenEditModal(pet)}
                             className="p-2 text-[#4A4344] hover:text-[#E07A5F] rounded-lg hover:bg-[#FFF5F0] transition-colors inline-flex items-center"
-                            title="Edit Listing & Media"
+                            title="Edit My Listing"
+                            aria-label="Edit My Listing"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -1562,17 +1563,25 @@ export default function SellerDashboard({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
+          className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4 md:p-6 flex items-center justify-center bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
         >
-          <div className="bg-white rounded-3xl shadow-aesthetic border border-[#EFE9DF] max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="bg-[#231F20] p-5 text-white flex items-center justify-between">
-              <h3 className="text-base font-bold font-display">Edit Listing: {editingPet.title}</h3>
-              <button onClick={() => setEditingPet(null)} className="text-white/70 hover:text-white">
+          <div className="relative bg-white rounded-3xl shadow-aesthetic border border-[#EFE9DF] max-w-lg w-full max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto overflow-hidden">
+            <div className="bg-[#231F20] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0 z-10">
+              <h3 className="text-base font-bold font-display truncate pr-2">
+                Edit Listing: {editingPet.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingPet(null)}
+                aria-label="Close Edit Listing modal"
+                className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditPet} className="p-6 space-y-4 overflow-y-auto">
+            <form onSubmit={handleSaveEditPet} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-[#4A4344] mb-1">Title</label>
@@ -1821,28 +1830,30 @@ export default function SellerDashboard({
                   className="w-full px-3 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs"
                 />
               </div>
+            </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingPet(null)}
-                  className="px-4 py-2 bg-[#FAF6F0] text-[#4A4344] rounded-xl text-xs font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={editUploading}
-                  className="px-5 py-2 bg-[#E07A5F] hover:bg-[#D0654A] disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center space-x-1.5"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{editUploading ? `Uploading (${editUploadProgress}%)...` : 'Save Changes'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
+            {/* Pinned Modal Footer (Always accessible, never overlaps form) */}
+            <div className="flex-shrink-0 border-t border-[#E6DCCF] bg-[#FAF6F0] px-4 py-3 sm:px-6 sm:py-3.5 flex items-center justify-end gap-2 z-10">
+              <button
+                type="button"
+                onClick={() => setEditingPet(null)}
+                className="px-4 py-2 bg-white hover:bg-[#F3ECE0] text-[#4A4344] border border-[#E6DCCF] rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={editUploading}
+                className="px-5 py-2 bg-[#E07A5F] hover:bg-[#D0654A] disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center space-x-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{editUploading ? `Uploading (${editUploadProgress}%)...` : 'Save Changes'}</span>
+              </button>
+            </div>
+          </form>
         </div>
-      )}
+      </div>
+    )}
     </div>
   );
 }

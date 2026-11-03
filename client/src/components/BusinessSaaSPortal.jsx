@@ -1552,10 +1552,10 @@ export default function BusinessSaaSPortal({
                 <div
                   role="dialog"
                   aria-modal="true"
-                  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
+                  className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4 md:p-6 flex items-center justify-center bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
                 >
-                  <div className="bg-white rounded-3xl shadow-aesthetic max-w-lg w-full overflow-hidden border border-[#EFE9DF]">
-                    <div className="bg-[#243D36] p-5 text-white flex items-center justify-between">
+                  <div className="relative bg-white rounded-3xl shadow-aesthetic max-w-lg w-full max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto overflow-hidden border border-[#EFE9DF]">
+                    <div className="bg-[#243D36] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0 z-10">
                       <div className="flex items-center space-x-2">
                         <CreditCard className="w-5 h-5 text-[#F4A261]" />
                         <h3 className="text-base font-bold text-white">
@@ -1575,7 +1575,7 @@ export default function BusinessSaaSPortal({
                     </div>
 
                     {planCheckoutStep === 1 ? (
-                      <div className="p-6 space-y-5">
+                      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
                         <div className="flex items-center justify-between p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
                           <div>
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-white text-[#E07A5F] border border-[#E6DCCF]">
@@ -1635,7 +1635,7 @@ export default function BusinessSaaSPortal({
                         </div>
                       </div>
                     ) : (
-                      <div className="p-6 space-y-5">
+                      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
                         <div className="p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF] space-y-2 text-xs">
                           <div className="flex justify-between">
                             <span className="text-[#65605B]">Selected Plan:</span>

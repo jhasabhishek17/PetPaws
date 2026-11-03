@@ -259,10 +259,10 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
+          className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4 md:p-6 flex items-center justify-center bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
         >
-          <div className="bg-white rounded-3xl shadow-aesthetic max-w-md w-full overflow-hidden border border-[#EFE9DF]">
-            <div className="bg-[#243D36] p-5 text-white flex items-center justify-between">
+          <div className="relative bg-white rounded-3xl shadow-aesthetic max-w-md w-full max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto overflow-hidden border border-[#EFE9DF]">
+            <div className="bg-[#243D36] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0 z-10">
               <h3 className="text-base font-bold text-white">Book {selectedService.title}</h3>
               <button onClick={() => setSelectedService(null)} aria-label="Close" className="text-[#C5DFD2] hover:text-white">
                 <X className="w-5 h-5" />
@@ -270,7 +270,7 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
             </div>
 
             {bookingSuccess ? (
-              <div className="p-6 text-center space-y-4">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 text-center space-y-4">
                 <CheckCircle2 className="w-12 h-12 text-[#52796F] mx-auto" />
                 <h4 className="text-xl font-bold text-[#231F20]">Session Confirmed!</h4>
                 <p className="text-xs text-[#65605B]">
@@ -281,7 +281,7 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleBookService} className="p-6 space-y-4">
+              <form onSubmit={handleBookService} className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-[#4A4344] mb-1">Select Date</label>
                   <input

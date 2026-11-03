@@ -102,11 +102,11 @@ export default function PetDetailModal({
       aria-modal="true"
       aria-label={pet.title}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/40 backdrop-blur-md animate-fadeIn"
+      className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4 md:p-6 flex items-center justify-center bg-[#231F20]/40 backdrop-blur-md animate-fadeIn"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl shadow-aesthetic max-w-2xl w-full overflow-hidden border border-[#EFE9DF] max-h-[90vh] flex flex-col"
+        className="relative bg-white rounded-3xl shadow-aesthetic max-w-2xl w-full overflow-hidden border border-[#EFE9DF] max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto"
       >
         {/* Modal Header with Close Button & Media Viewer */}
         <div className="relative h-64 sm:h-72 bg-[#FAF6F0] flex-shrink-0">
@@ -292,7 +292,7 @@ export default function PetDetailModal({
         </div>
 
         {/* Modal Footer with Price and Buy Button */}
-        <div className="p-6 bg-[#FAF6F0] border-t border-[#E6DCCF] flex items-center justify-between">
+        <div className="p-4 sm:p-6 bg-[#FAF6F0] border-t border-[#E6DCCF] flex items-center justify-between flex-shrink-0 z-10">
           <div>
             <span className="text-xs text-[#65605B] font-medium block">Total Price</span>
             <span className="text-2xl font-black text-[#231F20] font-display">${pet.price}</span>

@@ -121,11 +121,11 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4 md:p-6 flex items-center justify-center bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
     >
-      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-[#E6DCCF]">
+      <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto overflow-hidden border border-[#E6DCCF]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#2F3E46] via-[#52796F] to-[#2F3E46] p-5 text-white flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[#2F3E46] via-[#52796F] to-[#2F3E46] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0 z-10">
           <div className="flex items-center space-x-2">
             <ShieldCheck className="w-5 h-5 text-[#F4A261]" />
             <h2 className="text-lg font-bold text-white font-display">Secure Pet Booking Checkout</h2>
@@ -142,7 +142,7 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
 
         {/* Order Success State */}
         {orderSuccess ? (
-          <div className="p-8 text-center space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 sm:p-8 text-center space-y-4">
             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl animate-bounce">
               <CheckCircle2 className="w-10 h-10" />
             </div>
@@ -172,7 +172,7 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
             </div>
           </div>
         ) : (
-          <form onSubmit={handleConfirmPurchase} className="p-6 space-y-5">
+          <form onSubmit={handleConfirmPurchase} className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
             {/* Pet Item Summary */}
             <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
               <img src={pet.image_url} alt={pet.title} className="w-14 h-14 rounded-xl object-cover" />
