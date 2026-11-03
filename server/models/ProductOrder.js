@@ -18,6 +18,8 @@ const orderLineItemSchema = new mongoose.Schema({
   variant_label: { type: String, default: 'Standard' },
   quantity: { type: Number, required: true, min: 1 },
   unit_price: { type: Number, required: true, min: 0 },
+  original_price: { type: Number, default: 0 },
+  discount_amount: { type: Number, default: 0 },
   line_total: { type: Number, required: true, min: 0 },
   image_url: { type: String, default: '' },
   seller_id: { type: String, required: true },
@@ -78,6 +80,10 @@ const productOrderSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  total_discount: {
+    type: Number,
+    default: 0
+  },
   tax: {
     type: Number,
     required: true,
@@ -103,13 +109,26 @@ const productOrderSchema = new mongoose.Schema({
   payment_status: {
     type: String,
     enum: ['Pending', 'Completed', 'Failed', 'Refunded'],
-    default: 'Completed'
+    default: 'Pending'
   },
   payment_provider_order_id: {
     type: String,
     default: ''
   },
   payment_provider_payment_id: {
+    type: String,
+    default: ''
+  },
+  payment_signature: {
+    type: String,
+    default: ''
+  },
+  idempotency_key: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  delivery_instructions: {
     type: String,
     default: ''
   },
