@@ -46,7 +46,13 @@ router.delete(
   asyncHandler(productController.deleteProduct)
 );
 
-// Authenticated customer product report
+// Authenticated customer product report & verified reviews
 router.post('/:id/report', protect, asyncHandler(productController.reportProduct));
+router.post(
+  '/:id/reviews',
+  protect,
+  requireRole('buyer', 'admin'),
+  asyncHandler(productController.createProductReview)
+);
 
 module.exports = router;
