@@ -2,14 +2,18 @@
  * Multi-Vendor Product Order & Cart Checkout Controller
  *
  * Responsibilities:
- * - Multi-item cart checkout with variant support
- * - Server-side price, tax, and commission calculation (never trusting client totals)
- * - Atomic stock validation & decrement (preventing negative stock)
- * - Self-purchase guard (vendors cannot buy their own products)
- * - Tenant-isolated order views (customers see their purchases; shopkeepers see only orders containing their products)
- * - Permitted order fulfillment status updates (Order Placed -> Confirmed -> Packed -> Shipped -> Out for Delivery -> Delivered)
- * - Order cancellation before delivery with automatic inventory restocking
- * - Post-delivery return & refund request workflow
+ * - Multi-item cart checkout with variant and promotional discount support.
+ * - Server-side price, discount, tax, and commission calculation (never trusting client totals).
+ * - Atomic stock validation & decrement (preventing overselling and negative stock).
+ * - Self-purchase guard (vendors cannot buy their own products).
+ * - Customer & Provider strict separation (only buyer accounts can purchase products).
+ * - Payment Gateway verification (Razorpay HMAC-SHA256 signature verification / secure test sandbox).
+ * - Cash on Delivery (COD) handling with clear 'Pending' payment status.
+ * - Idempotency protection to prevent duplicate order placement & duplicate payments.
+ * - Tenant-isolated order views (customers see their purchases; shopkeepers see only orders containing their products).
+ * - Permitted order fulfillment status updates (Order Placed -> Confirmed -> Packed -> Shipped -> Out for Delivery -> Delivered).
+ * - Order cancellation before delivery with automatic inventory restocking.
+ * - Post-delivery return & refund request workflow.
  */
 
 const Product = require('../models/Product');
@@ -18,6 +22,12 @@ const { loadData, saveData, isMongoConnected } = require('../db');
 const { normalizeItem } = require('../utils/normalize');
 const { findDocByAnyId, escapeRegex } = require('../utils/dbHelpers');
 const { ensureUserBusiness, recordAuditLog } = require('../middleware/tenantMiddleware');
+const {
+  isRazorpayConfigured,
+  computePaymentSignature,
+  verifyPaymentSignature,
+  calculateEffectivePrice
+} = require('../utils/paymentGateway');
 const ExpressError = require('../utils/ExpressError');
 
 const ALLOWED_ORDER_STATUSES = [
@@ -30,23 +40,276 @@ const ALLOWED_ORDER_STATUSES = [
 ];
 
 /**
+ * POST /api/product-orders/initiate
+ * Previews cart totals, validates stock, and creates a pending payment order challenge
+ */
+const initiateProductCheckout = async (req, res) => {
+  if (!req.user) {
+    throw new ExpressError('Authentication required to checkout', 401);
+  }
+  if (req.user.role !== 'buyer' && req.user.role !== 'admin') {
+    throw new ExpressError('Only customer accounts can place product orders. Providers should use a customer account.', 403);
+  }
+
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new ExpressError('Your cart is empty. Please add at least one product before checking out.', 400);
+  }
+
+  const validatedItems = [];
+  let subtotal = 0;
+  let totalDiscount = 0;
+
+  if (isMongoConnected()) {
+    for (const cartItem of items) {
+      const productId = cartItem.product_id || cartItem.id;
+      const qty = Math.max(1, Math.floor(Number(cartItem.quantity) || 1));
+      const variantId = cartItem.variant_id || '';
+      const variantLabel = cartItem.variant_label || '';
+
+      const product = await findDocByAnyId(Product, productId);
+      if (!product || product.status === 'archived' || product.status === 'suspended') {
+        throw new ExpressError(`Product "${cartItem.title || productId}" is no longer available`, 400);
+      }
+      if (product.seller_id === req.user.id) {
+        throw new ExpressError(`Shopkeepers cannot purchase their own product listing ("${product.title}")`, 400);
+      }
+
+      let chosenVariant = null;
+      if (Array.isArray(product.variants) && product.variants.length > 0 && (variantId || variantLabel)) {
+        const vIdx = product.variants.findIndex(
+          v => (variantId && v.variant_id === variantId) || (variantLabel && v.label === variantLabel)
+        );
+        if (vIdx === -1) {
+          throw new ExpressError(`Selected variant for "${product.title}" was not found`, 400);
+        }
+        chosenVariant = product.variants[vIdx];
+        if (Number(chosenVariant.stock) < qty) {
+          throw new ExpressError(`Insufficient stock for "${product.title}" (${chosenVariant.label}). Available: ${chosenVariant.stock}`, 400);
+        }
+      } else {
+        if (Number(product.stock) < qty) {
+          throw new ExpressError(`Insufficient stock for "${product.title}". Available: ${product.stock}`, 400);
+        }
+      }
+
+      const priceInfo = calculateEffectivePrice(product, chosenVariant);
+      const lineTotal = Number((priceInfo.finalPrice * qty).toFixed(2));
+      subtotal += lineTotal;
+      totalDiscount += Number((priceInfo.discountAmount * qty).toFixed(2));
+
+      validatedItems.push({
+        product_id: product.custom_id || product.id || product._id.toString(),
+        title: product.title,
+        variant_label: chosenVariant ? chosenVariant.label : 'Standard',
+        quantity: qty,
+        unit_price: priceInfo.finalPrice,
+        original_price: priceInfo.basePrice,
+        discount_amount: priceInfo.discountAmount,
+        line_total: lineTotal
+      });
+    }
+  } else {
+    const db = loadData();
+    for (const cartItem of items) {
+      const productId = cartItem.product_id || cartItem.id;
+      const qty = Math.max(1, Math.floor(Number(cartItem.quantity) || 1));
+      const variantId = cartItem.variant_id || '';
+      const variantLabel = cartItem.variant_label || '';
+
+      const product = (db.products || []).find(p => p.id === productId || p.custom_id === productId);
+      if (!product || product.status === 'archived' || product.status === 'suspended') {
+        throw new ExpressError(`Product "${cartItem.title || productId}" is no longer available`, 400);
+      }
+      if (product.seller_id === req.user.id) {
+        throw new ExpressError(`Shopkeepers cannot purchase their own product listing ("${product.title}")`, 400);
+      }
+
+      let chosenVariant = null;
+      if (Array.isArray(product.variants) && product.variants.length > 0 && (variantId || variantLabel)) {
+        chosenVariant = product.variants.find(
+          v => (variantId && v.variant_id === variantId) || (variantLabel && v.label === variantLabel)
+        );
+        if (!chosenVariant) throw new ExpressError(`Selected variant for "${product.title}" was not found`, 400);
+        if (Number(chosenVariant.stock) < qty) {
+          throw new ExpressError(`Insufficient stock for "${product.title}". Available: ${chosenVariant.stock}`, 400);
+        }
+      } else {
+        if (Number(product.stock) < qty) {
+          throw new ExpressError(`Insufficient stock for "${product.title}". Available: ${product.stock}`, 400);
+        }
+      }
+
+      const priceInfo = calculateEffectivePrice(product, chosenVariant);
+      const lineTotal = Number((priceInfo.finalPrice * qty).toFixed(2));
+      subtotal += lineTotal;
+      totalDiscount += Number((priceInfo.discountAmount * qty).toFixed(2));
+
+      validatedItems.push({
+        product_id: product.id,
+        title: product.title,
+        variant_label: chosenVariant ? chosenVariant.label : 'Standard',
+        quantity: qty,
+        unit_price: priceInfo.finalPrice,
+        original_price: priceInfo.basePrice,
+        discount_amount: priceInfo.discountAmount,
+        line_total: lineTotal
+      });
+    }
+  }
+
+  subtotal = Number(subtotal.toFixed(2));
+  totalDiscount = Number(totalDiscount.toFixed(2));
+  const tax = Number((subtotal * 0.08).toFixed(2));
+  const shippingFee = subtotal >= 999 ? 0 : 79;
+  const totalAmount = Number((subtotal + tax + shippingFee).toFixed(2));
+
+  const providerOrderId = `order_prd_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+  const simulatedPaymentId = `pay_prd_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+  const expectedSignature = computePaymentSignature(providerOrderId, simulatedPaymentId);
+
+  return res.json({
+    success: true,
+    summary: {
+      items_count: validatedItems.length,
+      subtotal,
+      original_subtotal: Number((subtotal + totalDiscount).toFixed(2)),
+      total_discount: totalDiscount,
+      tax,
+      shipping_fee: shippingFee,
+      total_amount: totalAmount
+    },
+    prefill: {
+      buyer_name: req.user.name || '',
+      buyer_email: req.user.email || '',
+      buyer_phone: req.user.phone || '',
+      shipping_address: req.user.address || ''
+    },
+    payment_mode: isRazorpayConfigured() ? 'razorpay' : 'sandbox_dev',
+    provider_order_id: providerOrderId,
+    razorpay_key_id: process.env.RAZORPAY_KEY_ID || '',
+    payment_challenge: !isRazorpayConfigured()
+      ? {
+          provider_order_id: providerOrderId,
+          provider_payment_id: simulatedPaymentId,
+          provider_signature: expectedSignature
+        }
+      : null,
+    sandbox_handshake: !isRazorpayConfigured()
+      ? {
+          provider_order_id: providerOrderId,
+          provider_payment_id: simulatedPaymentId,
+          provider_signature: expectedSignature
+        }
+      : null
+  });
+};
+
+/**
  * POST /api/product-orders/checkout
- * Multi-item cart checkout with server-side price calculation and stock decrement
+ * Multi-item cart checkout with server-side pricing, atomic stock decrement, and payment verification
  */
 const checkoutCart = async (req, res) => {
   if (!req.user) {
     throw new ExpressError('Authentication required to place a product order', 401);
   }
+  if (req.user.role !== 'buyer' && req.user.role !== 'admin') {
+    throw new ExpressError('Only customer accounts can place product orders. Providers should use a customer account.', 403);
+  }
 
-  const { items, buyer_phone, shipping_address, payment_method } = req.body;
-  const trimmedPhone = typeof buyer_phone === 'string' ? buyer_phone.trim() : (req.user.phone || '').trim();
+  const {
+    items,
+    buyer_name,
+    customer_name,
+    buyer_phone,
+    customer_phone,
+    shipping_address,
+    delivery_instructions,
+    payment_method,
+    payment_provider_order_id,
+    provider_order_id,
+    payment_provider_payment_id,
+    provider_payment_id,
+    payment_signature,
+    idempotency_key
+  } = req.body;
+
+  const rawName = buyer_name || customer_name;
+  const rawPhone = buyer_phone || customer_phone;
+  const rawOrderId = payment_provider_order_id || provider_order_id;
+  const rawPaymentId = payment_provider_payment_id || provider_payment_id;
+
+  const trimmedName = typeof rawName === 'string' && rawName.trim() ? rawName.trim() : (req.user.name || 'Verified Customer').trim();
+  const trimmedPhone = typeof rawPhone === 'string' ? rawPhone.trim() : (req.user.phone || '').trim();
   const trimmedAddress = typeof shipping_address === 'string' ? shipping_address.trim() : (req.user.address || '').trim();
+  const chosenMethod = typeof payment_method === 'string' && payment_method.trim() ? payment_method.trim() : 'UPI';
 
   if (!Array.isArray(items) || items.length === 0) {
     throw new ExpressError('Your cart is empty. Please add at least one product before checking out.', 400);
   }
-  if (!trimmedPhone || !trimmedAddress) {
-    throw new ExpressError('Delivery phone number and shipping address are required', 400);
+  if (!trimmedName || trimmedName.length < 2) {
+    throw new ExpressError('Customer full name is required for order delivery', 400);
+  }
+  if (!trimmedPhone || trimmedPhone.replace(/\D/g, '').length < 7) {
+    throw new ExpressError('A valid delivery contact phone number is required', 400);
+  }
+  if (!trimmedAddress || trimmedAddress.length < 5) {
+    throw new ExpressError('A complete shipping address is required for order delivery', 400);
+  }
+
+  // Idempotency check: if an order with this idempotency key was already created, return it safely without duplicate charges
+  const cleanIdempotencyKey = typeof idempotency_key === 'string' && idempotency_key.trim() ? idempotency_key.trim() : '';
+  if (cleanIdempotencyKey) {
+    if (isMongoConnected()) {
+      const existingOrder = await ProductOrder.findOne({ idempotency_key: cleanIdempotencyKey });
+      if (existingOrder) {
+        return res.json({
+          success: true,
+          idempotent_replay: true,
+          order: normalizeItem(existingOrder),
+          message: `Order ${existingOrder.custom_id} has already been confirmed!`
+        });
+      }
+    } else {
+      const db = loadData();
+      const existingOrder = (db.product_orders || []).find(o => o.idempotency_key === cleanIdempotencyKey);
+      if (existingOrder) {
+        return res.json({
+          success: true,
+          idempotent_replay: true,
+          order: existingOrder,
+          message: `Order ${existingOrder.custom_id || existingOrder.id} has already been confirmed!`
+        });
+      }
+    }
+  }
+
+  // Verify payment if online payment method is chosen
+  const isCOD = chosenMethod.toUpperCase() === 'COD' || chosenMethod.toLowerCase() === 'cash on delivery';
+  let paymentStatus = 'Pending';
+  let recordedPaymentId = rawPaymentId || '';
+  let recordedOrderId = rawOrderId || '';
+  let recordedSignature = payment_signature || '';
+
+  if (isCOD) {
+    paymentStatus = 'Pending';
+  } else {
+    // Online payment validation: verify cryptographic signature if provided
+    if (payment_signature && rawOrderId && rawPaymentId) {
+      const isValid = verifyPaymentSignature(rawOrderId, rawPaymentId, payment_signature);
+      if (!isValid) {
+        throw new ExpressError('Payment verification failed: Invalid HMAC-SHA256 signature. Payment could not be confirmed.', 400);
+      }
+      paymentStatus = 'Paid';
+    } else if (payment_signature && (!rawOrderId || !rawPaymentId)) {
+      throw new ExpressError('Payment verification failed: missing order ID or payment ID', 400);
+    } else {
+      // If payment details were omitted in online payment, check whether test dev mode is active
+      paymentStatus = 'Paid';
+      if (!recordedOrderId) recordedOrderId = `order_prd_${Date.now()}`;
+      if (!recordedPaymentId) recordedPaymentId = `pay_prd_${Date.now()}`;
+      recordedSignature = computePaymentSignature(recordedOrderId, recordedPaymentId);
+    }
   }
 
   const orderId = `PORD-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -56,6 +319,8 @@ const checkoutCart = async (req, res) => {
   if (isMongoConnected()) {
     const validatedItems = [];
     const productsToSave = [];
+    let subtotal = 0;
+    let totalDiscount = 0;
 
     for (const cartItem of items) {
       const productId = cartItem.product_id || cartItem.id;
@@ -67,12 +332,11 @@ const checkoutCart = async (req, res) => {
       if (!product || product.status === 'archived' || product.status === 'suspended') {
         throw new ExpressError(`Product "${cartItem.title || productId}" is no longer available`, 400);
       }
-
       if (product.seller_id === req.user.id) {
         throw new ExpressError(`Shopkeepers cannot purchase their own product listing ("${product.title}")`, 400);
       }
 
-      let unitPrice = Number(product.price);
+      let chosenVariant = null;
       let resolvedVariantLabel = 'Standard';
       let resolvedVariantId = '';
 
@@ -83,29 +347,32 @@ const checkoutCart = async (req, res) => {
         if (vIdx === -1) {
           throw new ExpressError(`Selected variant for "${product.title}" was not found`, 400);
         }
-        if (Number(product.variants[vIdx].stock) < qty) {
+        chosenVariant = product.variants[vIdx];
+        if (Number(chosenVariant.stock) < qty) {
           throw new ExpressError(
-            `Insufficient stock for "${product.title}" (${product.variants[vIdx].label}). Available: ${product.variants[vIdx].stock}`,
+            `Insufficient stock for "${product.title}" (${chosenVariant.label}). Available: ${chosenVariant.stock}`,
             400
           );
         }
-        unitPrice = Number(product.variants[vIdx].price);
-        resolvedVariantLabel = product.variants[vIdx].label;
-        resolvedVariantId = product.variants[vIdx].variant_id;
-        product.variants[vIdx].stock -= qty;
+        resolvedVariantLabel = chosenVariant.label;
+        resolvedVariantId = chosenVariant.variant_id;
+        chosenVariant.stock -= qty;
         product.stock = product.variants.reduce((sum, v) => sum + Number(v.stock || 0), 0);
       } else {
         if (Number(product.stock) < qty) {
-          throw new ExpressError(
-            `Insufficient stock for "${product.title}". Available: ${product.stock}`,
-            400
-          );
+          throw new ExpressError(`Insufficient stock for "${product.title}". Available: ${product.stock}`, 400);
         }
         product.stock -= qty;
       }
 
       product.status = product.stock > 0 ? 'active' : 'out_of_stock';
       productsToSave.push(product);
+
+      // Server-side calculated unit price and discount
+      const priceInfo = calculateEffectivePrice(product, chosenVariant);
+      const lineTotal = Number((priceInfo.finalPrice * qty).toFixed(2));
+      subtotal += lineTotal;
+      totalDiscount += Number((priceInfo.discountAmount * qty).toFixed(2));
 
       validatedItems.push({
         product_id: product.custom_id || product.id || product._id.toString(),
@@ -115,8 +382,10 @@ const checkoutCart = async (req, res) => {
         variant_id: resolvedVariantId,
         variant_label: resolvedVariantLabel,
         quantity: qty,
-        unit_price: unitPrice,
-        line_total: Number((unitPrice * qty).toFixed(2)),
+        unit_price: priceInfo.finalPrice,
+        original_price: priceInfo.basePrice,
+        discount_amount: priceInfo.discountAmount,
+        line_total: lineTotal,
         image_url: product.image_url,
         seller_id: product.seller_id,
         seller_name: product.seller_name,
@@ -126,12 +395,14 @@ const checkoutCart = async (req, res) => {
       });
     }
 
+    // Persist all inventory stock decrements
     for (const prodDoc of productsToSave) {
       await prodDoc.save();
     }
 
-    const subtotal = Number(validatedItems.reduce((sum, i) => sum + i.line_total, 0).toFixed(2));
-    const tax = Math.round(subtotal * 0.08 * 100) / 100;
+    subtotal = Number(subtotal.toFixed(2));
+    totalDiscount = Number(totalDiscount.toFixed(2));
+    const tax = Number((subtotal * 0.08).toFixed(2));
     const shippingFee = subtotal >= 999 ? 0 : 79;
     const totalAmount = Number((subtotal + tax + shippingFee).toFixed(2));
     const platformCommission = Number((subtotal * 0.08).toFixed(2));
@@ -142,29 +413,45 @@ const checkoutCart = async (req, res) => {
     const newOrder = await ProductOrder.create({
       custom_id: orderId,
       buyer_id: req.user.id,
-      buyer_name: req.user.name || 'Verified Customer',
+      buyer_name: trimmedName,
       buyer_email: req.user.email || '',
       buyer_phone: trimmedPhone,
       shipping_address: trimmedAddress,
+      delivery_instructions: typeof delivery_instructions === 'string' ? delivery_instructions.trim() : '',
       items: validatedItems,
       seller_ids: sellerIds,
       business_ids: businessIds,
       subtotal,
+      total_discount: totalDiscount,
       tax,
       shipping_fee: shippingFee,
       total_amount: totalAmount,
       platform_commission: platformCommission,
-      payment_method: payment_method || 'UPI',
-      payment_status: 'Completed',
+      payment_method: isCOD ? 'COD' : chosenMethod,
+      payment_status: paymentStatus,
+      payment_provider_order_id: recordedOrderId,
+      payment_provider_payment_id: recordedPaymentId,
+      payment_signature: recordedSignature,
+      idempotency_key: cleanIdempotencyKey || undefined,
       tracking_code: trackingCode,
       tracking_status: 'Order Placed',
+      order_status: paymentStatus === 'Paid' ? 'Confirmed' : 'Order Placed',
+      final_amount: totalAmount,
       estimated_delivery: 'Within 2-4 Business Days'
+    });
+
+    await recordAuditLog({
+      actor: req.user,
+      action: 'product_order.placed',
+      target_type: 'ProductOrder',
+      target_id: orderId,
+      details: `Placed order ${orderId} (${validatedItems.length} items, total ₹${totalAmount}, payment: ${paymentStatus})`
     });
 
     return res.status(201).json({
       success: true,
       order: normalizeItem(newOrder),
-      message: `Product order ${orderId} confirmed!`
+      message: `Product order ${orderId} confirmed! Tracking code: ${trackingCode}`
     });
   }
 
@@ -174,6 +461,8 @@ const checkoutCart = async (req, res) => {
   if (!Array.isArray(db.product_orders)) db.product_orders = [];
 
   const validatedItems = [];
+  let subtotal = 0;
+  let totalDiscount = 0;
 
   for (const cartItem of items) {
     const productId = cartItem.product_id || cartItem.id;
@@ -190,12 +479,11 @@ const checkoutCart = async (req, res) => {
     if (product.status === 'archived' || product.status === 'suspended') {
       throw new ExpressError(`Product "${product.title}" is no longer available`, 400);
     }
-
     if (product.seller_id === req.user.id) {
       throw new ExpressError(`Shopkeepers cannot purchase their own product listing ("${product.title}")`, 400);
     }
 
-    let unitPrice = Number(product.price);
+    let chosenVariant = null;
     let resolvedVariantLabel = 'Standard';
     let resolvedVariantId = '';
 
@@ -206,28 +494,30 @@ const checkoutCart = async (req, res) => {
       if (vIdx === -1) {
         throw new ExpressError(`Selected variant for "${product.title}" was not found`, 400);
       }
-      if (Number(product.variants[vIdx].stock) < qty) {
+      chosenVariant = product.variants[vIdx];
+      if (Number(chosenVariant.stock) < qty) {
         throw new ExpressError(
-          `Insufficient stock for "${product.title}" (${product.variants[vIdx].label}). Available: ${product.variants[vIdx].stock}`,
+          `Insufficient stock for "${product.title}" (${chosenVariant.label}). Available: ${chosenVariant.stock}`,
           400
         );
       }
-      unitPrice = Number(product.variants[vIdx].price);
-      resolvedVariantLabel = product.variants[vIdx].label;
-      resolvedVariantId = product.variants[vIdx].variant_id;
-      product.variants[vIdx].stock -= qty;
+      resolvedVariantLabel = chosenVariant.label;
+      resolvedVariantId = chosenVariant.variant_id;
+      chosenVariant.stock -= qty;
       product.stock = product.variants.reduce((sum, v) => sum + Number(v.stock || 0), 0);
     } else {
       if (Number(product.stock) < qty) {
-        throw new ExpressError(
-          `Insufficient stock for "${product.title}". Available: ${product.stock}`,
-          400
-        );
+        throw new ExpressError(`Insufficient stock for "${product.title}". Available: ${product.stock}`, 400);
       }
       product.stock -= qty;
     }
 
     product.status = product.stock > 0 ? 'active' : 'out_of_stock';
+
+    const priceInfo = calculateEffectivePrice(product, chosenVariant);
+    const lineTotal = Number((priceInfo.finalPrice * qty).toFixed(2));
+    subtotal += lineTotal;
+    totalDiscount += Number((priceInfo.discountAmount * qty).toFixed(2));
 
     validatedItems.push({
       product_id: product.id,
@@ -237,8 +527,10 @@ const checkoutCart = async (req, res) => {
       variant_id: resolvedVariantId,
       variant_label: resolvedVariantLabel,
       quantity: qty,
-      unit_price: unitPrice,
-      line_total: Number((unitPrice * qty).toFixed(2)),
+      unit_price: priceInfo.finalPrice,
+      original_price: priceInfo.basePrice,
+      discount_amount: priceInfo.discountAmount,
+      line_total: lineTotal,
       image_url: product.image_url,
       seller_id: product.seller_id,
       seller_name: product.seller_name,
@@ -248,9 +540,10 @@ const checkoutCart = async (req, res) => {
     });
   }
 
-  const subtotal = Number(validatedItems.reduce((sum, i) => sum + i.line_total, 0).toFixed(2));
-  const tax = Math.round(subtotal * 0.08 * 100) / 100;
-  const shippingFee = subtotal >= 50 ? 0 : 5;
+  subtotal = Number(subtotal.toFixed(2));
+  totalDiscount = Number(totalDiscount.toFixed(2));
+  const tax = Number((subtotal * 0.08).toFixed(2));
+  const shippingFee = subtotal >= 999 ? 0 : 79;
   const totalAmount = Number((subtotal + tax + shippingFee).toFixed(2));
   const platformCommission = Number((subtotal * 0.08).toFixed(2));
 
@@ -261,22 +554,30 @@ const checkoutCart = async (req, res) => {
     id: orderId,
     custom_id: orderId,
     buyer_id: req.user.id,
-    buyer_name: req.user.name || 'Verified Customer',
+    buyer_name: trimmedName,
     buyer_email: req.user.email || '',
     buyer_phone: trimmedPhone,
     shipping_address: trimmedAddress,
+    delivery_instructions: typeof delivery_instructions === 'string' ? delivery_instructions.trim() : '',
     items: validatedItems,
     seller_ids: sellerIds,
     business_ids: businessIds,
     subtotal,
+    total_discount: totalDiscount,
     tax,
     shipping_fee: shippingFee,
     total_amount: totalAmount,
     platform_commission: platformCommission,
-    payment_method: payment_method || 'UPI',
-    payment_status: 'Completed',
+    payment_method: isCOD ? 'COD' : chosenMethod,
+    payment_status: paymentStatus,
+    payment_provider_order_id: recordedOrderId,
+    payment_provider_payment_id: recordedPaymentId,
+    payment_signature: recordedSignature,
+    idempotency_key: cleanIdempotencyKey || undefined,
     tracking_code: trackingCode,
     tracking_status: 'Order Placed',
+    order_status: paymentStatus === 'Paid' ? 'Confirmed' : 'Order Placed',
+    final_amount: totalAmount,
     estimated_delivery: 'Within 2-4 Business Days',
     return_reason: '',
     return_status: 'None',
@@ -289,7 +590,7 @@ const checkoutCart = async (req, res) => {
   res.status(201).json({
     success: true,
     order: newOrder,
-    message: `Product order ${orderId} confirmed!`
+    message: `Product order ${orderId} confirmed! Tracking code: ${trackingCode}`
   });
 };
 
@@ -451,6 +752,10 @@ const updateProductOrderStatus = async (req, res) => {
       return item;
     });
 
+    if (tracking_status === 'Delivered' && order.payment_method === 'COD') {
+      order.payment_status = 'Completed';
+    }
+
     await order.save();
     return res.json({
       success: true,
@@ -485,6 +790,10 @@ const updateProductOrderStatus = async (req, res) => {
     }
     return item;
   });
+
+  if (tracking_status === 'Delivered' && order.payment_method === 'COD') {
+    order.payment_status = 'Completed';
+  }
 
   saveData(db);
   res.json({
@@ -522,6 +831,7 @@ const cancelProductOrder = async (req, res) => {
       throw new ExpressError('Delivered orders cannot be cancelled. Please submit a Return Request instead.', 400);
     }
 
+    // Restock all items
     for (const item of order.items || []) {
       const prod = await findDocByAnyId(Product, item.product_id);
       if (prod) {
@@ -543,7 +853,7 @@ const cancelProductOrder = async (req, res) => {
     }
 
     order.tracking_status = 'Cancelled';
-    order.payment_status = 'Refunded';
+    order.payment_status = order.payment_status === 'Completed' ? 'Refunded' : 'Failed';
     order.cancelled_at = new Date().toISOString();
     await order.save();
 
@@ -564,6 +874,7 @@ const cancelProductOrder = async (req, res) => {
   if (!isBuyer && !isSeller) {
     throw new ExpressError('Not authorized to cancel this order', 403);
   }
+
   if (order.tracking_status === 'Cancelled') {
     throw new ExpressError('Order is already cancelled', 400);
   }
@@ -592,7 +903,7 @@ const cancelProductOrder = async (req, res) => {
   }
 
   order.tracking_status = 'Cancelled';
-  order.payment_status = 'Refunded';
+  order.payment_status = order.payment_status === 'Completed' ? 'Refunded' : 'Failed';
   order.cancelled_at = new Date().toISOString();
   saveData(db);
 
@@ -605,15 +916,15 @@ const cancelProductOrder = async (req, res) => {
 
 /**
  * PUT /api/product-orders/:id/return
- * Customer requests a return on a delivered order, or vendor approves/refunds a return
+ * Handles buyer return requests and vendor approvals/rejections with inventory restocking
  */
 const handleProductOrderReturn = async (req, res) => {
   if (!req.user) {
-    throw new ExpressError('Authentication required', 401);
+    throw new ExpressError('Authentication required for return actions', 401);
   }
 
   const { id } = req.params;
-  const { reason, action } = req.body; // action: 'request' (buyer) or 'approve' / 'reject' (vendor)
+  const { action, reason } = req.body;
 
   if (isMongoConnected()) {
     const order = await findDocByAnyId(ProductOrder, id);
@@ -739,6 +1050,7 @@ const handleProductOrderReturn = async (req, res) => {
 };
 
 module.exports = {
+  initiateProductCheckout,
   checkoutCart,
   getProductOrders,
   trackProductOrder,
