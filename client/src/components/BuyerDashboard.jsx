@@ -17,9 +17,11 @@ import {
   Phone,
   Mail,
   Save,
-  XCircle
+  XCircle,
+  Camera,
+  Upload
 } from 'lucide-react';
-import { apiGet, apiPut } from '../utils/auth';
+import { apiGet, apiPut, apiUploadMedia } from '../utils/auth';
 
 /**
  * BuyerDashboard Component
@@ -51,6 +53,9 @@ export default function BuyerDashboard({
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [address, setAddress] = useState(currentUser?.address || '');
   const [upiId, setUpiId] = useState(currentUser?.upi_id || '');
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar_url || '');
+  const [avatarPublicId, setAvatarPublicId] = useState(currentUser?.avatar_public_id || '');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
@@ -63,25 +68,69 @@ export default function BuyerDashboard({
       setPhone(currentUser.phone || '');
       setAddress(currentUser.address || '');
       setUpiId(currentUser.upi_id || '');
+      setAvatarUrl(currentUser.avatar_url || '');
+      setAvatarPublicId(currentUser.avatar_public_id || '');
       fetchBuyerData();
     }
   }, [currentUser]);
 
-  const fetchBuyerData = async () => {
-    setLoading(true);
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      onAddToast?.('Please choose a valid image file (JPEG, PNG, WebP).', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      onAddToast?.('Profile picture must be under 5MB.', 'error');
+      return;
+    }
+
+    setUploadingAvatar(true);
     try {
-      const [ordRes, aptRes, bkgRes] = await Promise.all([
-        apiGet('/api/orders'),
-        apiGet('/api/vets/appointments'),
-        apiGet('/api/services/bookings')
-      ]);
-      if (ordRes.success) setOrders(ordRes.orders || []);
-      if (aptRes.success) setAppointments(aptRes.appointments || []);
-      if (bkgRes.success) setBookings(bkgRes.bookings || []);
-    } catch (err) {
-      console.error('Error loading buyer dashboard data:', err);
+      const uploadRes = await apiUploadMedia(file, { context: 'profiles' });
+      if (uploadRes.success && uploadRes.url) {
+        setAvatarUrl(uploadRes.url);
+        setAvatarPublicId(uploadRes.public_id || '');
+
+        const profileRes = await apiPut('/api/auth/profile', {
+          avatar_url: uploadRes.url,
+          avatar_public_id: uploadRes.public_id || ''
+        });
+
+        if (profileRes.success && profileRes.user) {
+          onUserUpdated?.(profileRes.user);
+          onAddToast?.('Profile picture updated successfully!', 'success');
+        }
+      } else {
+        onAddToast?.(uploadRes.message || 'Image upload failed', 'error');
+      }
+    } catch {
+      onAddToast?.('Failed to upload profile picture.', 'error');
     } finally {
-      setLoading(false);
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true);
+    try {
+      const profileRes = await apiPut('/api/auth/profile', {
+        avatar_url: '',
+        avatar_public_id: ''
+      });
+      if (profileRes.success && profileRes.user) {
+        setAvatarUrl('');
+        setAvatarPublicId('');
+        onUserUpdated?.(profileRes.user);
+        onAddToast?.('Profile picture removed.', 'success');
+      }
+    } catch {
+      onAddToast?.('Failed to remove profile picture.', 'error');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -93,7 +142,9 @@ export default function BuyerDashboard({
         name,
         phone,
         address,
-        upi_id: upiId
+        upi_id: upiId,
+        avatar_url: avatarUrl,
+        avatar_public_id: avatarPublicId
       });
       if (data.success && data.user) {
         onUserUpdated?.(data.user);
@@ -594,6 +645,56 @@ export default function BuyerDashboard({
           <p className="text-xs text-[#65605B] mb-5">
             Keep your contact and shipping address updated for climate-controlled pet deliveries.
           </p>
+
+          {/* Profile Picture Upload & Preview */}
+          <div className="p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF] mb-6 flex flex-col sm:flex-row items-center gap-4">
+            <div className="relative w-16 h-16 rounded-full overflow-hidden bg-white border-2 border-[#E07A5F] flex-shrink-0 flex items-center justify-center shadow-sm">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={name || 'Avatar'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-xl font-black text-[#231F20]">
+                  {(name || currentUser.name || 'P').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+
+            <div className="flex-1 text-center sm:text-left">
+              <h4 className="text-xs font-extrabold text-[#231F20]">Profile Picture</h4>
+              <p className="text-[11px] text-[#65605B] mt-0.5">
+                Upload a JPEG, PNG, or WebP photo (max 5MB). Stored safely on Cloudinary.
+              </p>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
+                <label className="px-3 py-1.5 bg-[#231F20] hover:bg-[#E07A5F] text-white text-[11px] font-bold rounded-xl cursor-pointer flex items-center space-x-1.5 transition-colors">
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{uploadingAvatar ? 'Uploading…' : avatarUrl ? 'Change Picture' : 'Upload Picture'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingAvatar}
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    disabled={uploadingAvatar}
+                    onClick={handleRemoveAvatar}
+                    className="px-3 py-1.5 bg-white text-red-600 hover:bg-red-50 border border-red-200 text-[11px] font-bold rounded-xl transition-colors flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
 
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
