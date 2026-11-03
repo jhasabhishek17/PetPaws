@@ -18,7 +18,8 @@ import {
   Lock,
   Scissors,
   Stethoscope,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { apiGet, apiPost, apiPut, apiDelete, apiUploadMedia } from '../utils/auth';
 import PawLoader from './PawLoader';
@@ -76,6 +77,14 @@ export default function BusinessSaaSPortal({
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [savingProduct, setSavingProduct] = useState(false);
 
+  // Product Promotional Discount State
+  const [prodDiscountType, setProdDiscountType] = useState('percentage');
+  const [prodDiscountValue, setProdDiscountValue] = useState('');
+  const [prodDiscountStartDate, setProdDiscountStartDate] = useState('');
+  const [prodDiscountEndDate, setProdDiscountEndDate] = useState('');
+  const [prodDiscountIsActive, setProdDiscountIsActive] = useState(false);
+  const [prodDiscountTitle, setProdDiscountTitle] = useState('');
+
   // Business Settings & Team Form
   const [bizName, setBizName] = useState('');
   const [bizType, setBizType] = useState('pet_shop');
@@ -92,9 +101,14 @@ export default function BusinessSaaSPortal({
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('staff');
 
-  // Subscription Billing Cycle
+  // Business Plan Upgrade & Payment Lifecycle State
   const [billingCycle, setBillingCycle] = useState('monthly');
-  const [upgradingPlanId, setUpgradingPlanId] = useState('');
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [selectedPlanForUpgrade, setSelectedPlanForUpgrade] = useState(null);
+  const [planCheckoutStep, setPlanCheckoutStep] = useState(1); // 1: 'review', 2: 'payment'
+  const [pendingTransaction, setPendingTransaction] = useState(null);
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
 
   // Grooming Package Form
   const [srvTitle, setSrvTitle] = useState('');
@@ -208,6 +222,18 @@ export default function BusinessSaaSPortal({
     );
   }
 
+  const computePreviewEffectivePrice = () => {
+    const base = Number(prodPrice) || 0;
+    if (!prodDiscountIsActive || !prodDiscountValue || base <= 0) return base;
+    const val = Number(prodDiscountValue) || 0;
+    if (prodDiscountType === 'percentage') {
+      const cut = (base * Math.min(val, 90)) / 100;
+      return Math.max(0, Math.round((base - cut) * 100) / 100);
+    } else {
+      return Math.max(0, Math.round((base - Math.min(val, base)) * 100) / 100);
+    }
+  };
+
   const resetProductForm = () => {
     setEditingProductId('');
     setProdTitle('');
@@ -222,6 +248,12 @@ export default function BusinessSaaSPortal({
     setProdFeatures('');
     setProdImageUrl('');
     setProdVariants([]);
+    setProdDiscountType('percentage');
+    setProdDiscountValue('');
+    setProdDiscountStartDate('');
+    setProdDiscountEndDate('');
+    setProdDiscountIsActive(false);
+    setProdDiscountTitle('');
   };
 
   const handleEditProduct = (prod) => {
@@ -238,6 +270,21 @@ export default function BusinessSaaSPortal({
     setProdFeatures(Array.isArray(prod.features) ? prod.features.join(', ') : '');
     setProdImageUrl(prod.image_url || '');
     setProdVariants(Array.isArray(prod.variants) ? prod.variants : []);
+    if (prod.discount) {
+      setProdDiscountType(prod.discount.type || 'percentage');
+      setProdDiscountValue(prod.discount.value ? String(prod.discount.value) : '');
+      setProdDiscountStartDate(prod.discount.start_date ? prod.discount.start_date.split('T')[0] : '');
+      setProdDiscountEndDate(prod.discount.end_date ? prod.discount.end_date.split('T')[0] : '');
+      setProdDiscountIsActive(Boolean(prod.discount.is_active));
+      setProdDiscountTitle(prod.discount.title || '');
+    } else {
+      setProdDiscountType('percentage');
+      setProdDiscountValue('');
+      setProdDiscountStartDate('');
+      setProdDiscountEndDate('');
+      setProdDiscountIsActive(false);
+      setProdDiscountTitle('');
+    }
     setActiveSection('products');
   };
 
@@ -289,7 +336,15 @@ export default function BusinessSaaSPortal({
         description: prodDescription,
         features: prodFeatures,
         image_url: prodImageUrl,
-        variants: prodVariants
+        variants: prodVariants,
+        discount: {
+          type: prodDiscountType,
+          value: Number(prodDiscountValue) || 0,
+          start_date: prodDiscountStartDate || null,
+          end_date: prodDiscountEndDate || null,
+          is_active: Boolean(prodDiscountIsActive),
+          title: prodDiscountTitle
+        }
       };
 
       const res = editingProductId
@@ -358,39 +413,68 @@ export default function BusinessSaaSPortal({
     }
   };
 
-  const handleUpgradeSubscription = async (planId) => {
-    setUpgradingPlanId(planId);
+  const handleInitiatePlanUpgrade = (plan) => {
+    setSelectedPlanForUpgrade(plan);
+    setPlanCheckoutStep(1);
+    setPendingTransaction(null);
+    setPlanModalOpen(true);
+  };
+
+  const handleConfirmPlanCheckout = async () => {
+    if (!selectedPlanForUpgrade) return;
+    setIsProcessingCheckout(true);
     try {
       const checkoutRes = await apiPost('/api/saas/subscriptions/checkout', {
-        plan_id: planId,
+        plan_id: selectedPlanForUpgrade.id,
         billing_cycle: billingCycle
       });
 
       if (!checkoutRes.success) {
-        onAddToast?.(checkoutRes.message || 'Could not start subscription checkout', 'error');
+        onAddToast?.(checkoutRes.message || 'Could not start plan checkout', 'error');
         return;
       }
 
       if (checkoutRes.immediate) {
-        onAddToast?.(checkoutRes.message || 'Switched plan!', 'success');
+        onAddToast?.(checkoutRes.message || 'Switched plan successfully!', 'success');
+        setPlanModalOpen(false);
         loadPortalData();
         return;
       }
 
-      // Perform server-side HMAC-SHA256 verification handshake
-      if (checkoutRes.sandbox_handshake) {
-        const verifyRes = await apiPost('/api/saas/subscriptions/verify', checkoutRes.sandbox_handshake);
-        if (verifyRes.success) {
-          onAddToast?.(verifyRes.message || 'Subscription verified & activated!', 'success');
-          loadPortalData();
-        } else {
-          onAddToast?.(verifyRes.message || 'Payment signature verification failed', 'error');
-        }
+      // Paid plan: transaction record is now pending verification
+      setPendingTransaction(checkoutRes);
+      setPlanCheckoutStep(2);
+      onAddToast?.('Plan order created. Please review payment and confirm authorization.', 'info');
+    } catch {
+      onAddToast?.('Error processing plan checkout.', 'error');
+    } finally {
+      setIsProcessingCheckout(false);
+    }
+  };
+
+  const handleAuthorizeAndVerifyPayment = async () => {
+    if (!pendingTransaction) return;
+    setIsVerifyingPayment(true);
+    try {
+      const payload = pendingTransaction.sandbox_handshake || {
+        provider_order_id: pendingTransaction.provider_order_id,
+        provider_payment_id: `pay_${Date.now()}`,
+        provider_signature: 'dummy'
+      };
+
+      const verifyRes = await apiPost('/api/saas/subscriptions/verify', payload);
+      if (verifyRes.success) {
+        onAddToast?.(verifyRes.message || 'Payment verified & plan activated successfully!', 'success');
+        setPlanModalOpen(false);
+        setPendingTransaction(null);
+        loadPortalData();
+      } else {
+        onAddToast?.(verifyRes.message || 'Payment signature verification failed', 'error');
       }
     } catch {
-      onAddToast?.('Error processing subscription upgrade.', 'error');
+      onAddToast?.('Error verifying payment.', 'error');
     } finally {
-      setUpgradingPlanId('');
+      setIsVerifyingPayment(false);
     }
   };
 
@@ -519,7 +603,7 @@ export default function BusinessSaaSPortal({
               {currentPlan?.name || 'Free Starter'} Plan
             </span>
             <span className="px-3 py-1 rounded-full bg-white/10 text-[#C5DFD2] text-[11px] font-bold">
-              Tenant ID: {business?.id || 'Provisional'}
+              Business Account ID: {business?.id || 'Provisional'}
             </span>
             <span className="px-3 py-1 rounded-full bg-[#EAEFE9]/20 text-[#F6C06B] text-[11px] font-bold uppercase">
               Role: {membership?.role || currentUser.role}
@@ -529,7 +613,7 @@ export default function BusinessSaaSPortal({
             {business?.name || `${currentUser.name} Business Workspace`}
           </h1>
           <p className="text-xs sm:text-sm text-white/75 mt-1">
-            Multi-tenant SaaS operations hub — manage products, variant stock, orders, team permissions & subscriptions.
+            Business operations hub — manage products, discounts, inventory variants, orders, team permissions & business plans.
           </p>
         </div>
 
@@ -570,7 +654,7 @@ export default function BusinessSaaSPortal({
           { id: 'products', label: `Products Catalog (${products.length})`, icon: Package, show: isVendor },
           { id: 'orders', label: `Product Orders (${vendorOrders.length})`, icon: ShoppingBag, show: isVendor },
           { id: 'grooming-ops', label: 'Grooming & Spa Ops', icon: Scissors, show: ['groomer', 'seller', 'shopkeeper', 'admin'].includes(currentUser.role) },
-          { id: 'subscriptions', label: 'SaaS Plans & Billing', icon: CreditCard, show: true },
+          { id: 'subscriptions', label: 'Business Plans & Pricing', icon: CreditCard, show: true },
           { id: 'team', label: `Team & Settings (${teamMembers.length})`, icon: Users, show: true },
           { id: 'admin', label: 'Platform Moderation', icon: ShieldAlert, show: currentUser.role === 'admin' }
         ]
@@ -597,7 +681,7 @@ export default function BusinessSaaSPortal({
       </div>
 
       {loading ? (
-        <PawLoader label="Loading your multi-tenant SaaS workspace…" />
+        <PawLoader label="Loading your business workspace…" />
       ) : (
         <>
           {/* 1. OVERVIEW & ANALYTICS */}
@@ -678,11 +762,11 @@ export default function BusinessSaaSPortal({
 
                 <div className="bg-white rounded-3xl border border-[#EFE9DF] p-6 shadow-aesthetic">
                   <h3 className="text-base font-extrabold text-[#231F20] font-display mb-3">
-                    SaaS Plan Entitlements & Revenue Model
+                    Business Plan Entitlements & Growth Model
                   </h3>
                   <div className="space-y-2.5 text-xs text-[#4A4344]">
                     <p>
-                      <strong className="text-[#231F20]">1. SaaS Subscription:</strong> Your business is on the{' '}
+                      <strong className="text-[#231F20]">1. Business Plan:</strong> Your business is on the{' '}
                       <strong className="text-[#E07A5F]">{currentPlan?.name}</strong> tier ({business?.billing_cycle}), giving you up to{' '}
                       <strong>{usage?.max_products > 9000 ? 'Unlimited' : usage?.max_products}</strong> product listings and{' '}
                       <strong>{usage?.max_team_members}</strong> staff seats.
@@ -692,7 +776,7 @@ export default function BusinessSaaSPortal({
                       <strong>{analytics?.commission_rate}%</strong> commission on completed customer product orders. Upgrading to Growth (5%) or Pro (3%) lowers your commission fee.
                     </p>
                     <p>
-                      <strong className="text-[#231F20]">3. Tenant Data Isolation:</strong> Your inventory, customer shipping addresses, and payout settings are isolated to tenant{' '}
+                      <strong className="text-[#231F20]">3. Business Account Data Security:</strong> Your inventory, customer shipping addresses, and payout settings are isolated to business account{' '}
                       <code className="px-1.5 py-0.5 bg-[#FAF6F0] rounded font-mono">{business?.id}</code>.
                     </p>
                   </div>
@@ -878,6 +962,107 @@ export default function BusinessSaaSPortal({
                         </button>
                       </div>
                     ))}
+                  </div>
+
+                  {/* Promotional Offer & Discount Configuration */}
+                  <div className="p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Sparkles className="w-4 h-4 text-[#E07A5F]" />
+                        <span className="font-extrabold text-[#231F20] text-xs">
+                          Promotional Discount & Special Offer
+                        </span>
+                      </div>
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={prodDiscountIsActive}
+                          onChange={e => setProdDiscountIsActive(e.target.checked)}
+                          className="rounded text-[#E07A5F] focus:ring-[#E07A5F]"
+                        />
+                        <span className="text-xs font-bold text-[#4A4344]">Active Offer</span>
+                      </label>
+                    </div>
+
+                    {prodDiscountIsActive && (
+                      <div className="space-y-3 pt-2 border-t border-[#E6DCCF]">
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Offer Title / Badge</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Weekend Flash Sale, Festive 15% Off"
+                            value={prodDiscountTitle}
+                            onChange={e => setProdDiscountTitle(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-white border border-[#E6DCCF] rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Discount Type</label>
+                            <select
+                              value={prodDiscountType}
+                              onChange={e => setProdDiscountType(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-white border border-[#E6DCCF] rounded-xl text-xs font-bold"
+                            >
+                              <option value="percentage">Percentage Off (%)</option>
+                              <option value="fixed">Fixed Amount Off (₹)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-[#4A4344] mb-1">
+                              {prodDiscountType === 'percentage' ? 'Percentage (1 - 90%)' : 'Amount (₹)'}
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max={prodDiscountType === 'percentage' ? '90' : undefined}
+                              placeholder={prodDiscountType === 'percentage' ? '20' : '150'}
+                              value={prodDiscountValue}
+                              onChange={e => setProdDiscountValue(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-white border border-[#E6DCCF] rounded-xl text-xs font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Start Date (Optional)</label>
+                            <input
+                              type="date"
+                              value={prodDiscountStartDate}
+                              onChange={e => setProdDiscountStartDate(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-[#4A4344] mb-1">End Date (Optional)</label>
+                            <input
+                              type="date"
+                              value={prodDiscountEndDate}
+                              onChange={e => setProdDiscountEndDate(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Live Preview Box */}
+                        <div className="p-2.5 bg-white rounded-xl border border-[#D5E2D9] flex items-center justify-between text-xs">
+                          <div>
+                            <span className="text-[#65605B]">Base: </span>
+                            <span className="line-through font-semibold text-[#65605B]">₹{Number(prodPrice) || 0}</span>
+                            <span className="ml-2 text-[#2A5C4A] font-bold">
+                              Effective Price: ₹{computePreviewEffectivePrice()}
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#EAEFE9] text-[#2A5C4A]">
+                            {prodDiscountType === 'percentage'
+                              ? `${prodDiscountValue || 0}% OFF`
+                              : `₹${prodDiscountValue || 0} OFF`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Image Upload / URL */}
@@ -1233,17 +1418,17 @@ export default function BusinessSaaSPortal({
             </div>
           )}
 
-          {/* 5. SAAS SUBSCRIPTION PLANS & VERIFIED BILLING */}
+          {/* 5. BUSINESS GROWTH PLANS & VERIFIED BILLING */}
           {activeSection === 'subscriptions' && (
             <div className="space-y-8">
               <div className="bg-white rounded-3xl border border-[#EFE9DF] p-6 sm:p-8 shadow-aesthetic">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
                     <h3 className="text-xl font-black text-[#231F20] font-display">
-                      PetPaws Business SaaS Subscription Plans
+                      PetPaws Business Growth Plans
                     </h3>
                     <p className="text-xs text-[#65605B] mt-1">
-                      Backend-enforced catalog limits, team seats, and marketplace commission discounts. Verified via HMAC-SHA256 payment signatures.
+                      Catalog limits, team seats, and reduced marketplace commission. Verified securely via server-side payment signatures.
                     </p>
                   </div>
 
@@ -1313,16 +1498,14 @@ export default function BusinessSaaSPortal({
                         <button
                           type="button"
                           disabled={isCurrent && business?.billing_cycle === billingCycle}
-                          onClick={() => handleUpgradeSubscription(plan.id)}
+                          onClick={() => handleInitiatePlanUpgrade(plan)}
                           className={`w-full py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                             isCurrent && business?.billing_cycle === billingCycle
                               ? 'bg-[#EAEFE9] text-[#2A5C4A] cursor-default'
                               : 'bg-[#E07A5F] hover:bg-[#D0654A] text-white shadow-md'
                           }`}
                         >
-                          {upgradingPlanId === plan.id
-                            ? 'Verifying Payment…'
-                            : isCurrent && business?.billing_cycle === billingCycle
+                          {isCurrent && business?.billing_cycle === billingCycle
                             ? 'Current Active Plan'
                             : `Select ${plan.name}`}
                         </button>
@@ -1335,10 +1518,10 @@ export default function BusinessSaaSPortal({
               {/* Billing History Table */}
               <div className="bg-white rounded-3xl border border-[#EFE9DF] p-6 shadow-aesthetic">
                 <h4 className="text-base font-black text-[#231F20] font-display mb-4">
-                  Subscription Billing & HMAC-Verified Transactions ({billingHistory.length})
+                  Payment Records & Verified Transactions ({billingHistory.length})
                 </h4>
                 {billingHistory.length === 0 ? (
-                  <p className="text-xs text-[#65605B]">No paid subscription transactions recorded yet.</p>
+                  <p className="text-xs text-[#65605B]">No payment records found yet.</p>
                 ) : (
                   <div className="space-y-2.5">
                     {billingHistory.map(tx => (
@@ -1354,7 +1537,7 @@ export default function BusinessSaaSPortal({
                         </div>
                         <div className="flex items-center space-x-3">
                           <span className="px-2.5 py-0.5 bg-[#EAEFE9] text-[#2A5C4A] font-extrabold rounded-full">
-                            {tx.status.toUpperCase()} {tx.webhook_verified ? '• HMAC Verified' : ''}
+                            {tx.status.toUpperCase()} {tx.webhook_verified ? '• Verified' : ''}
                           </span>
                           <strong className="text-sm font-black">${tx.amount}</strong>
                         </div>
@@ -1363,6 +1546,156 @@ export default function BusinessSaaSPortal({
                   </div>
                 )}
               </div>
+
+              {/* Multi-Step Plan Review & Payment Verification Modal */}
+              {planModalOpen && selectedPlanForUpgrade && (
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn"
+                >
+                  <div className="bg-white rounded-3xl shadow-aesthetic max-w-lg w-full overflow-hidden border border-[#EFE9DF]">
+                    <div className="bg-[#243D36] p-5 text-white flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <CreditCard className="w-5 h-5 text-[#F4A261]" />
+                        <h3 className="text-base font-bold text-white">
+                          {planCheckoutStep === 1 ? 'Review Business Plan' : 'Authorize & Verify Payment'}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setPlanModalOpen(false);
+                          setPendingTransaction(null);
+                        }}
+                        aria-label="Close"
+                        className="text-[#C5DFD2] hover:text-white"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {planCheckoutStep === 1 ? (
+                      <div className="p-6 space-y-5">
+                        <div className="flex items-center justify-between p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
+                          <div>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-white text-[#E07A5F] border border-[#E6DCCF]">
+                              {selectedPlanForUpgrade.badge}
+                            </span>
+                            <h4 className="text-lg font-black text-[#231F20] font-display mt-1">
+                              {selectedPlanForUpgrade.name}
+                            </h4>
+                            <p className="text-xs text-[#65605B] mt-0.5">{selectedPlanForUpgrade.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-2xl font-black text-[#231F20] font-display">
+                              ${billingCycle === 'annual' ? selectedPlanForUpgrade.annual_price : selectedPlanForUpgrade.monthly_price}
+                            </span>
+                            <p className="text-[11px] text-[#65605B]">/{billingCycle === 'annual' ? 'year' : 'month'}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <h5 className="font-extrabold text-[#231F20]">Plan Entitlements:</h5>
+                          <ul className="space-y-1.5 text-[#4A4344]">
+                            {(selectedPlanForUpgrade.highlights || []).map((h, i) => (
+                              <li key={i} className="flex items-start space-x-2">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#52796F] flex-shrink-0 mt-0.5" />
+                                <span>{h}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900">
+                          {selectedPlanForUpgrade.id === 'free'
+                            ? 'Switching to Free will instantly update your account limits with no payment required.'
+                            : 'Clicking Proceed will create a secure order record. Your plan will only be activated after cryptographic payment verification.'}
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setPlanModalOpen(false)}
+                            className="flex-1 py-2.5 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#4A4344] font-extrabold text-xs rounded-xl cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isProcessingCheckout}
+                            onClick={handleConfirmPlanCheckout}
+                            className="flex-1 py-2.5 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
+                          >
+                            {isProcessingCheckout
+                              ? 'Processing…'
+                              : selectedPlanForUpgrade.id === 'free'
+                              ? 'Confirm Switch to Free'
+                              : 'Confirm & Proceed to Payment'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-6 space-y-5">
+                        <div className="p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF] space-y-2 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-[#65605B]">Selected Plan:</span>
+                            <strong className="text-[#231F20]">{pendingTransaction?.plan?.name}</strong>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#65605B]">Billing Cycle:</span>
+                            <strong className="text-[#231F20] capitalize">{pendingTransaction?.plan?.billing_cycle}</strong>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#65605B]">Amount Due:</span>
+                            <strong className="text-base text-[#231F20] font-black">${pendingTransaction?.amount}</strong>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#65605B]">Order ID:</span>
+                            <code className="font-mono text-[11px] text-[#4A4344]">{pendingTransaction?.provider_order_id}</code>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#65605B]">Payment Gateway:</span>
+                            <span className="font-bold text-[#2A5C4A]">
+                              {pendingTransaction?.payment_mode === 'razorpay_live' ? 'Razorpay Live' : 'Verified Secure Gateway'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#65605B]">Status:</span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800">
+                              Pending Verification
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-[#65605B] text-center">
+                          Click below to authorize the payment challenge and verify the cryptographic signature with the backend server.
+                        </p>
+
+                        <div className="flex gap-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPlanModalOpen(false);
+                              setPendingTransaction(null);
+                            }}
+                            className="flex-1 py-2.5 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#4A4344] font-extrabold text-xs rounded-xl cursor-pointer"
+                          >
+                            Cancel & Keep Pending
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isVerifyingPayment}
+                            onClick={handleAuthorizeAndVerifyPayment}
+                            className="flex-1 py-2.5 bg-[#52796F] hover:bg-[#43645B] text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
+                          >
+                            {isVerifyingPayment ? 'Verifying Signature…' : 'Authorize & Verify Payment'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1569,7 +1902,7 @@ export default function BusinessSaaSPortal({
               {/* Vendor Moderation */}
               <div className="bg-white rounded-3xl border border-[#EFE9DF] p-6 shadow-aesthetic">
                 <h3 className="text-lg font-black text-[#231F20] font-display mb-4">
-                  Platform Vendor & Tenant Governance ({adminData.businesses.length})
+                  Platform Vendor & Account Governance ({adminData.businesses.length})
                 </h3>
                 <div className="space-y-3">
                   {adminData.businesses.map(b => (
@@ -1609,7 +1942,7 @@ export default function BusinessSaaSPortal({
                           }
                           className="px-3 py-1.5 bg-red-600 text-white font-bold rounded-xl"
                         >
-                          Suspend Tenant
+                          Suspend Account
                         </button>
                       </div>
                     </div>
@@ -1661,7 +1994,7 @@ export default function BusinessSaaSPortal({
               {/* Security Audit Logs */}
               <div className="bg-white rounded-3xl border border-[#EFE9DF] p-6 shadow-aesthetic">
                 <h3 className="text-lg font-black text-[#231F20] font-display mb-4">
-                  Platform Security & Multi-Tenant Audit Log ({adminData.auditLogs.length})
+                  Platform Security & Business Audit Log ({adminData.auditLogs.length})
                 </h3>
                 <div className="space-y-2 text-xs">
                   {adminData.auditLogs.map(log => (
