@@ -13,6 +13,8 @@ router.get('/track/:code', protect, asyncHandler(productOrderController.trackPro
 
 // Authenticated customer / vendor order listing & checkout
 router.get('/', protect, asyncHandler(productOrderController.getProductOrders));
+router.get('/my-orders', protect, asyncHandler(productOrderController.getProductOrders));
+router.post('/initiate', protect, asyncHandler(productOrderController.initiateProductCheckout));
 router.post('/checkout', protect, asyncHandler(productOrderController.checkoutCart));
 
 // Vendor status progression
