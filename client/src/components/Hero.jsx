@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X, Sparkles, ShieldCheck, Truck, Stethoscope, Scissors, ArrowRight, Star, Heart } from 'lucide-react';
+import { Search, X, Sparkles, ShieldCheck, Truck, Stethoscope, Scissors, ArrowRight, Star, Heart, Store, LayoutDashboard, Package } from 'lucide-react';
 import PawBackdrop from './PawBackdrop';
 import { AnimatedDog, AnimatedCat } from './PetIllustration';
 
@@ -22,15 +22,30 @@ export default function Hero({
   petCount = 0,
   currentUser
 }) {
-  const quick = [
-    { id: 'vets', label: 'Book a Vet', icon: Stethoscope },
-    { id: 'grooming', label: 'Spa & Grooming', icon: Scissors },
-  ];
+  const quick = [];
 
-  // Show Track Orders & Wishlist quick pills only to authenticated buyers
-  if (currentUser?.role === 'buyer') {
-    quick.push({ id: 'orders', label: 'Track Orders', icon: Truck });
-    quick.push({ id: 'wishlist', label: 'My Wishlist', icon: Heart });
+  if (currentUser?.role === 'seller') {
+    quick.push({ id: 'seller', label: 'Breeder Portal', icon: Store });
+    quick.push({ id: 'saas-portal', label: 'Business Dashboard', icon: LayoutDashboard });
+  } else if (currentUser?.role === 'shopkeeper') {
+    quick.push({ id: 'saas-portal', label: 'Shop Dashboard', icon: Store });
+    quick.push({ id: 'products', label: 'Products Catalog', icon: Package });
+  } else if (currentUser?.role === 'vet') {
+    quick.push({ id: 'vet-dashboard', label: 'Vet Portal', icon: Stethoscope });
+    quick.push({ id: 'saas-portal', label: 'Business Plans', icon: Store });
+  } else if (currentUser?.role === 'groomer') {
+    quick.push({ id: 'saas-portal', label: 'Spa Dashboard', icon: Store });
+    quick.push({ id: 'grooming', label: 'Spa & Grooming', icon: Scissors });
+  } else if (currentUser?.role === 'admin') {
+    quick.push({ id: 'saas-portal', label: 'Admin Portal', icon: Store });
+  } else {
+    // Guest or Buyer
+    quick.push({ id: 'vets', label: 'Book a Vet', icon: Stethoscope });
+    quick.push({ id: 'grooming', label: 'Spa & Grooming', icon: Scissors });
+    if (currentUser?.role === 'buyer') {
+      quick.push({ id: 'orders', label: 'Track Orders', icon: Truck });
+      quick.push({ id: 'wishlist', label: 'My Wishlist', icon: Heart });
+    }
   }
 
   return (
