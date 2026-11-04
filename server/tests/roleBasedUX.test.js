@@ -1,5 +1,5 @@
 /**
- * PetPaws  Test Suite
+ * PetPaws Role-Based Permissions & Checkout Enforcement Test Suite
  *
  * Verifies that the backend strictly enforces role boundaries:
  * - Providers (seller, shopkeeper, vet, groomer) CANNOT place product orders or pet adoption orders
