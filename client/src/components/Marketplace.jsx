@@ -18,6 +18,7 @@ import PetMatchmakerQuiz from './PetMatchmakerQuiz';
 import Hero from './Hero';
 import Reveal from './Reveal';
 import { PetCardSkeleton } from './PawLoader';
+import { isProvider } from '../utils/permissions';
 
 /**
  * Reusable Pet Card item supporting both Grid and List layouts
@@ -30,6 +31,7 @@ function PetCardItem({
   isOwnListing,
   isSoldOut,
   isBuyer,
+  isProviderAccount,
   onSelectPet,
   onToggleWishlist,
   onBuyPetRequest
@@ -87,6 +89,18 @@ function PetCardItem({
             >
               Your Listing
             </span>
+          ) : isProviderAccount ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectPet(pet);
+              }}
+              className="px-3.5 py-2 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] border border-[#E6DCCF] font-extrabold text-xs rounded-xl flex items-center space-x-1 transition-colors cursor-pointer"
+            >
+              <Eye className="w-3.5 h-3.5 text-[#52796F]" />
+              <span>View Details</span>
+            </button>
           ) : (
             <button
               type="button"
@@ -95,7 +109,7 @@ function PetCardItem({
                 e.stopPropagation();
                 onBuyPetRequest(pet);
               }}
-              className="px-4 py-2 bg-[#E07A5F] hover:bg-[#D96B43] disabled:opacity-50 text-white font-bold text-xs rounded-xl"
+              className="px-4 py-2 bg-[#E07A5F] hover:bg-[#D96B43] disabled:opacity-50 text-white font-bold text-xs rounded-xl cursor-pointer"
             >
               {isSoldOut ? 'Sold out' : `Adopt ($${pet.price})`}
             </button>
@@ -225,6 +239,18 @@ function PetCardItem({
             >
               Your Listing (Owner)
             </span>
+          ) : isProviderAccount ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectPet(pet);
+              }}
+              className="px-3.5 py-2 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] border border-[#E6DCCF] font-extrabold text-xs rounded-xl flex items-center space-x-1 transition-colors cursor-pointer"
+            >
+              <Eye className="w-3.5 h-3.5 text-[#52796F]" />
+              <span>View Details</span>
+            </button>
           ) : (
             <button
               type="button"
@@ -233,7 +259,7 @@ function PetCardItem({
                 e.stopPropagation();
                 onBuyPetRequest(pet);
               }}
-              className="px-4 py-2 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-50 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-[#E07A5F]/20 flex items-center space-x-1"
+              className="px-4 py-2 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-50 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-[#E07A5F]/20 flex items-center space-x-1 cursor-pointer"
             >
               <span>{isSoldOut ? 'Sold out' : `Adopt Pet ($${pet.price})`}</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -478,6 +504,7 @@ export default function Marketplace({
                 isOwnListing={Boolean(currentUser && currentUser.id === pet.seller_id)}
                 isSoldOut={pet.status === 'sold' || Number(pet.stock) === 0}
                 isBuyer={isBuyer}
+                isProviderAccount={isProvider(currentUser)}
                 onSelectPet={onSelectPet}
                 onToggleWishlist={onToggleWishlist}
                 onBuyPetRequest={onBuyPetRequest}
