@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Scissors, Sparkles, Calendar, Clock, CheckCircle2, BookOpen, ShieldCheck, X, XCircle } from 'lucide-react';
 import { apiGet, apiPost, apiPut } from '../utils/auth';
+import { isProvider } from '../utils/permissions';
 import PawBackdrop from './PawBackdrop';
 import { AnimatedCat } from './PetIllustration';
 import { PetCardSkeleton } from './PawLoader';
@@ -218,12 +219,18 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
                     <span className="text-[10px] font-bold uppercase text-[#8C847C] block">Package Price</span>
                     <span className="text-xl font-black text-[#231F20] font-display">${srv.price}</span>
                   </div>
-                  <button
-                    onClick={() => handleBookClick(srv)}
-                    className="px-4 py-2.5 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] text-white font-extrabold text-xs rounded-xl shadow-md shadow-[#E07A5F]/20 transition-all"
-                  >
-                    Book Session
-                  </button>
+                  {isProvider(currentUser) ? (
+                    <span className="px-3.5 py-2 bg-[#FAF6F0] text-[#65605B] border border-[#E6DCCF] font-bold text-xs rounded-xl">
+                      Customer Booking Only
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleBookClick(srv)}
+                      className="px-4 py-2.5 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] text-white font-extrabold text-xs rounded-xl shadow-md shadow-[#E07A5F]/20 transition-all cursor-pointer"
+                    >
+                      Book Session
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
