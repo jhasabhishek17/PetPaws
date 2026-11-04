@@ -407,6 +407,7 @@ export default function App() {
             onSelectPet={(pet) => setSelectedPet(pet)}
             onBuyPetRequest={handleBuyPetRequest}
             onNavigate={handleSelectTab}
+            onOpenAuth={() => setIsAuthOpen(true)}
             onUserUpdated={(updated) => setCurrentUser(updated)}
             onAddToast={addToast}
           />
@@ -462,6 +463,7 @@ export default function App() {
         onOpenQuiz={() => handleSelectTab('marketplace')}
         onOpenRadar={() => handleSelectTab('orders')}
         onOpenVet={() => handleSelectTab('vets')}
+        onOpenPortal={handleSelectTab}
       />
 
       {/* Interactive Pet Details Modal */}
