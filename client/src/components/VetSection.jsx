@@ -14,6 +14,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { apiGet, apiPost, apiPut } from '../utils/auth';
+import { isProvider } from '../utils/permissions';
 import PawBackdrop from './PawBackdrop';
 import { AnimatedDog } from './PetIllustration';
 import { PetCardSkeleton } from './PawLoader';
@@ -280,13 +281,19 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
                   <span className="text-xl font-black text-[#231F20] font-display">${vet.consultation_fee} <span className="text-xs font-semibold text-[#65605B]">/ visit</span></span>
                 </div>
 
-                <button
-                  onClick={() => handleScheduleClick(vet)}
-                  className="px-5 py-2.5 bg-gradient-to-r from-[#52796F] to-[#3A5A40] hover:from-[#3A5A40] text-white font-extrabold text-xs rounded-xl shadow-md shadow-[#52796F]/25 transition-all flex items-center space-x-1.5"
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>Schedule Meeting</span>
-                </button>
+                {isProvider(currentUser) ? (
+                  <span className="px-3.5 py-2 bg-[#FAF6F0] text-[#65605B] border border-[#E6DCCF] font-bold text-xs rounded-xl">
+                    Customer Booking Only
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleScheduleClick(vet)}
+                    className="px-5 py-2.5 bg-gradient-to-r from-[#52796F] to-[#3A5A40] hover:from-[#3A5A40] text-white font-extrabold text-xs rounded-xl shadow-md shadow-[#52796F]/25 transition-all flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Schedule Meeting</span>
+                  </button>
+                )}
               </div>
             </div>
           ))}
