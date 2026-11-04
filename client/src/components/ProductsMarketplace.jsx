@@ -23,9 +23,11 @@ import {
   MessageSquare,
   ExternalLink,
   ChevronRight,
-  Info
+  Info,
+  Eye
 } from 'lucide-react';
 import { apiGet, apiPost } from '../utils/auth';
+import { isProvider, canPurchaseProducts } from '../utils/permissions';
 import PawLoader from './PawLoader';
 
 const PET_TYPE_FILTERS = ['All', 'Dogs', 'Cats', 'Fishes', 'Rabbits', 'Birds'];
@@ -197,7 +199,7 @@ export default function ProductsMarketplace({
     sortBy
   ]);
 
-  // Handle Options button click: opens detail view in lower section of the page and scrolls to it
+  // Open modal with complete product details without forcing jarring page scroll
   const handleOpenProductOptions = (product) => {
     setActiveProduct(product);
     if (Array.isArray(product.variants) && product.variants.length > 0) {
@@ -210,12 +212,14 @@ export default function ProductsMarketplace({
     setShowReportForm(false);
     setReportReason('');
     setShowReviewForm(false);
-    setTimeout(() => {
-      detailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
   };
 
   const addToCart = (product, variantObj = null, qty = 1) => {
+    if (isProvider(currentUser)) {
+      onAddToast?.('Only customer accounts can place product orders. Providers should use a customer account.', 'error');
+      return;
+    }
+
     if (currentUser && currentUser.id === product.seller_id) {
       onAddToast?.('Shopkeepers cannot purchase their own product listings.', 'error');
       return;
@@ -273,6 +277,10 @@ export default function ProductsMarketplace({
   };
 
   const handleInstantBuy = (product) => {
+    if (isProvider(currentUser)) {
+      onAddToast?.('Only customer accounts can place product orders. Providers should use a customer account.', 'error');
+      return;
+    }
     addToCart(product, null, detailQuantity);
     setIsCartOpen(true);
     setCheckoutStep('details');
@@ -468,18 +476,20 @@ export default function ProductsMarketplace({
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setIsCartOpen(true);
-                setCheckoutStep('cart');
-              }}
-              className="px-5 py-3 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-full shadow-lg flex items-center space-x-2 transition-all cursor-pointer"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              <span>Shopping Cart ({totalCartUnits})</span>
-              {cartSubtotal > 0 && <span>• {formatINR(cartSubtotal)}</span>}
-            </button>
+            {!isProvider(currentUser) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCartOpen(true);
+                  setCheckoutStep('cart');
+                }}
+                className="px-5 py-3 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-full shadow-lg flex items-center space-x-2 transition-all cursor-pointer"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>Shopping Cart ({totalCartUnits})</span>
+                {cartSubtotal > 0 && <span>• {formatINR(cartSubtotal)}</span>}
+              </button>
+            )}
 
             {currentUser && ['seller', 'shopkeeper', 'admin'].includes(currentUser.role) ? (
               <button
@@ -921,24 +931,46 @@ export default function ProductsMarketplace({
                     </div>
 
                     <div className="flex items-center space-x-1.5">
-                      {/* Options Button: Opens detailed view in lower section of the page */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenProductOptions(product)}
-                        className="px-3 py-2 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] text-xs font-extrabold rounded-xl transition-colors cursor-pointer"
-                        title="View complete product details, variants, and reviews"
-                      >
-                        Options
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isOut}
-                        onClick={() => addToCart(product, product.variants?.[0] || null, 1)}
-                        className="px-3.5 py-2 bg-[#E07A5F] hover:bg-[#D0654A] disabled:bg-gray-300 text-white text-xs font-extrabold rounded-xl shadow-sm flex items-center space-x-1 transition-all cursor-pointer"
-                      >
-                        <ShoppingCart className="w-3.5 h-3.5" />
-                        <span>Add</span>
-                      </button>
+                      {isProvider(currentUser) ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenProductOptions(product)}
+                          className="px-3.5 py-2 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] text-xs font-extrabold rounded-xl border border-[#E6DCCF] flex items-center space-x-1.5 transition-colors cursor-pointer"
+                          title="View complete product specifications, variants, and reviews"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[#52796F]" />
+                          <span>View Details</span>
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenProductOptions(product)}
+                            className="px-3 py-2 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] text-xs font-extrabold rounded-xl border border-[#E6DCCF] transition-colors cursor-pointer"
+                            title="View complete product details, variants, and reviews"
+                          >
+                            View Details
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isOut}
+                            onClick={() => {
+                              if (!currentUser) {
+                                onRequireAuth('Please log in or create a Customer account to add products to your cart.', () => {
+                                  addToCart(product, product.variants?.[0] || null, 1);
+                                });
+                                return;
+                              }
+                              addToCart(product, product.variants?.[0] || null, 1);
+                            }}
+                            className="px-3.5 py-2 bg-[#E07A5F] hover:bg-[#D0654A] disabled:bg-gray-300 text-white text-xs font-extrabold rounded-xl shadow-sm flex items-center space-x-1 transition-all cursor-pointer"
+                            title="Add to Cart"
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            <span>Add</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -948,19 +980,22 @@ export default function ProductsMarketplace({
         </div>
       )}
 
-      {/* LOWER SECTION: Dedicated Inline Product Detail & Variant View */}
+      {/* Product Details & Variant Modal Overlay */}
       {activeProduct && (
-        <section
-          ref={detailSectionRef}
-          id="product-detail-section"
-          className="mt-8 mb-16 pt-8 border-t-2 border-[#EFE9DF] scroll-mt-24 animate-fadeIn"
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#231F20]/50 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveProduct(null);
+          }}
         >
-          <div className="bg-white rounded-3xl border border-[#EFE9DF] p-6 sm:p-8 lg:p-10 shadow-xl relative">
+          <div className="bg-white rounded-3xl border border-[#EFE9DF] max-w-4xl w-full max-h-[calc(100vh-2rem)] sm:max-h-[90vh] shadow-2xl flex flex-col my-auto overflow-hidden animate-scaleUp">
             {/* Header with Title and Close button */}
-            <div className="flex items-center justify-between pb-4 mb-6 border-b border-[#EFE9DF]">
+            <div className="flex-shrink-0 flex items-center justify-between p-5 sm:p-6 border-b border-[#EFE9DF] bg-white z-10">
               <div className="flex items-center space-x-2">
                 <span className="px-3 py-1 bg-[#FAF6F0] text-[#E07A5F] border border-[#F4C4B7] text-xs font-black rounded-full uppercase tracking-wider">
-                  Product Details & Options
+                  Product Details
                 </span>
                 <span className="text-xs text-[#8C847C] hidden sm:inline">
                   Viewing detailed specifications, stock availability, and verified reviews
@@ -970,15 +1005,18 @@ export default function ProductsMarketplace({
                 type="button"
                 onClick={() => setActiveProduct(null)}
                 className="p-2 rounded-full bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] transition-colors cursor-pointer"
-                title="Collapse detailed view"
+                title="Close product details"
+                aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              {/* Left Column: Media Gallery */}
-              <div className="lg:col-span-5 space-y-4">
+            {/* Scrollable Modal Content */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-8">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Left Column: Media Gallery */}
+                <div className="lg:col-span-5 space-y-4">
                 <div className="rounded-3xl overflow-hidden border border-[#EFE9DF] bg-[#FAF6F0] h-80 sm:h-96 shadow-inner">
                   <img
                     src={activeProduct.image_url}
@@ -1139,47 +1177,75 @@ export default function ProductsMarketplace({
                           </div>
                         )}
 
-                        {/* Quantity Selector, Add to Cart & Buy Now Actions */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-[#EFE9DF]">
-                          <div className="flex items-center justify-between border border-[#E6DCCF] rounded-2xl bg-[#FAF6F0] px-2 py-1 w-32 flex-shrink-0">
+                        {/* Purchase Actions vs. Provider Notice */}
+                        {isProvider(currentUser) ? (
+                          <div className="p-4 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl flex items-center space-x-3 text-xs text-[#65605B] mt-4">
+                            <Store className="w-5 h-5 text-[#E07A5F] flex-shrink-0" />
+                            <div>
+                              <p className="font-extrabold text-[#231F20]">Provider Account Notice ({currentUser.role})</p>
+                              <p className="text-[11px] mt-0.5">
+                                Product purchases and checkout are reserved for customer accounts. Providers can manage product stock and listings from the Business Dashboard.
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-[#EFE9DF]">
+                            <div className="flex items-center justify-between border border-[#E6DCCF] rounded-2xl bg-[#FAF6F0] px-2 py-1 w-32 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setDetailQuantity(q => Math.max(1, q - 1))}
+                                className="p-2 text-[#231F20] hover:text-[#E07A5F] cursor-pointer"
+                                aria-label="Decrease quantity"
+                              >
+                                <Minus className="w-4 h-4" />
+                              </button>
+                              <span className="px-2 text-xs font-black">{detailQuantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => setDetailQuantity(q => Math.min(displayStock || 10, q + 1))}
+                                className="p-2 text-[#231F20] hover:text-[#E07A5F] cursor-pointer"
+                                aria-label="Increase quantity"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </div>
+
                             <button
                               type="button"
-                              onClick={() => setDetailQuantity(q => Math.max(1, q - 1))}
-                              className="p-2 text-[#231F20] hover:text-[#E07A5F] cursor-pointer"
+                              disabled={displayStock <= 0}
+                              onClick={() => {
+                                if (!currentUser) {
+                                  onRequireAuth('Please log in or create a Customer account to add products to your cart.', () => {
+                                    addToCart(activeProduct, chosenVar || null, detailQuantity);
+                                  });
+                                  return;
+                                }
+                                addToCart(activeProduct, chosenVar || null, detailQuantity);
+                              }}
+                              className="flex-1 py-3.5 bg-[#FAF6F0] hover:bg-[#EFE9DF] disabled:bg-gray-200 text-[#231F20] border border-[#E6DCCF] font-extrabold text-xs rounded-2xl shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer"
                             >
-                              <Minus className="w-4 h-4" />
+                              <ShoppingCart className="w-4 h-4 text-[#E07A5F]" />
+                              <span>Add to Cart ({formatINR(effPrice * detailQuantity)})</span>
                             </button>
-                            <span className="px-2 text-xs font-black">{detailQuantity}</span>
+
                             <button
                               type="button"
-                              onClick={() => setDetailQuantity(q => Math.min(displayStock || 10, q + 1))}
-                              className="p-2 text-[#231F20] hover:text-[#E07A5F] cursor-pointer"
+                              disabled={displayStock <= 0}
+                              onClick={() => {
+                                if (!currentUser) {
+                                  onRequireAuth('Please log in or create a Customer account to purchase products.', () => {
+                                    handleInstantBuy(activeProduct);
+                                  });
+                                  return;
+                                }
+                                handleInstantBuy(activeProduct);
+                              }}
+                              className="flex-1 py-3.5 bg-[#E07A5F] hover:bg-[#D0654A] disabled:bg-gray-300 text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center space-x-2 transition-all cursor-pointer"
                             >
-                              <Plus className="w-4 h-4" />
+                              <span>Buy Now • Proceed to Checkout</span>
                             </button>
                           </div>
-
-                          <button
-                            type="button"
-                            disabled={displayStock <= 0}
-                            onClick={() => {
-                              addToCart(activeProduct, chosenVar || null, detailQuantity);
-                            }}
-                            className="flex-1 py-3.5 bg-[#FAF6F0] hover:bg-[#EFE9DF] disabled:bg-gray-200 text-[#231F20] border border-[#E6DCCF] font-extrabold text-xs rounded-2xl shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer"
-                          >
-                            <ShoppingCart className="w-4 h-4 text-[#E07A5F]" />
-                            <span>Add to Cart ({formatINR(effPrice * detailQuantity)})</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={displayStock <= 0}
-                            onClick={() => handleInstantBuy(activeProduct)}
-                            className="flex-1 py-3.5 bg-[#E07A5F] hover:bg-[#D0654A] disabled:bg-gray-300 text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center space-x-2 transition-all cursor-pointer"
-                          >
-                            <span>Buy Now • Instant Checkout</span>
-                          </button>
-                        </div>
+                        )}
                       </>
                     );
                   })()}
@@ -1307,16 +1373,17 @@ export default function ProductsMarketplace({
                     </button>
                   </form>
                 )}
+                </div>
               </div>
             </div>
           </div>
-        </section>
+        </div>
       )}
 
       {/* Public Seller Storefront Modal */}
       {storefrontVendor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-[#EFE9DF] max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 sm:p-8 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-[#EFE9DF] max-w-4xl w-full max-h-[calc(100vh-2rem)] sm:max-h-[88vh] overflow-y-auto shadow-2xl p-6 sm:p-8 relative my-auto">
             <button
               type="button"
               onClick={() => setStorefrontVendor(null)}
@@ -1375,29 +1442,30 @@ export default function ProductsMarketplace({
       {/* Multi-Step Shopping Cart & Checkout Slide-Over Drawer */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-[#231F20]/40 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white w-full max-w-md h-full shadow-2xl border-l border-[#EFE9DF] flex flex-col justify-between p-6 overflow-y-auto">
-            <div>
-              {/* Drawer Top Navigation */}
-              <div className="flex items-center justify-between pb-4 border-b border-[#EFE9DF] mb-4">
-                <div className="flex items-center space-x-2">
-                  <ShoppingCart className="w-5 h-5 text-[#E07A5F]" />
-                  <h3 className="text-lg font-black text-[#231F20] font-display">
-                    {checkoutStep === 'cart'
-                      ? `Your Cart (${totalCartUnits})`
-                      : checkoutStep === 'details'
-                      ? 'Delivery Information'
-                      : 'Review & Payment'}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCartOpen(false)}
-                  className="p-1.5 rounded-full bg-[#FAF6F0] hover:bg-[#EFE9DF] cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+          <div className="bg-white w-full max-w-md h-full shadow-2xl border-l border-[#EFE9DF] flex flex-col justify-between overflow-hidden">
+            {/* Drawer Top Navigation */}
+            <div className="flex-shrink-0 p-5 sm:p-6 pb-4 border-b border-[#EFE9DF] flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <ShoppingCart className="w-5 h-5 text-[#E07A5F]" />
+                <h3 className="text-lg font-black text-[#231F20] font-display">
+                  {checkoutStep === 'cart'
+                    ? `Your Cart (${totalCartUnits})`
+                    : checkoutStep === 'details'
+                    ? 'Delivery Information'
+                    : 'Review & Payment'}
+                </h3>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(false)}
+                className="p-1.5 rounded-full bg-[#FAF6F0] hover:bg-[#EFE9DF] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
+            {/* Scrollable Step Content */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6">
               {/* STEP 1: CART ITEMS LIST */}
               {checkoutStep === 'cart' && (
                 <>
@@ -1601,7 +1669,7 @@ export default function ProductsMarketplace({
 
             {/* Bottom Actions & Price Breakdown */}
             {cart.length > 0 && (
-              <div className="pt-4 border-t border-[#EFE9DF] space-y-3">
+              <div className="flex-shrink-0 p-5 sm:p-6 pt-4 border-t border-[#EFE9DF] bg-white space-y-3">
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between text-[#65605B]">
                     <span>Subtotal</span>
