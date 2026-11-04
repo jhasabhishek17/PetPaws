@@ -39,6 +39,7 @@ export default function BuyerDashboard({
   onSelectPet,
   onBuyPetRequest,
   onNavigate,
+  onOpenAuth,
   onUserUpdated,
   onAddToast
 }) {
@@ -247,12 +248,20 @@ export default function BuyerDashboard({
           <p className="text-sm text-[#65605B] mb-6">
             Please sign in with a Buyer account to view your orders, saved wishlist, and scheduled pet care appointments.
           </p>
-          <button
-            onClick={() => onNavigate?.('marketplace')}
-            className="px-6 py-2.5 bg-[#E07A5F] text-white font-bold text-xs rounded-full"
-          >
-            Return to Marketplace
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => onOpenAuth?.()}
+              className="px-6 py-2.5 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-bold text-xs rounded-full shadow-aesthetic transition-all cursor-pointer"
+            >
+              Sign In to Your Account
+            </button>
+            <button
+              onClick={() => onNavigate?.('marketplace')}
+              className="px-6 py-2.5 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] font-bold text-xs rounded-full border border-[#E6DCCF] transition-all cursor-pointer"
+            >
+              Return to Marketplace
+            </button>
+          </div>
         </div>
       </div>
     );
