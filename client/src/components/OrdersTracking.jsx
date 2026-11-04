@@ -200,6 +200,44 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
     );
   }
 
+  if (currentUser.role !== 'buyer' && currentUser.role !== 'admin') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center animate-fadeIn">
+        <div className="bg-white rounded-3xl border border-[#EFE9DF] p-10 shadow-aesthetic">
+          <div className="w-16 h-16 bg-[#FAF6F0] text-[#52796F] border border-[#E6DCCF] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Package className="w-8 h-8" />
+          </div>
+          <span className="inline-block px-3.5 py-1 bg-[#EAEFE9] text-[#2A5C4A] border border-[#D1E7DD] text-xs font-extrabold rounded-full mb-3 uppercase tracking-wider">
+            Provider Account Notice ({currentUser.role})
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-[#231F20] font-display mb-2">
+            Customer Order Tracking
+          </h2>
+          <p className="text-sm text-[#65605B] max-w-md mx-auto mb-6">
+            This screen displays purchase orders and live shipments placed by retail customers. To fulfill your customer orders, view incoming shipments, or request payouts, access your Business Management Dashboard.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => {
+                if (currentUser.role === 'seller') window.location.hash = '#seller';
+                else window.location.hash = '#saas-portal';
+              }}
+              className="px-6 py-3 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-full shadow-md cursor-pointer"
+            >
+              {currentUser.role === 'seller' ? 'Go to Breeder Portal' : 'Go to Business Dashboard'}
+            </button>
+            <button
+              onClick={() => { window.location.hash = '#marketplace'; }}
+              className="px-6 py-3 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] font-extrabold text-xs rounded-full border border-[#E6DCCF] cursor-pointer"
+            >
+              Return to Marketplace
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const trackingSteps = [
     { label: 'Order Placed', desc: 'Awaiting seller confirmation & vet check' },
     { label: 'Health Check Completed', desc: 'Vet inspection passed' },
