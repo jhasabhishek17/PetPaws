@@ -19,29 +19,65 @@ import {
 /**
  * Navigation items configuration generator based on user role and wishlist count
  */
-const getNavItems = (role, wishlistCount) => [
-  { id: 'marketplace', label: 'Pets', icon: ShoppingBag, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
-  { id: 'products', label: 'Products', icon: Package, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
-  { id: 'vets', label: 'Vet Care', icon: Stethoscope, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
-  { id: 'grooming', label: 'Spa & Grooming', icon: Scissors, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
-  ...(role === 'buyer' ? [
-    { id: 'wishlist', label: 'Wishlist', icon: Heart, badge: wishlistCount > 0 ? wishlistCount : null, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
-    { id: 'orders', label: 'Track Orders', icon: Truck, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
-    { id: 'buyer-dashboard', label: 'Dashboard', icon: LayoutDashboard, activeClass: 'bg-[#231F20] text-white shadow-md' }
-  ] : []),
-  ...(role === 'seller' ? [
-    { id: 'seller', label: 'Breeder Portal', icon: Store, activeClass: 'bg-[#D97706] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' },
-    { id: 'saas-portal', label: 'Business Dashboard', icon: LayoutDashboard, activeClass: 'bg-[#231F20] text-white shadow-md' }
-  ] : []),
-  ...(role === 'shopkeeper' || role === 'groomer' || role === 'admin' ? [
-    { id: 'saas-portal', label: role === 'admin' ? 'Admin Portal' : 'Business Dashboard', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' }
-  ] : []),
-  ...(role === 'vet' ? [
-    { id: 'vet-dashboard', label: 'Vet Portal', icon: LayoutDashboard, activeClass: 'bg-[#243D36] text-white shadow-md', customInactive: 'text-[#2A5C4A] bg-[#EAEFE9] border border-[#D1E7DD] hover:bg-[#D1E7DD]' },
-    { id: 'saas-portal', label: 'Business Plans', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md' }
-  ] : []),
-  { id: 'support', label: 'Support', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
-];
+const getNavItems = (role, wishlistCount) => {
+  if (role === 'seller') {
+    return [
+      { id: 'seller', label: 'Breeder Portal', icon: Store, activeClass: 'bg-[#D97706] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' },
+      { id: 'marketplace', label: 'Pet Listings', icon: ShoppingBag, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
+      { id: 'products', label: 'Supply Products', icon: Package, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
+      { id: 'saas-portal', label: 'Business Dashboard', icon: LayoutDashboard, activeClass: 'bg-[#231F20] text-white shadow-md' },
+      { id: 'support', label: 'Support', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
+    ];
+  }
+
+  if (role === 'shopkeeper') {
+    return [
+      { id: 'saas-portal', label: 'Shop Dashboard', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' },
+      { id: 'products', label: 'Products Catalog', icon: Package, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
+      { id: 'support', label: 'Support', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
+    ];
+  }
+
+  if (role === 'groomer') {
+    return [
+      { id: 'saas-portal', label: 'Spa Dashboard', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' },
+      { id: 'grooming', label: 'Spa & Grooming', icon: Scissors, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
+      { id: 'support', label: 'Support', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
+    ];
+  }
+
+  if (role === 'vet') {
+    return [
+      { id: 'vet-dashboard', label: 'Vet Portal', icon: LayoutDashboard, activeClass: 'bg-[#243D36] text-white shadow-md', customInactive: 'text-[#2A5C4A] bg-[#EAEFE9] border border-[#D1E7DD] hover:bg-[#D1E7DD]' },
+      { id: 'vets', label: 'Public Directory', icon: Stethoscope, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
+      { id: 'saas-portal', label: 'Business Plans', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md' },
+      { id: 'support', label: 'Support', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
+    ];
+  }
+
+  if (role === 'admin') {
+    return [
+      { id: 'saas-portal', label: 'Admin Portal', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' },
+      { id: 'marketplace', label: 'Pets Moderation', icon: ShoppingBag, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
+      { id: 'products', label: 'Products', icon: Package, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
+      { id: 'support', label: 'Support Tickets', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
+    ];
+  }
+
+  // Default for Customer / Buyer and Guest users
+  return [
+    { id: 'marketplace', label: 'Pets', icon: ShoppingBag, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
+    { id: 'products', label: 'Products', icon: Package, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
+    { id: 'vets', label: 'Vet Care', icon: Stethoscope, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
+    { id: 'grooming', label: 'Spa & Grooming', icon: Scissors, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
+    ...(role === 'buyer' ? [
+      { id: 'wishlist', label: 'Wishlist', icon: Heart, badge: wishlistCount > 0 ? wishlistCount : null, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
+      { id: 'orders', label: 'Track Orders', icon: Truck, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
+      { id: 'buyer-dashboard', label: 'Dashboard', icon: LayoutDashboard, activeClass: 'bg-[#231F20] text-white shadow-md' }
+    ] : []),
+    { id: 'support', label: 'Support', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
+  ];
+};
 
 export default function Navbar({
   currentUser,
@@ -476,7 +512,7 @@ export default function Navbar({
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-[#EFE9DF] bg-white px-4 pt-3 pb-4 space-y-1 animate-fadeIn">
+        <div className="lg:hidden border-t border-[#EFE9DF] bg-white px-4 pt-3 pb-4 space-y-1 animate-fadeIn max-h-[calc(100vh-5rem)] overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
