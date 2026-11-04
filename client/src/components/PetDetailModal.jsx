@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { isProvider } from '../utils/permissions';
 
 /**
  * Build a deduplicated array of { url, resource_type } from a pet record
@@ -302,14 +303,18 @@ export default function PetDetailModal({
             <span className="px-5 py-3 bg-[#F3ECE0] text-[#65605B] border border-[#E6DCCF] font-extrabold text-xs rounded-xl">
               Your Listing (Owner Cannot Purchase)
             </span>
+          ) : isProvider(currentUser) ? (
+            <span className="px-5 py-3 bg-[#FAF6F0] text-[#65605B] border border-[#E6DCCF] font-extrabold text-xs rounded-xl">
+              Provider Account (Adoptions reserved for Buyers)
+            </span>
           ) : (
             <button
               onClick={() => onBuyNow(pet)}
               disabled={isSoldOut}
-              className="px-6 py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md shadow-[#E07A5F]/20 transition-all flex items-center space-x-2"
+              className="px-6 py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md shadow-[#E07A5F]/20 transition-all flex items-center space-x-2 cursor-pointer"
             >
               <ShoppingBag className="w-4 h-4" />
-              <span>{isSoldOut ? 'Sold Out' : 'Proceed to Buy Now'}</span>
+              <span>{isSoldOut ? 'Sold Out' : 'Proceed to Adopt'}</span>
             </button>
           )}
         </div>
