@@ -197,7 +197,7 @@ export default function BusinessSaaSPortal({
     }
   };
 
-  if (!currentUser) {
+  if (!currentUser || currentUser.role === 'buyer') {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 text-center animate-fadeIn">
         <div className="bg-white rounded-3xl border border-[#EFE9DF] p-10 shadow-aesthetic">
@@ -205,18 +205,27 @@ export default function BusinessSaaSPortal({
             <Lock className="w-8 h-8" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-[#231F20] font-display mb-2">
-            PetPaws Multi-Tenant SaaS & Shopkeeper Portal
+            PetPaws Multi-Tenant SaaS & Business Hub
           </h2>
           <p className="text-sm text-[#65605B] max-w-md mx-auto mb-6">
-            Sign in with a Shopkeeper, Seller, Veterinarian, Groomer, or Admin account to manage products, inventory variants, orders, team members, and SaaS subscriptions.
+            This portal is reserved for Business Tenants, Shopkeepers, Breeders, Veterinarians, Groomers, and Administrators. Customers can view their account in the Buyer Dashboard.
           </p>
-          <button
-            type="button"
-            onClick={onOpenAuth}
-            className="px-6 py-3 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-full shadow-md cursor-pointer"
-          >
-            Sign In to Business Portal
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => onNavigate?.('marketplace')}
+              className="px-6 py-2.5 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-bold text-xs rounded-full shadow-aesthetic transition-all cursor-pointer"
+            >
+              Return to Marketplace
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAuth}
+              className="px-6 py-2.5 bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] font-bold text-xs rounded-full border border-[#E6DCCF] transition-all cursor-pointer"
+            >
+              Sign In to a Business Account
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -653,7 +662,7 @@ export default function BusinessSaaSPortal({
           { id: 'overview', label: 'Analytics & Usage', icon: BarChart3, show: true },
           { id: 'products', label: `Products Catalog (${products.length})`, icon: Package, show: isVendor },
           { id: 'orders', label: `Product Orders (${vendorOrders.length})`, icon: ShoppingBag, show: isVendor },
-          { id: 'grooming-ops', label: 'Grooming & Spa Ops', icon: Scissors, show: ['groomer', 'seller', 'shopkeeper', 'admin'].includes(currentUser.role) },
+          { id: 'grooming-ops', label: 'Grooming & Spa Ops', icon: Scissors, show: ['groomer', 'admin'].includes(currentUser.role) },
           { id: 'subscriptions', label: 'Business Plans & Pricing', icon: CreditCard, show: true },
           { id: 'team', label: `Team & Settings (${teamMembers.length})`, icon: Users, show: true },
           { id: 'admin', label: 'Platform Moderation', icon: ShieldAlert, show: currentUser.role === 'admin' }
