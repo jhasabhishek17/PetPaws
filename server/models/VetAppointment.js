@@ -17,6 +17,9 @@ const vetAppointmentSchema = new mongoose.Schema({
   time_slot: { type: String, required: true },
   type: { type: String, default: 'General Consultation' },
   fee: { type: Number, default: 40 },
+  original_fee: { type: Number, default: 0 },
+  discount_amount: { type: Number, default: 0 },
+  discount_info: { type: Object, default: null },
   status: { type: String, default: 'Confirmed' },
   notes: { type: String, default: '' }
 }, {
