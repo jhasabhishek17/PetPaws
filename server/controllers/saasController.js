@@ -37,6 +37,11 @@ const {
 } = require('../middleware/tenantMiddleware');
 const { getJwtSecret } = require('../config/jwt');
 const ExpressError = require('../utils/ExpressError');
+const {
+  calculateEffectivePrice,
+  parseAndValidateDiscount,
+  decorateWithDiscount
+} = require('../utils/discountEngine');
 
 const isRazorpayConfigured = () => {
   return Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
@@ -693,6 +698,12 @@ const createGroomingServicePackage = async (req, res) => {
   }
 
   const srvId = `srv-${Date.now()}`;
+  const numericPrice = Math.max(0, Number(price));
+  let parsedDiscount = null;
+  if (req.body.discount !== undefined) {
+    parsedDiscount = parseAndValidateDiscount(req.body.discount, numericPrice);
+  }
+
   const payload = {
     custom_id: srvId,
     business_id: business.id,
@@ -700,7 +711,8 @@ const createGroomingServicePackage = async (req, res) => {
     provider_name: business.name || req.user.name,
     title: String(title).trim(),
     category: String(category).trim(),
-    price: Math.max(0, Number(price)),
+    price: numericPrice,
+    discount: parsedDiscount || { is_active: false, value: 0 },
     duration: String(duration).trim(),
     description: description ? String(description).trim() : 'Professional pet grooming & care session.',
     image_url: image_url || 'https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=600&q=80',
@@ -711,7 +723,7 @@ const createGroomingServicePackage = async (req, res) => {
     const created = await GroomingService.create(payload);
     return res.status(201).json({
       success: true,
-      service: normalizeItem(created),
+      service: decorateWithDiscount(normalizeItem(created)),
       message: 'Grooming & care service package published'
     });
   }
@@ -724,9 +736,60 @@ const createGroomingServicePackage = async (req, res) => {
 
   res.status(201).json({
     success: true,
-    service: newSrv,
+    service: decorateWithDiscount(newSrv),
     message: 'Grooming & care service package published'
   });
+};
+
+/**
+ * PUT /api/saas/grooming/services/:id
+ * Allows groomers / business operators to edit service package details & promotional offers
+ */
+const updateGroomingServicePackage = async (req, res) => {
+  if (!req.user || !['groomer', 'seller', 'shopkeeper', 'admin'].includes(req.user.role)) {
+    throw new ExpressError('Only authorized grooming or business accounts can edit service packages', 403);
+  }
+
+  const { id } = req.params;
+  const { title, category, price, duration, description, image_url, discount, status } = req.body;
+  const updates = {};
+  if (title) updates.title = String(title).trim();
+  if (category) updates.category = String(category).trim();
+  if (price !== undefined) updates.price = Math.max(0, Number(price));
+  if (duration) updates.duration = String(duration).trim();
+  if (description !== undefined) updates.description = String(description).trim();
+  if (image_url) updates.image_url = image_url;
+  if (status) updates.status = status;
+
+  if (isMongoConnected()) {
+    const srv = await findDocByAnyId(GroomingService, id);
+    if (!srv) throw new ExpressError('Service package not found', 404);
+    if (req.user.role !== 'admin' && srv.provider_id !== req.user.id && srv.business_id !== req.user.business_id) {
+      throw new ExpressError('Tenant isolation error: Not authorized to update another provider\'s service', 403);
+    }
+    const targetPrice = updates.price !== undefined ? updates.price : srv.price;
+    if (discount !== undefined) {
+      updates.discount = parseAndValidateDiscount(discount, targetPrice);
+    }
+    Object.assign(srv, updates);
+    await srv.save();
+    return res.json({ success: true, service: decorateWithDiscount(normalizeItem(srv)), message: 'Service package updated successfully' });
+  }
+
+  const db = loadData();
+  const idx = (db.grooming_services || []).findIndex(s => s.id === id || s.custom_id === id);
+  if (idx === -1) throw new ExpressError('Service package not found', 404);
+  const srv = db.grooming_services[idx];
+  if (req.user.role !== 'admin' && srv.provider_id !== req.user.id && srv.business_id !== req.user.business_id) {
+    throw new ExpressError('Tenant isolation error: Not authorized to update another provider\'s service', 403);
+  }
+  const targetPrice = updates.price !== undefined ? updates.price : srv.price;
+  if (discount !== undefined) {
+    updates.discount = parseAndValidateDiscount(discount, targetPrice);
+  }
+  db.grooming_services[idx] = { ...srv, ...updates };
+  saveData(db);
+  res.json({ success: true, service: decorateWithDiscount(db.grooming_services[idx]), message: 'Service package updated successfully' });
 };
 
 /**
@@ -957,6 +1020,7 @@ module.exports = {
   createSubscriptionCheckout,
   verifySubscriptionPayment,
   createGroomingServicePackage,
+  updateGroomingServicePackage,
   updateGroomingBookingStatus,
   getAdminOverview,
   moderateBusiness,
