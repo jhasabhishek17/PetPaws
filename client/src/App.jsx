@@ -13,6 +13,8 @@ import CustomerSupport from './components/CustomerSupport';
 import ProductsMarketplace from './components/ProductsMarketplace';
 import BusinessSaaSPortal from './components/BusinessSaaSPortal';
 import AuthModal from './components/AuthModal';
+import VerifyEmailPage from './components/VerifyEmailPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
 import FloatingQuickActions from './components/FloatingQuickActions';
 import ToastContainer, { useToast } from './components/Toast';
 import PawBackdrop from './components/PawBackdrop';
@@ -30,8 +32,39 @@ const VALID_TABS = [
   'vets',
   'grooming',
   'orders',
-  'support'
+  'support',
+  'verify-email',
+  'reset-password'
 ];
+
+/**
+ * Parse route tab and optional action token from window.location (supports both
+ * hash routes like `/#verify-email?token=...` and path routes like `/verify-email?token=...`).
+ */
+const parseRouteFromWindow = () => {
+  if (typeof window === 'undefined') {
+    return { tab: 'marketplace', token: '' };
+  }
+  const rawHash = (window.location.hash || '').replace(/^#\/?/, '');
+  const [hashTabPart, hashQueryPart] = rawHash.split('?');
+  const hashParams = new URLSearchParams(hashQueryPart || '');
+  const searchParams = new URLSearchParams(window.location.search || '');
+  const pathname = (window.location.pathname || '').replace(/^\/+|\/+$/g, '');
+
+  const token = hashParams.get('token') || searchParams.get('token') || '';
+  const modeParam = hashParams.get('mode') || searchParams.get('mode') || '';
+
+  if (hashTabPart === 'verify-email' || pathname === 'verify-email' || modeParam === 'verify-email') {
+    return { tab: 'verify-email', token };
+  }
+  if (hashTabPart === 'reset-password' || pathname === 'reset-password' || modeParam === 'reset-password') {
+    return { tab: 'reset-password', token };
+  }
+  if (VALID_TABS.includes(hashTabPart)) {
+    return { tab: hashTabPart, token: '' };
+  }
+  return { tab: 'marketplace', token: '' };
+};
 
 /**
  * Main PetPaws Application Component
@@ -45,11 +78,9 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Navigation and Filter state (synced with window.location.hash)
-  const [activeTab, setActiveTab] = useState(() => {
-    const h = (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '');
-    return VALID_TABS.includes(h) ? h : 'marketplace';
-  });
+  // Navigation and Filter state (synced with window.location.hash / pathname)
+  const [activeTab, setActiveTab] = useState(() => parseRouteFromWindow().tab);
+  const [routeToken, setRouteToken] = useState(() => parseRouteFromWindow().token);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -59,6 +90,9 @@ export default function App() {
   const [selectedPet, setSelectedPet] = useState(null); // Detail modal
   const [checkoutPet, setCheckoutPet] = useState(null); // Checkout modal
   const [isAuthOpen, setIsAuthOpen] = useState(false); // Auth modal
+  const [authInitialMode, setAuthInitialMode] = useState('login');
+  const [authInitialEmail, setAuthInitialEmail] = useState('');
+  const [authInitialRole, setAuthInitialRole] = useState('buyer');
   const [authMessage, setAuthMessage] = useState(''); // Custom auth prompt message
   const [pendingAction, setPendingAction] = useState(null); // Post-login callback action
 
@@ -69,8 +103,12 @@ export default function App() {
 
   // Listen to browser navigation (Back / Forward buttons) and hash changes
   useEffect(() => {
-    // If user enters with no hash, anchor history entry with #marketplace
-    if (typeof window !== 'undefined' && (!window.location.hash || window.location.hash === '#')) {
+    const initial = parseRouteFromWindow();
+    if (
+      typeof window !== 'undefined' &&
+      initial.tab === 'marketplace' &&
+      (!window.location.hash || window.location.hash === '#')
+    ) {
       window.history.replaceState(null, '', '#marketplace');
     }
 
@@ -80,12 +118,9 @@ export default function App() {
       setCheckoutPet(null);
       setIsAuthOpen(false);
 
-      const h = (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '');
-      if (VALID_TABS.includes(h)) {
-        setActiveTab(h);
-      } else if (!h) {
-        setActiveTab('marketplace');
-      }
+      const parsed = parseRouteFromWindow();
+      setActiveTab(parsed.tab);
+      setRouteToken(parsed.token);
     };
 
     window.addEventListener('hashchange', handleLocationChange);
@@ -99,10 +134,11 @@ export default function App() {
   // Update URL hash when activeTab changes, pushing a new history entry so browser Back works
   const handleSelectTab = (tab) => {
     setActiveTab(tab);
+    setRouteToken('');
     if (typeof window !== 'undefined') {
       const current = window.location.hash.replace('#', '');
       if (current !== tab) {
-        window.history.pushState(null, '', `#${tab}`);
+        window.history.pushState(null, '', `/#${tab}`);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -122,7 +158,7 @@ export default function App() {
         if (cancelled) return;
         if (data && data.success && data.user) {
           setCurrentUser(data.user);
-        } else if (data && data.statusCode === 401) {
+        } else if (data && (data.statusCode === 401 || data.statusCode === 403)) {
           removeToken();
           setCurrentUser(null);
           localStorage.removeItem('petpaws_user');
@@ -455,6 +491,44 @@ export default function App() {
             onAddToast={addToast}
           />
         )}
+
+        {activeTab === 'verify-email' && (
+          <VerifyEmailPage
+            token={routeToken}
+            onGoHome={() => handleSelectTab('marketplace')}
+            onGoToLogin={(prefillEmail = '', prefillRole = '') => {
+              handleSelectTab('marketplace');
+              setAuthInitialMode('login');
+              setAuthInitialEmail(prefillEmail || '');
+              if (prefillRole) setAuthInitialRole(prefillRole);
+              setAuthMessage('Your email is verified! Please sign in to continue.');
+              setIsAuthOpen(true);
+            }}
+          />
+        )}
+
+        {activeTab === 'reset-password' && (
+          <ResetPasswordPage
+            token={routeToken}
+            onPasswordResetSuccess={() => {
+              removeToken();
+              setCurrentUser(null);
+              localStorage.removeItem('petpaws_user');
+            }}
+            onGoToLogin={() => {
+              handleSelectTab('marketplace');
+              setAuthInitialMode('login');
+              setAuthMessage('Sign in with your updated password.');
+              setIsAuthOpen(true);
+            }}
+            onRequestNewResetLink={() => {
+              handleSelectTab('marketplace');
+              setAuthInitialMode('forgot');
+              setAuthMessage('');
+              setIsAuthOpen(true);
+            }}
+          />
+        )}
       </main>
 
       {/* Floating Interactive Hub Bar */}
@@ -496,9 +570,13 @@ export default function App() {
         <AuthModal
           isOpen={isAuthOpen}
           message={authMessage}
+          initialMode={authInitialMode}
+          initialEmail={authInitialEmail}
+          initialRole={authInitialRole}
           onClose={() => {
             setIsAuthOpen(false);
             setAuthMessage('');
+            setAuthInitialMode('login');
           }}
           onLoginSuccess={handleLoginSuccess}
         />
