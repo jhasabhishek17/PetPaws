@@ -277,8 +277,29 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
               {/* Card Footer */}
               <div className="pt-4 border-t border-[#EFE9DF] flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-[#8C847C] font-bold uppercase block">Consultation Fee</span>
-                  <span className="text-xl font-black text-[#231F20] font-display">${vet.consultation_fee} <span className="text-xs font-semibold text-[#65605B]">/ visit</span></span>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-[10px] text-[#8C847C] font-bold uppercase">Consultation Fee</span>
+                    {vet.has_active_discount && (
+                      <span className="px-1.5 py-0.5 bg-[#2A5C4A] text-white text-[9px] font-black rounded">
+                        {vet.discount_info?.title || `${vet.discount?.value}% OFF`}
+                      </span>
+                    )}
+                  </div>
+                  {vet.has_active_discount ? (
+                    <div className="flex items-baseline space-x-1.5">
+                      <span className="text-xl font-black text-[#2A5C4A] font-display">
+                        ${vet.effective_fee || vet.consultation_fee}
+                      </span>
+                      <span className="text-xs font-bold text-[#8C847C] line-through">
+                        ${vet.original_fee || vet.consultation_fee}
+                      </span>
+                      <span className="text-xs font-semibold text-[#65605B]">/ visit</span>
+                    </div>
+                  ) : (
+                    <span className="text-xl font-black text-[#231F20] font-display">
+                      ${vet.consultation_fee} <span className="text-xs font-semibold text-[#65605B]">/ visit</span>
+                    </span>
+                  )}
                 </div>
 
                 {isProvider(currentUser) ? (
@@ -336,7 +357,21 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
                   <img src={selectedVet.image_url} alt={selectedVet.name} className="w-12 h-12 rounded-xl object-cover" />
                   <div>
                     <p className="text-xs font-bold text-[#231F20]">{selectedVet.name}</p>
-                    <p className="text-[11px] text-[#65605B]">${selectedVet.consultation_fee} per consultation</p>
+                    {selectedVet.has_active_discount ? (
+                      <div className="flex items-baseline space-x-1.5">
+                        <span className="text-xs font-black text-[#2A5C4A]">
+                          ${selectedVet.effective_fee || selectedVet.consultation_fee}
+                        </span>
+                        <span className="text-[10px] text-[#8C847C] line-through">
+                          ${selectedVet.original_fee || selectedVet.consultation_fee}
+                        </span>
+                        <span className="text-[10px] text-[#2A5C4A] font-bold">
+                          ({selectedVet.discount_info?.title || `${selectedVet.discount?.value}% OFF`})
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-[#65605B]">${selectedVet.consultation_fee} per consultation</p>
+                    )}
                   </div>
                 </div>
 
@@ -417,7 +452,7 @@ export default function VetSection({ currentUser, onRequireAuth, onAddToast }) {
                       : 'cursor-pointer'
                   }`}
                 >
-                  Confirm & Schedule Meeting (${selectedVet.consultation_fee})
+                  Confirm & Schedule Meeting (${selectedVet.has_active_discount ? (selectedVet.effective_fee || selectedVet.consultation_fee) : selectedVet.consultation_fee})
                 </button>
               </form>
             )}
