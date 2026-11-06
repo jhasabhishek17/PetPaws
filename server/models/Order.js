@@ -33,6 +33,9 @@ const orderSchema = new mongoose.Schema({
   
   // Financial breakdown
   price: { type: Number, required: true },
+  original_price: { type: Number, default: 0 },
+  discount_amount: { type: Number, default: 0 },
+  discount_info: { type: Object, default: null },
   tax: { type: Number, required: true },
   total_amount: { type: Number, required: true },
   
