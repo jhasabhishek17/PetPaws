@@ -18,6 +18,7 @@ const { findDocByAnyId, escapeRegex } = require('../utils/dbHelpers');
 const { ensureUserBusiness, checkSubscriptionLimit, recordAuditLog } = require('../middleware/tenantMiddleware');
 const { uploadBufferToCloudinary, deleteFromCloudinary, isCloudinaryConfigured } = require('../config/cloudinary');
 const { calculateEffectivePrice, isDiscountActive } = require('../utils/paymentGateway');
+const { parseAndValidateDiscount } = require('../utils/discountEngine');
 const ExpressError = require('../utils/ExpressError');
 
 const PRODUCT_CATEGORIES = [
@@ -167,45 +168,7 @@ const parseDiscount = (rawDiscount, basePrice) => {
       return null;
     }
   }
-  if (!d || typeof d !== 'object') return null;
-
-  const type = d.type === 'fixed' ? 'fixed' : 'percentage';
-  const val = Number(d.value);
-  if (!Number.isFinite(val) || val <= 0) {
-    return {
-      type: 'percentage',
-      value: 0,
-      start_date: '',
-      end_date: '',
-      is_active: false,
-      title: ''
-    };
-  }
-
-  // Validate discount bounds
-  if (type === 'percentage' && (val < 1 || val > 90)) {
-    throw new ExpressError('Percentage discount must be between 1% and 90%', 400);
-  }
-  if (type === 'fixed' && val > Number(basePrice)) {
-    throw new ExpressError('Fixed discount cannot exceed the product base price', 400);
-  }
-
-  if (d.start_date && d.end_date) {
-    const s = new Date(d.start_date);
-    const e = new Date(d.end_date);
-    if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && e < s) {
-      throw new ExpressError('Promotional offer end date cannot be earlier than start date', 400);
-    }
-  }
-
-  return {
-    type,
-    value: val,
-    start_date: d.start_date ? String(d.start_date).trim() : '',
-    end_date: d.end_date ? String(d.end_date).trim() : '',
-    is_active: Boolean(d.is_active),
-    title: d.title ? String(d.title).trim() : ''
-  };
+  return parseAndValidateDiscount(d, basePrice);
 };
 
 const resolveUploadedMedia = async (req, body) => {
@@ -216,7 +179,7 @@ const resolveUploadedMedia = async (req, body) => {
     ? [req.file]
     : [];
 
-  if (incomingFiles.length > 0 && isCloudinaryConfigured()) {
+  if (incomingFiles.length > 0) {
     for (const fileObj of incomingFiles) {
       const isVideo = fileObj.mimetype && fileObj.mimetype.startsWith('video/');
       const uploaded = await uploadBufferToCloudinary(fileObj.buffer, {
