@@ -19,10 +19,20 @@ const normalizeItem = (item) => {
   // Normalize timestamps — Mongoose uses createdAt; frontend expects created_at
   if (obj.createdAt && !obj.created_at) obj.created_at = obj.createdAt.toISOString();
 
+  // Ensure explicit boolean for email_verified
+  obj.email_verified = Boolean(obj.email_verified);
+
   // Strip sensitive / internal fields before sending to client
   delete obj.password;
   delete obj.reset_password_token_hash;
   delete obj.reset_password_expires_at;
+  delete obj.reset_password_sent_at;
+  delete obj.reset_password_attempts;
+  delete obj.email_verification_token_hash;
+  delete obj.email_verification_expires_at;
+  delete obj.email_verification_sent_at;
+  delete obj.email_verification_attempts;
+  delete obj.token_version;
   delete obj.__v;
 
   return obj;
