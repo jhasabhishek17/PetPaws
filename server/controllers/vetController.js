@@ -11,6 +11,11 @@ const { loadData, saveData, isMongoConnected } = require('../db');
 const { normalizeItem } = require('../utils/normalize');
 const { findDocByAnyId } = require('../utils/dbHelpers');
 const ExpressError = require('../utils/ExpressError');
+const {
+  calculateEffectivePrice,
+  parseAndValidateDiscount,
+  decorateWithDiscount
+} = require('../utils/discountEngine');
 
 const DEFAULT_VET_PROFILE = {
   specialization: 'Small Animal & Preventive Care',
@@ -67,11 +72,12 @@ const ensureVetProfile = async (user) => {
 const getVets = async (req, res) => {
   if (isMongoConnected()) {
     const vets = await VetProfile.find();
-    return res.json({ success: true, vets: vets.map(normalizeItem) });
+    return res.json({ success: true, vets: vets.map(v => decorateWithDiscount(normalizeItem(v), 'consultation_fee')) });
   }
 
   const db = loadData();
-  res.json({ success: true, vets: db.vet_profiles });
+  const decorated = (db.vet_profiles || []).map(v => decorateWithDiscount(v, 'consultation_fee'));
+  res.json({ success: true, vets: decorated });
 };
 
 /**
@@ -102,6 +108,19 @@ const createAppointment = async (req, res) => {
     const vet = await findDocByAnyId(VetProfile, vet_id);
     if (!vet) throw new ExpressError('Veterinarian profile not found', 404);
 
+    const eff = calculateEffectivePrice(vet, { basePrice: vet.consultation_fee });
+    const finalFee = eff.finalPrice;
+
+    const discountInfo = eff.isDiscountActive
+      ? {
+          title: eff.discountTitle,
+          type: eff.discountType,
+          value: eff.discountValue,
+          discount_amount: eff.discountAmount,
+          amount_saved: eff.discountAmount
+        }
+      : null;
+
     const appointment = await VetAppointment.create({
       custom_id: customId,
       buyer_id,
@@ -112,7 +131,10 @@ const createAppointment = async (req, res) => {
       appointment_date,
       time_slot,
       type: type || 'General Consultation',
-      fee: Number(vet.consultation_fee) || 40,
+      fee: finalFee,
+      original_fee: eff.basePrice,
+      discount_amount: eff.discountAmount,
+      discount_info: discountInfo,
       status: 'Confirmed',
       notes: notes || ''
     });
@@ -129,6 +151,19 @@ const createAppointment = async (req, res) => {
   const vet = db.vet_profiles.find(v => v.id === vet_id);
   if (!vet) throw new ExpressError('Veterinarian profile not found', 404);
 
+  const eff = calculateEffectivePrice(vet, { basePrice: vet.consultation_fee });
+  const finalFee = eff.finalPrice;
+
+  const discountInfo = eff.isDiscountActive
+    ? {
+        title: eff.discountTitle,
+        type: eff.discountType,
+        value: eff.discountValue,
+        discount_amount: eff.discountAmount,
+        amount_saved: eff.discountAmount
+      }
+    : null;
+
   const appointment = {
     id: customId,
     buyer_id,
@@ -139,7 +174,10 @@ const createAppointment = async (req, res) => {
     appointment_date,
     time_slot,
     type: type || 'General Consultation',
-    fee: Number(vet.consultation_fee) || 40,
+    fee: finalFee,
+    original_fee: eff.basePrice,
+    discount_amount: eff.discountAmount,
+    discount_info: discountInfo,
     status: 'Confirmed',
     notes: notes || '',
     created_at: new Date().toISOString()
@@ -197,7 +235,8 @@ const getMyVetProfile = async (req, res) => {
     throw new ExpressError('Only authenticated veterinarian accounts can access the Vet Portal', 403);
   }
   const profile = await ensureVetProfile(req.user);
-  res.json({ success: true, vet: profile, profile });
+  const decorated = decorateWithDiscount(profile, 'consultation_fee');
+  res.json({ success: true, vet: decorated, profile: decorated });
 };
 
 /**
@@ -210,9 +249,14 @@ const updateMyVetProfile = async (req, res) => {
   }
 
   const profile = await ensureVetProfile(req.user);
-  const ALLOWED = ['name', 'specialization', 'experience', 'qualifications', 'clinic_address', 'consultation_fee', 'bio', 'image_url', 'image_public_id', 'available_days', 'available_slots'];
+  const ALLOWED = ['name', 'specialization', 'experience', 'qualifications', 'clinic_address', 'consultation_fee', 'bio', 'image_url', 'image_public_id', 'available_days', 'available_slots', 'discount'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => ALLOWED.includes(k)));
   if (updates.consultation_fee !== undefined) updates.consultation_fee = Math.max(0, Number(updates.consultation_fee));
+
+  const baseFee = updates.consultation_fee !== undefined ? updates.consultation_fee : profile.consultation_fee;
+  if (updates.discount !== undefined) {
+    updates.discount = parseAndValidateDiscount(updates.discount, baseFee);
+  }
 
   if (isMongoConnected()) {
     const updated = await VetProfile.findOneAndUpdate(
@@ -220,7 +264,7 @@ const updateMyVetProfile = async (req, res) => {
       { $set: updates },
       { new: true }
     );
-    const normalized = normalizeItem(updated);
+    const normalized = decorateWithDiscount(normalizeItem(updated), 'consultation_fee');
     return res.json({ success: true, vet: normalized, profile: normalized, message: 'Veterinary profile updated successfully' });
   }
 
@@ -229,7 +273,8 @@ const updateMyVetProfile = async (req, res) => {
   if (idx !== -1) {
     db.vet_profiles[idx] = { ...db.vet_profiles[idx], ...updates };
     saveData(db);
-    return res.json({ success: true, vet: db.vet_profiles[idx], profile: db.vet_profiles[idx], message: 'Veterinary profile updated successfully' });
+    const decorated = decorateWithDiscount(db.vet_profiles[idx], 'consultation_fee');
+    return res.json({ success: true, vet: decorated, profile: decorated, message: 'Veterinary profile updated successfully' });
   }
   throw new ExpressError('Vet profile not found', 404);
 };
