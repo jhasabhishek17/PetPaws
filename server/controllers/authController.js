@@ -775,10 +775,11 @@ const resendVerificationEmail = async (req, res) => {
         console.error(
           `❌ [Auth] Failed to resend verification OTP to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
         );
-        throw new ExpressError(
-          'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.',
-          503
-        );
+        const clientMessage =
+          err.code === 'SENDER_NOT_AUTHORIZED'
+            ? 'Failed to send verification OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
+            : 'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.';
+        throw new ExpressError(clientMessage, 503);
       }
     }
     return res.json({
@@ -819,10 +820,11 @@ const resendVerificationEmail = async (req, res) => {
       console.error(
         `❌ [Auth] Failed to resend verification OTP to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
       );
-      throw new ExpressError(
-        'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.',
-        503
-      );
+      const clientMessage =
+        err.code === 'SENDER_NOT_AUTHORIZED'
+          ? 'Failed to send verification OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
+          : 'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.';
+      throw new ExpressError(clientMessage, 503);
     }
   }
 
@@ -1203,10 +1205,11 @@ const forgotPassword = async (req, res) => {
         console.error(
           `❌ [Auth] Failed to send password reset OTP to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
         );
-        throw new ExpressError(
-          'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.',
-          503
-        );
+        const clientMessage =
+          err.code === 'SENDER_NOT_AUTHORIZED'
+            ? 'Failed to send password reset OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
+            : 'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.';
+        throw new ExpressError(clientMessage, 503);
       }
     }
     return res.json({
@@ -1248,10 +1251,11 @@ const forgotPassword = async (req, res) => {
       console.error(
         `❌ [Auth] Failed to send password reset OTP to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
       );
-      throw new ExpressError(
-        'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.',
-        503
-      );
+      const clientMessage =
+        err.code === 'SENDER_NOT_AUTHORIZED'
+          ? 'Failed to send password reset OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
+          : 'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.';
+      throw new ExpressError(clientMessage, 503);
     }
   }
 

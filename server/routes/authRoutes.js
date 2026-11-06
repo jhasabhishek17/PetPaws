@@ -40,7 +40,7 @@ const loginLimiter = rateLimit({
 // Persistent per-email (60s cooldown, 3/hour, 5/24h) and persistent per-IP limits are enforced in otpRateLimiter.js
 const otpDispatchIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 60,
+  max: Number(process.env.OTP_DISPATCH_IP_LIMIT_MAX || (process.env.EMAIL_TRANSPORT === 'test' ? 500 : 60)),
   standardHeaders: true,
   legacyHeaders: false,
   handler: buildRateLimitHandler(

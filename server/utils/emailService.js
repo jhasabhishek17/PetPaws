@@ -91,7 +91,11 @@ const getSmtpConfig = () => {
  * Reloads server/.env if no provider was initially found (handles hot edits while dev server runs).
  */
 const detectProviderOnce = () => {
-  if (sanitizeEnvValue(process.env.EMAIL_TRANSPORT).toLowerCase() === 'test') {
+  // Test transport is strictly for local/automated test environments and is forbidden in production
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    sanitizeEnvValue(process.env.EMAIL_TRANSPORT).toLowerCase() === 'test'
+  ) {
     return 'test';
   }
   if (sanitizeEnvValue(process.env.RESEND_API_KEY)) {
@@ -131,19 +135,16 @@ const getFromAddress = (provider = null) => {
   );
 
   if (activeProvider === 'resend') {
-    // Resend requires a domain verified in Resend, or 'onboarding@resend.dev' for testing/default mode.
-    // If EMAIL_FROM is missing, uses placeholder, or is a public webmail address (@gmail.com etc.),
-    // fall back to onboarding@resend.dev so the HTTPS API call succeeds without 403 unverified domain error.
+    // 1. If configuredFrom is set and not a placeholder, return it
     if (configuredFrom && !/your-verified-domain\.com/i.test(configuredFrom)) {
-      const parsed = parseFromHeader(configuredFrom);
-      if (!/@(gmail|yahoo|hotmail|outlook|live)\.com$/i.test(parsed.email)) {
-        return configuredFrom;
-      }
+      return configuredFrom;
     }
+    // 2. If RESEND_FROM is set
     const resendFrom = sanitizeEnvValue(process.env.RESEND_FROM);
     if (resendFrom && !/your-verified-domain\.com/i.test(resendFrom)) {
       return resendFrom;
     }
+    // 3. Fallback to Resend testing sender
     return 'PetPaws <onboarding@resend.dev>';
   }
 
@@ -498,12 +499,44 @@ const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
 
   // Dedicated test-only transport (used only when EMAIL_TRANSPORT=test in automated test suites)
   if (provider === 'test') {
+    if (process.env.NODE_ENV === 'production') {
+      const prodErr = new Error('Test email transport cannot be used in production mode.');
+      prodErr.code = 'EMAIL_DELIVERY_FAILED';
+      throw prodErr;
+    }
     recordInTestOutbox({ delivered: true });
     return { delivered: true, configured: true, provider: 'test', id: `test_${Date.now()}` };
   }
 
   try {
     if (provider === 'resend') {
+      const fromParsed = parseFromHeader(from);
+      const isTestingSender = /onboarding@resend\.dev/i.test(fromParsed.email);
+      const isPublicWebmail = /@(gmail|yahoo|hotmail|outlook|live|icloud|aol)\.com$/i.test(fromParsed.email);
+
+      // Resend strictly disallows sending from public webmail domains like @gmail.com
+      if (isPublicWebmail) {
+        const authErr = new Error(
+          `Sender address "${fromParsed.email}" is not authorized for Resend. Transactional providers do not allow sending from public webmail domains (@gmail.com). Please verify your custom domain in Resend (resend.com/domains) and set EMAIL_FROM="PetPaws <no-reply@yourdomain.com>".`
+        );
+        authErr.code = 'SENDER_NOT_AUTHORIZED';
+        throw authErr;
+      }
+
+      // The default testing sender (onboarding@resend.dev) can only deliver to the Resend account owner's email.
+      // If RESEND_AUTHORIZED_RECIPIENT or RESEND_ACCOUNT_EMAIL is defined, check recipient authorization.
+      const authorizedRecipient = sanitizeEnvValue(
+        process.env.RESEND_AUTHORIZED_RECIPIENT || process.env.RESEND_ACCOUNT_EMAIL
+      ).toLowerCase();
+
+      if (isTestingSender && authorizedRecipient && recipient !== authorizedRecipient) {
+        const authErr = new Error(
+          `Sender "${fromParsed.email}" is in test mode and is not authorized to deliver to arbitrary recipients (${recipient}). It can only deliver to your verified Resend account email (${authorizedRecipient}). To deliver to arbitrary recipients, verify a custom domain at resend.com/domains and set EMAIL_FROM.`
+        );
+        authErr.code = 'SENDER_NOT_AUTHORIZED';
+        throw authErr;
+      }
+
       const apiUrl = (process.env.RESEND_API_URL || 'https://api.resend.com/emails').trim();
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -519,10 +552,24 @@ const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
           text
         })
       });
+
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.message || `Resend email API failed with status ${response.status}`);
+        const errMsg = data.message || `Resend email API failed with status ${response.status}`;
+        const isSenderAuthError =
+          response.status === 403 ||
+          response.status === 401 ||
+          /testing emails to your own email address|domain not verified|domain not found|from email address is not verified|sender.*not authorized/i.test(errMsg);
+
+        const apiErr = new Error(errMsg);
+        if (isSenderAuthError) {
+          apiErr.code = 'SENDER_NOT_AUTHORIZED';
+        } else {
+          apiErr.code = `RESEND_API_${response.status}`;
+        }
+        throw apiErr;
       }
+
       recordInTestOutbox({ delivered: true, providerMessageId: data.id });
       return { delivered: true, configured: true, provider: 'resend', id: data.id };
     }
@@ -637,12 +684,18 @@ const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
       `❌ [EmailService] Delivery failed via ${provider}${smtpInfo} to ${recipient}: ${errCode}${err.message}`
     );
 
-    const isTimeout = err.code === 'ETIMEDOUT' || /timeout/i.test(err.message);
-    const isNetworkBlocked = isTimeout || err.code === 'ECONNREFUSED' || err.code === 'EHOSTUNREACH';
-    if (provider === 'smtp' && isNetworkBlocked) {
+    if (err.code === 'SENDER_NOT_AUTHORIZED') {
       console.warn(
-        '💡 [EmailService] Notice for Cloud Deployments (e.g. Render): Outbound connections on SMTP ports 25, 465, and 587 are blocked by default on Render standard/free plans. If deploying on Render, configure RESEND_API_KEY (HTTPS API over port 443) in your Render environment variables or request SMTP unblocking from Render support.'
+        '💡 [EmailService] Sender Authorization Notice: The sender address is not authorized to deliver to arbitrary recipients. When using Resend in production, you must verify your custom domain in the Resend dashboard (resend.com/domains) and set EMAIL_FROM="PetPaws <no-reply@yourdomain.com>". The default testing sender (onboarding@resend.dev) can only deliver to the verified Resend account owner email.'
       );
+    } else {
+      const isTimeout = err.code === 'ETIMEDOUT' || /timeout/i.test(err.message);
+      const isNetworkBlocked = isTimeout || err.code === 'ECONNREFUSED' || err.code === 'EHOSTUNREACH';
+      if (provider === 'smtp' && isNetworkBlocked) {
+        console.warn(
+          '💡 [EmailService] Notice for Cloud Deployments (e.g. Render): Outbound connections on SMTP ports 25, 465, and 587 are blocked by default on Render standard/free plans. If deploying on Render, configure RESEND_API_KEY (HTTPS API over port 443) in your Render environment variables or request SMTP unblocking from Render support.'
+        );
+      }
     }
     throw err;
   }

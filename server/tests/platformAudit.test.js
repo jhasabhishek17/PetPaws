@@ -28,7 +28,7 @@ const { test, describe, before } = require('node:test');
 const { app } = require('../server');
 const connectDB = require('../config/db');
 const { computePaymentSignature } = require('../utils/paymentGateway');
-const { getLastEmailTo, getSmtpConfig, getFromAddress } = require('../utils/emailService');
+const { getLastEmailTo, getSmtpConfig, getFromAddress, getConfiguredProvider } = require('../utils/emailService');
 const {
   validateEmailSyntax,
   validateEmailAddress,
@@ -1089,15 +1089,15 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       process.env.EMAIL_FROM = 'PetPaws <sender@gmail.com>';
       assert.strictEqual(getFromAddress('smtp'), 'PetPaws <sender@gmail.com>');
 
-      // C. Resend fallback:
-      // When switching to Resend, if EMAIL_FROM is unset or is a public @gmail.com address, fallback to onboarding@resend.dev
+      // C. Resend sender address handling:
+      // When EMAIL_FROM is unset, getFromAddress defaults to onboarding@resend.dev
       process.env.RESEND_API_KEY = 're_test_key_12345';
-      process.env.EMAIL_FROM = 'PetPaws <sender@gmail.com>';
+      delete process.env.EMAIL_FROM;
       delete process.env.RESEND_FROM;
       assert.strictEqual(
         getFromAddress('resend'),
         'PetPaws <onboarding@resend.dev>',
-        'Resend must use onboarding@resend.dev when custom domain is not yet configured'
+        'Resend must default to onboarding@resend.dev when EMAIL_FROM is unset'
       );
 
       // When a verified custom domain is configured in EMAIL_FROM, Resend uses it
@@ -1106,6 +1106,31 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
         getFromAddress('resend'),
         'PetPaws <no-reply@verified.petpaws.org>'
       );
+
+      // D. Provider selection when RESEND_API_KEY is absent:
+      // When RESEND_API_KEY is unset and SMTP credentials are provided, provider automatically resolves to 'smtp'
+      delete process.env.EMAIL_TRANSPORT;
+      delete process.env.RESEND_API_KEY;
+      assert.strictEqual(
+        getConfiguredProvider(),
+        'smtp',
+        'Provider must automatically resolve to smtp when RESEND_API_KEY is absent and SMTP credentials are present'
+      );
+
+      // E. Production safeguard: EMAIL_TRANSPORT=test must be rejected in production mode
+      const savedNodeEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'production';
+        process.env.EMAIL_TRANSPORT = 'test';
+        // With NODE_ENV=production, EMAIL_TRANSPORT=test is ignored and falls through to smtp
+        assert.strictEqual(
+          getConfiguredProvider(),
+          'smtp',
+          'In production mode, EMAIL_TRANSPORT=test must be ignored and not selected as provider'
+        );
+      } finally {
+        if (savedNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = savedNodeEnv;
+      }
     } finally {
       if (savedHost === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = savedHost;
       if (savedPort === undefined) delete process.env.SMTP_PORT; else process.env.SMTP_PORT = savedPort;
@@ -1200,6 +1225,61 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       if (savedSmtpUser === undefined) delete process.env.SMTP_USER; else process.env.SMTP_USER = savedSmtpUser;
       if (savedSmtpPass === undefined) delete process.env.SMTP_PASS; else process.env.SMTP_PASS = savedSmtpPass;
       delete process.env.SMTP_TIMEOUT_MS;
+      process.env.EMAIL_TRANSPORT = 'test';
+    }
+  });
+
+  test('26. Sender address authorization validation and Resend testing sender recipient restrictions', async () => {
+    const testEmail1 = `sender_auth_fail1_${Date.now()}@gmail.com`;
+    const testEmail2 = `sender_auth_fail2_${Date.now()}@gmail.com`;
+    await registerAndVerify({
+      name: 'Sender Auth User 1',
+      email: testEmail1,
+      password: 'Password123!',
+      role: 'buyer'
+    });
+    await registerAndVerify({
+      name: 'Sender Auth User 2',
+      email: testEmail2,
+      password: 'Password123!',
+      role: 'buyer'
+    });
+
+    await shiftOtpRateLimitWindow(testEmail1, 65000);
+    await shiftOtpRateLimitWindow(testEmail2, 65000);
+
+    const savedTransport = process.env.EMAIL_TRANSPORT;
+    const savedResend = process.env.RESEND_API_KEY;
+    const savedFrom = process.env.EMAIL_FROM;
+    const savedAuthRecip = process.env.RESEND_AUTHORIZED_RECIPIENT;
+
+    try {
+      delete process.env.EMAIL_TRANSPORT;
+      process.env.RESEND_API_KEY = 're_test_dummy_key_12345';
+
+      // 1. Sending via Resend with a public webmail domain (@gmail.com) must reject as unauthorized sender
+      process.env.EMAIL_FROM = 'PetPaws Support <support@gmail.com>';
+      const resendPublicFromReq = await postJson('/api/auth/forgot-password', { email: testEmail1 });
+      assert.strictEqual(resendPublicFromReq.status, 503);
+      assert.strictEqual(
+        resendPublicFromReq.data.message,
+        'Failed to send password reset OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
+      );
+
+      // 2. Default testing sender (onboarding@resend.dev) sending to an unauthorized live recipient
+      delete process.env.EMAIL_FROM; // Defaults to onboarding@resend.dev
+      process.env.RESEND_AUTHORIZED_RECIPIENT = 'owner.account@resendtest.com';
+      const testingSenderReq = await postJson('/api/auth/forgot-password', { email: testEmail2 });
+      assert.strictEqual(testingSenderReq.status, 503);
+      assert.strictEqual(
+        testingSenderReq.data.message,
+        'Failed to send password reset OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
+      );
+    } finally {
+      if (savedTransport === undefined) delete process.env.EMAIL_TRANSPORT; else process.env.EMAIL_TRANSPORT = savedTransport;
+      if (savedResend === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = savedResend;
+      if (savedFrom === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = savedFrom;
+      if (savedAuthRecip === undefined) delete process.env.RESEND_AUTHORIZED_RECIPIENT; else process.env.RESEND_AUTHORIZED_RECIPIENT = savedAuthRecip;
       process.env.EMAIL_TRANSPORT = 'test';
     }
   });
