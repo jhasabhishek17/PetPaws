@@ -42,8 +42,11 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
   if (!pet) return null;
 
   const isOwnListing = Boolean(currentUser && currentUser.id === pet.seller_id);
-  const tax = Math.round(pet.price * 0.08);
-  const totalAmount = pet.price + tax;
+  const originalPrice = pet.original_price || pet.price || 0;
+  const effectivePrice = pet.has_active_discount ? (pet.effective_price ?? pet.price) : (pet.price || 0);
+  const discountAmount = pet.has_active_discount ? Math.max(0, originalPrice - effectivePrice) : 0;
+  const tax = Math.round(effectivePrice * 0.08);
+  const totalAmount = effectivePrice + tax;
 
   // Handle Checkout submission
   const handleConfirmPurchase = async (e) => {
@@ -318,16 +321,33 @@ export default function CheckoutModal({ pet, currentUser, onClose, onOrderPlaced
             {/* Price Breakdown */}
             <div className="pt-2 border-t border-slate-100 space-y-1.5 text-xs">
               <div className="flex justify-between text-slate-600">
-                <span>Pet Subtotal:</span>
-                <span>${pet.price}</span>
+                <span>Base Subtotal:</span>
+                <span className={pet.has_active_discount && discountAmount > 0 ? 'line-through text-slate-400' : 'font-semibold text-slate-800'}>
+                  ${originalPrice}
+                </span>
               </div>
+              {pet.has_active_discount && discountAmount > 0 && (
+                <div className="flex justify-between text-[#2A5C4A] font-bold">
+                  <span className="flex items-center gap-1">
+                    <span>🏷️</span>
+                    <span>Offer Savings ({pet.discount_info?.title || `${pet.discount?.value}% OFF`}):</span>
+                  </span>
+                  <span>-${discountAmount}</span>
+                </div>
+              )}
+              {pet.has_active_discount && discountAmount > 0 && (
+                <div className="flex justify-between text-slate-700 font-medium">
+                  <span>Discounted Pet Subtotal:</span>
+                  <span className="font-bold text-[#2A5C4A]">${effectivePrice}</span>
+                </div>
+              )}
               <div className="flex justify-between text-slate-600">
                 <span>Veterinary & Transport Tax (8%):</span>
                 <span>${tax}</span>
               </div>
               <div className="flex justify-between text-slate-900 font-bold text-sm pt-1 border-t border-slate-200">
                 <span>Total Amount:</span>
-                <span className="text-orange-600">${totalAmount}</span>
+                <span className="text-[#2A5C4A]">${totalAmount}</span>
               </div>
             </div>
 
