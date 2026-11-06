@@ -11,6 +11,11 @@ const { loadData, saveData, isMongoConnected } = require('../db');
 const { normalizeItem } = require('../utils/normalize');
 const { findDocByAnyId } = require('../utils/dbHelpers');
 const ExpressError = require('../utils/ExpressError');
+const {
+  calculateEffectivePrice,
+  parseAndValidateDiscount,
+  decorateWithDiscount
+} = require('../utils/discountEngine');
 
 /**
  * Get available grooming & care services
@@ -19,11 +24,12 @@ const ExpressError = require('../utils/ExpressError');
 const getServices = async (req, res) => {
   if (isMongoConnected()) {
     const services = await GroomingService.find();
-    return res.json({ success: true, services: services.map(normalizeItem) });
+    return res.json({ success: true, services: services.map(s => decorateWithDiscount(normalizeItem(s))) });
   }
 
   const db = loadData();
-  res.json({ success: true, services: db.grooming_services });
+  const decorated = (db.grooming_services || []).map(s => decorateWithDiscount(s));
+  res.json({ success: true, services: decorated });
 };
 
 /**
@@ -52,6 +58,19 @@ const bookService = async (req, res) => {
     const srv = await findDocByAnyId(GroomingService, service_id);
     if (!srv) throw new ExpressError('Service not found', 404);
 
+    const eff = calculateEffectivePrice(srv);
+    const finalPrice = eff.finalPrice;
+
+    const discountInfo = eff.isDiscountActive
+      ? {
+          title: eff.discountTitle,
+          type: eff.discountType,
+          value: eff.discountValue,
+          discount_amount: eff.discountAmount,
+          amount_saved: eff.discountAmount
+        }
+      : null;
+
     const booking = await GroomingBooking.create({
       custom_id: customId,
       buyer_id,
@@ -60,7 +79,10 @@ const bookService = async (req, res) => {
       service_title: srv.title,
       business_id: srv.business_id || '',
       provider_id: srv.provider_id || '',
-      price: Number(srv.price || 0),
+      price: finalPrice,
+      original_price: eff.basePrice,
+      discount_amount: eff.discountAmount,
+      discount_info: discountInfo,
       booking_date,
       time_slot,
       status: 'Scheduled'
@@ -78,6 +100,19 @@ const bookService = async (req, res) => {
   const srv = db.grooming_services.find(s => s.id === service_id);
   if (!srv) throw new ExpressError('Service not found', 404);
 
+  const eff = calculateEffectivePrice(srv);
+  const finalPrice = eff.finalPrice;
+
+  const discountInfo = eff.isDiscountActive
+    ? {
+        title: eff.discountTitle,
+        type: eff.discountType,
+        value: eff.discountValue,
+        discount_amount: eff.discountAmount,
+        amount_saved: eff.discountAmount
+      }
+    : null;
+
   const booking = {
     id: customId,
     buyer_id,
@@ -86,7 +121,10 @@ const bookService = async (req, res) => {
     service_title: srv.title,
     business_id: srv.business_id || '',
     provider_id: srv.provider_id || '',
-    price: Number(srv.price || 0),
+    price: finalPrice,
+    original_price: eff.basePrice,
+    discount_amount: eff.discountAmount,
+    discount_info: discountInfo,
     booking_date,
     time_slot,
     status: 'Scheduled',
