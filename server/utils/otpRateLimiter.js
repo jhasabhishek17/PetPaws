@@ -59,13 +59,19 @@ const resolveClientIp = (req) => {
     if (testIp && typeof testIp === 'string') {
       return testIp.trim();
     }
+  }
+  // When Express 'trust proxy' is configured, req.ip contains the validated client IP
+  if (req.ip && typeof req.ip === 'string') {
+    return req.ip.trim();
+  }
+  if (req.headers && req.headers['x-forwarded-for']) {
     const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded && typeof forwarded === 'string') {
-      const firstIp = forwarded.split(',')[0].trim();
-      if (firstIp) return firstIp;
+    if (typeof forwarded === 'string') {
+      const ips = forwarded.split(',').map((s) => s.trim()).filter(Boolean);
+      if (ips.length > 0) return ips[ips.length - 1]; // Rightmost proxy hop
     }
   }
-  const rawIp = req.ip || (req.socket && req.socket.remoteAddress) || '';
+  const rawIp = (req.socket && req.socket.remoteAddress) || '';
   return String(rawIp).trim();
 };
 

@@ -423,7 +423,9 @@ const registerUser = async (req, res) => {
       targetUser.email_verification_sent_at = null;
       await targetUser.save().catch(() => {});
       await rollbackOtpSendReservation(rateLimit.reservation);
-      console.error('Error dispatching verification OTP during registration:', err.message);
+      console.error(
+        `❌ [Auth] Failed to send verification OTP during registration to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
+      );
     }
 
     return res.status(201).json({
@@ -531,7 +533,9 @@ const registerUser = async (req, res) => {
       saveData(rollbackDb);
     }
     await rollbackOtpSendReservation(rateLimit.reservation);
-    console.error('Error dispatching verification OTP during registration:', err.message);
+    console.error(
+      `❌ [Auth] Failed to send verification OTP during registration to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
+    );
   }
 
   return res.status(201).json({
@@ -768,7 +772,9 @@ const resendVerificationEmail = async (req, res) => {
         user.email_verification_sent_at = null;
         await user.save().catch(() => {});
         await rollbackOtpSendReservation(rateLimit.reservation);
-        console.error('Error resending verification OTP:', err.message);
+        console.error(
+          `❌ [Auth] Failed to resend verification OTP to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
+        );
         throw new ExpressError(
           'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.',
           503
@@ -810,7 +816,9 @@ const resendVerificationEmail = async (req, res) => {
         saveData(rollbackDb);
       }
       await rollbackOtpSendReservation(rateLimit.reservation);
-      console.error('Error resending verification OTP:', err.message);
+      console.error(
+        `❌ [Auth] Failed to resend verification OTP to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
+      );
       throw new ExpressError(
         'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.',
         503
@@ -1192,7 +1200,9 @@ const forgotPassword = async (req, res) => {
         user.reset_password_sent_at = null;
         await user.save().catch(() => {});
         await rollbackOtpSendReservation(rateLimit.reservation);
-        console.error('Error dispatching password reset OTP:', err.message);
+        console.error(
+          `❌ [Auth] Failed to send password reset OTP to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
+        );
         throw new ExpressError(
           'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.',
           503
@@ -1235,7 +1245,9 @@ const forgotPassword = async (req, res) => {
         saveData(rollbackDb);
       }
       await rollbackOtpSendReservation(rateLimit.reservation);
-      console.error('Error dispatching password reset OTP:', err.message);
+      console.error(
+        `❌ [Auth] Failed to send password reset OTP to ${normalizedEmail}: [${err.code || 'DELIVERY_ERROR'}] ${err.message}`
+      );
       throw new ExpressError(
         'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.',
         503

@@ -45,6 +45,23 @@ const PORT = process.env.PORT || 5001;
 // 1. EXPRESS APP & VIEW ENGINE SETUP
 // ==========================================
 
+// Configure Express 'trust proxy' for reverse proxy environments (e.g. Render, AWS, Nginx).
+// Render places a single front-facing reverse proxy in front of web services.
+// Setting trust proxy to 1 trusts that single upstream proxy hop, computes req.ip accurately,
+// and resolves ERR_ERL_UNEXPECTED_X_FORWARDED_FOR in express-rate-limit while avoiding client IP spoofing.
+const parseTrustProxy = () => {
+  const val = process.env.TRUST_PROXY;
+  if (!val) {
+    return 1;
+  }
+  const num = Number(val);
+  if (!isNaN(num)) return num;
+  if (val.toLowerCase() === 'true') return 1;
+  if (val.toLowerCase() === 'false') return false;
+  return val;
+};
+app.set('trust proxy', parseTrustProxy());
+
 // Set EJS as the templating engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));

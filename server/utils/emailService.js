@@ -79,7 +79,8 @@ const getSmtpConfig = () => {
 
   const rawPort = sanitizeEnvValue(process.env.SMTP_PORT || process.env.EMAIL_PORT);
   const rawSecure = sanitizeEnvValue(process.env.SMTP_SECURE || process.env.EMAIL_SECURE).toLowerCase();
-  const port = rawPort ? Number(rawPort) : rawSecure === 'true' ? 465 : 587;
+  const isGmail = (host && /gmail\.com$/i.test(host)) || service === 'gmail';
+  const port = rawPort ? Number(rawPort) : (rawSecure === 'true' || isGmail ? 465 : 587);
   const secure = rawSecure === 'true' || rawSecure === '1' || port === 465;
 
   return { host, port, secure, user, pass };
@@ -123,12 +124,42 @@ const getConfiguredProvider = () => {
 
 const isEmailProviderConfigured = () => Boolean(getConfiguredProvider());
 
-const getFromAddress = () => {
-  const configuredFrom = sanitizeEnvValue(process.env.EMAIL_FROM || process.env.SMTP_FROM);
+const getFromAddress = (provider = null) => {
+  const activeProvider = provider || getConfiguredProvider();
+  const configuredFrom = sanitizeEnvValue(
+    process.env.EMAIL_FROM || process.env.SMTP_FROM || (activeProvider === 'resend' ? process.env.RESEND_FROM : '')
+  );
+
+  if (activeProvider === 'resend') {
+    // Resend requires a domain verified in Resend, or 'onboarding@resend.dev' for testing/default mode.
+    // If EMAIL_FROM is missing, uses placeholder, or is a public webmail address (@gmail.com etc.),
+    // fall back to onboarding@resend.dev so the HTTPS API call succeeds without 403 unverified domain error.
+    if (configuredFrom && !/your-verified-domain\.com/i.test(configuredFrom)) {
+      const parsed = parseFromHeader(configuredFrom);
+      if (!/@(gmail|yahoo|hotmail|outlook|live)\.com$/i.test(parsed.email)) {
+        return configuredFrom;
+      }
+    }
+    const resendFrom = sanitizeEnvValue(process.env.RESEND_FROM);
+    if (resendFrom && !/your-verified-domain\.com/i.test(resendFrom)) {
+      return resendFrom;
+    }
+    return 'PetPaws <onboarding@resend.dev>';
+  }
+
+  const smtp = getSmtpConfig();
   if (configuredFrom && !/your-verified-domain\.com/i.test(configuredFrom)) {
+    // For Gmail SMTP, the From address must be compatible with the authenticated SMTP_USER.
+    // Preserve any custom display name if provided, but align the email address with smtp.user.
+    if (smtp.host && /gmail\.com$/i.test(smtp.host) && smtp.user && smtp.user.includes('@')) {
+      const parsed = parseFromHeader(configuredFrom);
+      if (parsed.email.toLowerCase() !== smtp.user.toLowerCase()) {
+        return `"${parsed.name || 'PetPaws'}" <${smtp.user}>`;
+      }
+    }
     return configuredFrom;
   }
-  const smtp = getSmtpConfig();
+
   if (smtp.user && smtp.user.includes('@')) {
     return `PetPaws <${smtp.user}>`;
   }
@@ -432,7 +463,7 @@ const sendViaNativeSmtp = ({ host, port, secure, user, pass, from, to, subject, 
  */
 const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
   const provider = getConfiguredProvider();
-  const from = getFromAddress();
+  const from = getFromAddress(provider);
   const fromParsed = parseFromHeader(from);
   const recipient = String(to).trim().toLowerCase();
 
@@ -564,7 +595,8 @@ const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
           secure,
           auth: user && pass ? { user, pass } : undefined,
           tls: {
-            rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== 'false'
+            rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== 'false',
+            minVersion: 'TLSv1.2'
           },
           connectionTimeout: Number(process.env.SMTP_TIMEOUT_MS || 12000),
           greetingTimeout: Number(process.env.SMTP_TIMEOUT_MS || 12000),
@@ -598,10 +630,20 @@ const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
 
     throw new Error(`Unsupported email provider: ${provider}`);
   } catch (err) {
-    const smtpInfo = provider === 'smtp' ? ` (${getSmtpConfig().host}:${getSmtpConfig().port})` : '';
+    const smtp = provider === 'smtp' ? getSmtpConfig() : null;
+    const smtpInfo = smtp ? ` (${smtp.host}:${smtp.port})` : '';
+    const errCode = err.code ? `[${err.code}] ` : '';
     console.error(
-      `❌ [EmailService] Delivery failed via ${provider}${smtpInfo} to ${recipient}: ${err.message}`
+      `❌ [EmailService] Delivery failed via ${provider}${smtpInfo} to ${recipient}: ${errCode}${err.message}`
     );
+
+    const isTimeout = err.code === 'ETIMEDOUT' || /timeout/i.test(err.message);
+    const isNetworkBlocked = isTimeout || err.code === 'ECONNREFUSED' || err.code === 'EHOSTUNREACH';
+    if (provider === 'smtp' && isNetworkBlocked) {
+      console.warn(
+        '💡 [EmailService] Notice for Cloud Deployments (e.g. Render): Outbound connections on SMTP ports 25, 465, and 587 are blocked by default on Render standard/free plans. If deploying on Render, configure RESEND_API_KEY (HTTPS API over port 443) in your Render environment variables or request SMTP unblocking from Render support.'
+      );
+    }
     throw err;
   }
 };
@@ -785,6 +827,7 @@ const clearDevOutbox = () => {
 
 module.exports = {
   getSmtpConfig,
+  getFromAddress,
   getConfiguredProvider,
   isEmailProviderConfigured,
   resolveFrontendUrl,

@@ -28,7 +28,7 @@ const { test, describe, before } = require('node:test');
 const { app } = require('../server');
 const connectDB = require('../config/db');
 const { computePaymentSignature } = require('../utils/paymentGateway');
-const { getLastEmailTo, getSmtpConfig } = require('../utils/emailService');
+const { getLastEmailTo, getSmtpConfig, getFromAddress } = require('../utils/emailService');
 const {
   validateEmailSyntax,
   validateEmailAddress,
@@ -1049,6 +1049,158 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       if (savedSecure === undefined) delete process.env.SMTP_SECURE; else process.env.SMTP_SECURE = savedSecure;
       if (savedUser === undefined) delete process.env.SMTP_USER; else process.env.SMTP_USER = savedUser;
       if (savedPass === undefined) delete process.env.SMTP_PASS; else process.env.SMTP_PASS = savedPass;
+    }
+  });
+
+  test('23. Gmail SMTP port 465 defaults, EMAIL_FROM compatibility with SMTP_USER, and Resend fallback', async () => {
+    const savedHost = process.env.SMTP_HOST;
+    const savedPort = process.env.SMTP_PORT;
+    const savedSecure = process.env.SMTP_SECURE;
+    const savedUser = process.env.SMTP_USER;
+    const savedPass = process.env.SMTP_PASS;
+    const savedFrom = process.env.EMAIL_FROM;
+    const savedResendKey = process.env.RESEND_API_KEY;
+    const savedResendFrom = process.env.RESEND_FROM;
+
+    try {
+      // A. When host is smtp.gmail.com and no port is provided, default to port 465 with secure=true
+      process.env.SMTP_HOST = 'smtp.gmail.com';
+      delete process.env.SMTP_PORT;
+      delete process.env.SMTP_SECURE;
+      process.env.SMTP_USER = 'sender@gmail.com';
+      process.env.SMTP_PASS = 'abcdefghijklmnop';
+
+      const gmailCfg = getSmtpConfig();
+      assert.strictEqual(gmailCfg.host, 'smtp.gmail.com');
+      assert.strictEqual(gmailCfg.port, 465, 'Gmail SMTP without explicit port must default to port 465');
+      assert.strictEqual(gmailCfg.secure, true, 'Port 465 must have secure=true (TLS enabled)');
+
+      // B. EMAIL_FROM compatibility with Gmail SMTP_USER:
+      // When EMAIL_FROM has a different domain/address than SMTP_USER, preserve display name and align email with SMTP_USER
+      process.env.EMAIL_FROM = 'PetPaws Customer Support <support@petpaws.app>';
+      const alignedFrom = getFromAddress('smtp');
+      assert.strictEqual(
+        alignedFrom,
+        '"PetPaws Customer Support" <sender@gmail.com>',
+        'Gmail SMTP requires sender address to match authenticated SMTP_USER'
+      );
+
+      // When EMAIL_FROM already matches SMTP_USER, preserve it
+      process.env.EMAIL_FROM = 'PetPaws <sender@gmail.com>';
+      assert.strictEqual(getFromAddress('smtp'), 'PetPaws <sender@gmail.com>');
+
+      // C. Resend fallback:
+      // When switching to Resend, if EMAIL_FROM is unset or is a public @gmail.com address, fallback to onboarding@resend.dev
+      process.env.RESEND_API_KEY = 're_test_key_12345';
+      process.env.EMAIL_FROM = 'PetPaws <sender@gmail.com>';
+      delete process.env.RESEND_FROM;
+      assert.strictEqual(
+        getFromAddress('resend'),
+        'PetPaws <onboarding@resend.dev>',
+        'Resend must use onboarding@resend.dev when custom domain is not yet configured'
+      );
+
+      // When a verified custom domain is configured in EMAIL_FROM, Resend uses it
+      process.env.EMAIL_FROM = 'PetPaws <no-reply@verified.petpaws.org>';
+      assert.strictEqual(
+        getFromAddress('resend'),
+        'PetPaws <no-reply@verified.petpaws.org>'
+      );
+    } finally {
+      if (savedHost === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = savedHost;
+      if (savedPort === undefined) delete process.env.SMTP_PORT; else process.env.SMTP_PORT = savedPort;
+      if (savedSecure === undefined) delete process.env.SMTP_SECURE; else process.env.SMTP_SECURE = savedSecure;
+      if (savedUser === undefined) delete process.env.SMTP_USER; else process.env.SMTP_USER = savedUser;
+      if (savedPass === undefined) delete process.env.SMTP_PASS; else process.env.SMTP_PASS = savedPass;
+      if (savedFrom === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = savedFrom;
+      if (savedResendKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = savedResendKey;
+      if (savedResendFrom === undefined) delete process.env.RESEND_FROM; else process.env.RESEND_FROM = savedResendFrom;
+    }
+  });
+
+  test('24. Express trust proxy and express-rate-limit handling with X-Forwarded-For', async () => {
+    // A. Verify trust proxy is configured to 1 (single reverse proxy hop)
+    const trustProxy = app.get('trust proxy');
+    assert.ok(
+      trustProxy === 1 || trustProxy === true,
+      `Express trust proxy must be configured to 1 for reverse proxies (got ${trustProxy})`
+    );
+
+    // B. Verify that requests with X-Forwarded-For execute through rate-limited endpoints
+    // without throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+    const res = await makeRequest(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': '198.51.100.25'
+      },
+      body: { email: 'nonexistent@testdomain.com', password: 'wrongpassword' }
+    });
+
+    // Request should proceed to normal auth handling (400 or 401), NOT fail with 500 ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+    assert.ok(
+      res.status === 400 || res.status === 401 || res.status === 404,
+      `Expected auth validation response, got status ${res.status}: ${JSON.stringify(res.data)}`
+    );
+    assert.strictEqual(
+      res.data?.code !== 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR',
+      true,
+      'express-rate-limit must not reject requests with unexpected X-Forwarded-For'
+    );
+  });
+
+  test('25. Failed password-reset email delivery returns safe 503 error without leaking credentials', async () => {
+    // Register and verify a confirmed buyer account for the test
+    const testEmail = `pwd_reset_fail_${Date.now()}@gmail.com`;
+    await registerAndVerify({
+      name: 'Fail Reset User',
+      email: testEmail,
+      password: 'Password123!',
+      role: 'buyer'
+    });
+
+    // Advance rate-limit window past registration cooldown
+    await shiftOtpRateLimitWindow(testEmail, 65000);
+
+    // Temporarily point email provider to an unreachable host to simulate connection timeout failure
+    const savedTransport = process.env.EMAIL_TRANSPORT;
+    const savedResend = process.env.RESEND_API_KEY;
+    const savedSmtpHost = process.env.SMTP_HOST;
+    const savedSmtpUser = process.env.SMTP_USER;
+    const savedSmtpPass = process.env.SMTP_PASS;
+
+    try {
+      delete process.env.EMAIL_TRANSPORT;
+      delete process.env.RESEND_API_KEY;
+      process.env.SMTP_HOST = '192.0.2.1'; // RFC 5737 non-routable IP
+      process.env.SMTP_PORT = '465';
+      process.env.SMTP_SECURE = 'true';
+      process.env.SMTP_USER = 'sender@gmail.com';
+      process.env.SMTP_PASS = 'super_secret_smtp_password';
+      process.env.SMTP_TIMEOUT_MS = '200';
+
+      const resetReq = await postJson('/api/auth/forgot-password', { email: testEmail });
+
+      // Must return HTTP 503 Service Unavailable
+      assert.strictEqual(resetReq.status, 503, 'Email delivery failure must return 503');
+      assert.strictEqual(
+        resetReq.data.message,
+        'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.',
+        'Must return generic user-friendly error message'
+      );
+      // Ensure no passwords, OTPs, or internal IP addresses are leaked to the client response
+      const responseStr = JSON.stringify(resetReq.data);
+      assert.strictEqual(responseStr.includes('super_secret_smtp_password'), false, 'Response must never leak SMTP password');
+      assert.strictEqual(responseStr.includes('192.0.2.1'), false, 'Response must not leak internal host');
+    } finally {
+      if (savedTransport === undefined) delete process.env.EMAIL_TRANSPORT; else process.env.EMAIL_TRANSPORT = savedTransport;
+      if (savedResend === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = savedResend;
+      if (savedSmtpHost === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = savedSmtpHost;
+      if (savedSmtpUser === undefined) delete process.env.SMTP_USER; else process.env.SMTP_USER = savedSmtpUser;
+      if (savedSmtpPass === undefined) delete process.env.SMTP_PASS; else process.env.SMTP_PASS = savedSmtpPass;
+      delete process.env.SMTP_TIMEOUT_MS;
+      process.env.EMAIL_TRANSPORT = 'test';
     }
   });
 });
