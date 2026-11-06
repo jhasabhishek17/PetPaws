@@ -11,6 +11,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { isProvider } from '../utils/permissions';
+import OfferCountdownTimer from './OfferCountdownTimer';
 
 /**
  * Build a deduplicated array of { url, resource_type } from a pet record
@@ -252,6 +253,32 @@ export default function PetDetailModal({
             </div>
           </div>
 
+          {/* Active Promotional Offer Banner */}
+          {pet.has_active_discount && pet.price > 0 && (
+            <div className="bg-gradient-to-r from-[#2A5C4A]/10 via-[#52796F]/15 to-[#2A5C4A]/10 border border-[#2A5C4A]/30 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <span className="w-9 h-9 rounded-xl bg-[#2A5C4A] text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+                  🏷️
+                </span>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-black text-[#2A5C4A]">
+                      {pet.discount_info?.title || 'Special Promotional Offer Active!'}
+                    </p>
+                    <OfferCountdownTimer pet={pet} variant="text" />
+                  </div>
+                  <p className="text-[11px] text-[#65605B] mt-0.5">
+                    Original Price: <span className="line-through font-bold">${pet.original_price || pet.price}</span> • You save{' '}
+                    <strong className="text-[#2A5C4A]">${pet.discount_info?.discount_amount || (pet.original_price - pet.effective_price)}</strong> on this adoption.
+                  </p>
+                </div>
+              </div>
+              <span className="px-3 py-1 bg-[#2A5C4A] text-white text-xs font-black rounded-lg shadow-sm self-start sm:self-auto">
+                {pet.discount_info?.type === 'percentage' ? `${pet.discount_info?.value}% OFF` : `$${pet.discount_info?.value} OFF`}
+              </span>
+            </div>
+          )}
+
           {/* Health & Vaccination Status */}
           <div className="bg-[#EAEFE9] border border-[#D1E7DD] p-4 rounded-2xl">
             <div className="flex items-center space-x-2 mb-2 text-[#2A5C4A] font-bold text-sm">
@@ -295,8 +322,26 @@ export default function PetDetailModal({
         {/* Modal Footer with Price and Buy Button */}
         <div className="p-4 sm:p-6 bg-[#FAF6F0] border-t border-[#E6DCCF] flex items-center justify-between flex-shrink-0 z-10">
           <div>
-            <span className="text-xs text-[#65605B] font-medium block">Total Price</span>
-            <span className="text-2xl font-black text-[#231F20] font-display">${pet.price}</span>
+            <span className="text-xs text-[#65605B] font-medium block">
+              {pet.price === 0 ? 'Adoption Fee' : 'Total Price'}
+            </span>
+            {pet.price === 0 ? (
+              <span className="text-2xl font-black text-[#2A5C4A] font-display">Free Adoption</span>
+            ) : pet.has_active_discount ? (
+              <div className="space-y-1">
+                <div className="flex items-baseline space-x-2">
+                  <span className="text-2xl font-black text-[#2A5C4A] font-display">
+                    ${pet.effective_price || pet.price}
+                  </span>
+                  <span className="text-sm font-bold text-[#8C847C] line-through">
+                    ${pet.original_price || pet.price}
+                  </span>
+                </div>
+                <OfferCountdownTimer pet={pet} variant="text" />
+              </div>
+            ) : (
+              <span className="text-2xl font-black text-[#231F20] font-display">${pet.price}</span>
+            )}
           </div>
 
           {isOwnListing ? (
