@@ -25,6 +25,7 @@ router.post('/subscriptions/verify', protect, requireRole('seller', 'shopkeeper'
 
 // Grooming Business Service & Booking Operations (Groomer / Admin only)
 router.post('/grooming/services', protect, requireRole('groomer', 'admin'), asyncHandler(saasController.createGroomingServicePackage));
+router.put('/grooming/services/:id', protect, requireRole('groomer', 'admin'), asyncHandler(saasController.updateGroomingServicePackage));
 router.put('/grooming/bookings/:id/status', protect, requireRole('groomer', 'admin'), asyncHandler(saasController.updateGroomingBookingStatus));
 
 // Platform Admin Moderation & Audit Trail
