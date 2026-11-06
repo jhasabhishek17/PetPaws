@@ -28,7 +28,7 @@ const { test, describe, before } = require('node:test');
 const { app } = require('../server');
 const connectDB = require('../config/db');
 const { computePaymentSignature } = require('../utils/paymentGateway');
-const { getLastEmailTo, getSmtpConfig, getFromAddress, getConfiguredProvider } = require('../utils/emailService');
+const { getLastEmailTo, getSmtpConfig, getFromAddress, getConfiguredProvider, sendEmail } = require('../utils/emailService');
 const {
   validateEmailSyntax,
   validateEmailAddress,
@@ -1280,6 +1280,305 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       if (savedResend === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = savedResend;
       if (savedFrom === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = savedFrom;
       if (savedAuthRecip === undefined) delete process.env.RESEND_AUTHORIZED_RECIPIENT; else process.env.RESEND_AUTHORIZED_RECIPIENT = savedAuthRecip;
+      process.env.EMAIL_TRANSPORT = 'test';
+    }
+  });
+
+  test('27. email59 HTTPS API delivery, provider selection, payload verification, error handling, and rate-limit rollback', async () => {
+    const savedTransport = process.env.EMAIL_TRANSPORT;
+    const savedEmail59Key = process.env.EMAIL59_API_KEY;
+    const savedEmail59From = process.env.EMAIL59_FROM;
+    const savedResendKey = process.env.RESEND_API_KEY;
+    const savedSmtpHost = process.env.SMTP_HOST;
+    const savedSmtpUser = process.env.SMTP_USER;
+    const savedSmtpPass = process.env.SMTP_PASS;
+    const originalFetch = global.fetch;
+
+    const logMessages = [];
+    const originalConsoleError = console.error;
+    const originalConsoleWarn = console.warn;
+
+    console.error = (...args) => {
+      logMessages.push(args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+      originalConsoleError.apply(console, args);
+    };
+    console.warn = (...args) => {
+      logMessages.push(args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+      originalConsoleWarn.apply(console, args);
+    };
+
+    try {
+      // 1. Provider selection: email59 is selected when its API key is present
+      delete process.env.EMAIL_TRANSPORT;
+      delete process.env.RESEND_API_KEY;
+      process.env.SMTP_HOST = 'smtp.gmail.com';
+      process.env.SMTP_USER = 'localdev@gmail.com';
+      process.env.SMTP_PASS = 'localdevpass1234';
+
+      process.env.EMAIL59_API_KEY = 'e59_mock_test_key_xyz123';
+      assert.strictEqual(
+        getConfiguredProvider(),
+        'email59',
+        'Provider must resolve to email59 when EMAIL59_API_KEY is present'
+      );
+      assert.strictEqual(
+        getFromAddress('email59'),
+        'petpaws@email59.com',
+        'email59 sender must default to petpaws@email59.com'
+      );
+
+      // 2. Local provider selection: Gmail SMTP remains selected when EMAIL59_API_KEY is absent
+      delete process.env.EMAIL59_API_KEY;
+      assert.strictEqual(
+        getConfiguredProvider(),
+        'smtp',
+        'Provider must fall back to local Gmail SMTP when EMAIL59_API_KEY is absent'
+      );
+
+      // Re-enable email59 for delivery tests
+      process.env.EMAIL59_API_KEY = 'e59_mock_test_key_xyz123';
+
+      // 3. Payload and header verification on successful send (status: "sent" with real ID)
+      let capturedRequest = null;
+      global.fetch = async (url, options) => {
+        capturedRequest = { url, options, body: JSON.parse(options.body) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'msg_e59_mock_999', status: 'sent' })
+        };
+      };
+
+      const sendResult = await sendEmail({
+        to: 'buyer.recipient@gmail.com',
+        subject: 'Your PetPaws verification code',
+        html: '<p>Code: 482910</p>',
+        text: 'Code: 482910'
+      });
+
+      assert.strictEqual(sendResult.delivered, true);
+      assert.strictEqual(sendResult.provider, 'email59');
+      assert.strictEqual(sendResult.id, 'msg_e59_mock_999');
+      assert.strictEqual(sendResult.status, 'sent');
+
+      assert.strictEqual(capturedRequest.url, 'https://email59.com/v1/send');
+      assert.strictEqual(capturedRequest.options.method, 'POST');
+      assert.strictEqual(capturedRequest.options.headers['Authorization'], 'Bearer e59_mock_test_key_xyz123');
+      assert.strictEqual(capturedRequest.options.headers['Content-Type'], 'application/json');
+      assert.strictEqual(capturedRequest.body.from, 'petpaws');
+      assert.strictEqual(capturedRequest.body.to, 'buyer.recipient@gmail.com');
+      assert.strictEqual(capturedRequest.body.subject, 'Your PetPaws verification code');
+      assert.strictEqual(capturedRequest.body.html, '<p>Code: 482910</p>');
+      assert.strictEqual(capturedRequest.body.text, 'Code: 482910');
+
+      // 4. Test mode in development: status "test" must return delivered: false and testMode: true
+      const savedNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+      global.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'test_e59_mock_777', status: 'test' })
+      });
+
+      const devTestResult = await sendEmail({
+        to: 'buyer.recipient@gmail.com',
+        subject: 'Test Subject',
+        text: 'Test Body'
+      });
+
+      assert.strictEqual(devTestResult.delivered, false, 'status: "test" must never return delivered: true');
+      assert.strictEqual(devTestResult.testMode, true, 'status: "test" outside production must report testMode: true');
+      assert.strictEqual(devTestResult.id, 'test_e59_mock_777', 'Must preserve real message ID');
+      assert.strictEqual(devTestResult.status, 'test');
+
+      // 5. Test mode in production: status "test" must throw EMAIL59_TEST_KEY_IN_PROD
+      process.env.NODE_ENV = 'production';
+      await assert.rejects(
+        async () => {
+          await sendEmail({
+            to: 'buyer.recipient@gmail.com',
+            subject: 'Test Subject',
+            text: 'Test Body'
+          });
+        },
+        (err) =>
+          err.code === 'EMAIL59_TEST_KEY_IN_PROD' &&
+          /email59 intercepted email in test mode/.test(err.message),
+        'status: "test" in production must throw EMAIL59_TEST_KEY_IN_PROD'
+      );
+      process.env.NODE_ENV = savedNodeEnv || 'development';
+
+      // 6. Missing message ID: API response without genuine ID must throw EMAIL59_MISSING_MESSAGE_ID
+      global.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'sent' }) // Missing id / messageId
+      });
+
+      await assert.rejects(
+        async () => {
+          await sendEmail({
+            to: 'recipient@gmail.com',
+            subject: 'Test Subject',
+            text: 'Test Body'
+          });
+        },
+        (err) => err.code === 'EMAIL59_MISSING_MESSAGE_ID',
+        'Missing message ID must throw EMAIL59_MISSING_MESSAGE_ID'
+      );
+
+      // 7. Error handling: HTTP 401 Unauthorized must throw and not report success
+      global.fetch = async () => ({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: 'Invalid or inactive email59 API key' })
+      });
+
+      await assert.rejects(
+        async () => {
+          await sendEmail({
+            to: 'recipient@gmail.com',
+            subject: 'Test Subject',
+            text: 'Test Body'
+          });
+        },
+        (err) => err.code === 'EMAIL59_API_401' && /Invalid or inactive email59 API key/.test(err.message),
+        'HTTP 401 from email59 must reject with EMAIL59_API_401'
+      );
+
+      // 8. Error handling: Malformed response (non-JSON) must throw
+      global.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new Error('Unexpected token < in JSON');
+        }
+      });
+
+      await assert.rejects(
+        async () => {
+          await sendEmail({
+            to: 'recipient@gmail.com',
+            subject: 'Test Subject',
+            text: 'Test Body'
+          });
+        },
+        (err) => err.code === 'EMAIL59_MISSING_MESSAGE_ID',
+        'Malformed response without message ID must throw'
+      );
+
+      // 9. Network failure: fetch rejects
+      global.fetch = async () => {
+        throw new Error('fetch failed: ECONNRESET');
+      };
+
+      await assert.rejects(
+        async () => {
+          await sendEmail({
+            to: 'recipient@gmail.com',
+            subject: 'Test Subject',
+            text: 'Test Body'
+          });
+        },
+        /fetch failed: ECONNRESET/,
+        'Network error must propagate without reporting delivery'
+      );
+
+      // 10. Security audit: API key and secret OTP must NEVER appear in console logs
+      const combinedLogs = logMessages.join('\n');
+      assert.strictEqual(
+        combinedLogs.includes('e59_mock_test_key_xyz123'),
+        false,
+        'API keys must never be leaked into server logs'
+      );
+
+      // 11. Integration test with controller: Rate-limit rollback when email59 dispatch fails
+      const testUserEmail = `e59_test_user_${Date.now()}@gmail.com`;
+      global.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'msg_verify_reg', status: 'sent' })
+      });
+      await registerAndVerify({
+        name: 'Email59 User',
+        email: testUserEmail,
+        password: 'Password123!',
+        role: 'buyer'
+      });
+      await shiftOtpRateLimitWindow(testUserEmail, 65000);
+
+      // Mock email59 to fail
+      global.fetch = async () => ({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'Internal upstream routing error' })
+      });
+
+      const resetReq = await postJson('/api/auth/forgot-password', { email: testUserEmail });
+      assert.strictEqual(resetReq.status, 503);
+      assert.strictEqual(
+        resetReq.data.message,
+        'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.'
+      );
+
+      // 12. Controller test mode handling: Verify API never reports email_sent: true when provider returns status: "test"
+      const testModeUserEmail = `e59_testmode_${Date.now()}@gmail.com`;
+      global.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'test_e59_mock_intercepted', status: 'test' })
+      });
+
+      // A. Register with test-mode email59
+      const regRes = await postJson('/api/auth/register', {
+        name: 'TestMode User',
+        email: testModeUserEmail,
+        password: 'Password123!',
+        role: 'buyer'
+      });
+      assert.strictEqual(regRes.status, 201);
+      assert.strictEqual(regRes.data.email_sent, false, 'Registration must not claim email_sent: true in test mode');
+      assert.strictEqual(regRes.data.delivery_error, true, 'Registration must mark delivery_error: true in test mode');
+      assert.strictEqual(regRes.data.test_mode, true, 'Registration must report test_mode: true');
+      assert.strictEqual(regRes.data.cooldown_seconds, 0, 'Rate-limit cooldown must be 0 when email was not delivered');
+
+      // B. Resend verification OTP with test-mode email59
+      const resendRes = await postJson('/api/auth/resend-otp', { email: testModeUserEmail });
+      assert.strictEqual(resendRes.status, 200);
+      assert.strictEqual(resendRes.data.email_sent, false, 'Resend OTP must not claim email_sent: true in test mode');
+      assert.strictEqual(resendRes.data.test_mode, true, 'Resend OTP must report test_mode: true');
+      assert.strictEqual(resendRes.data.cooldown_seconds, 0, 'Resend OTP cooldown must be 0 in test mode');
+
+      // C. Forgot password with test-mode email59
+      const forgotRes = await postJson('/api/auth/forgot-password', { email: testModeUserEmail });
+      assert.strictEqual(forgotRes.status, 200);
+      assert.strictEqual(forgotRes.data.email_sent, false, 'Forgot password must not claim email_sent: true in test mode');
+      assert.strictEqual(forgotRes.data.test_mode, true, 'Forgot password must report test_mode: true');
+      assert.strictEqual(forgotRes.data.cooldown_seconds, 0, 'Forgot password cooldown must be 0 in test mode');
+
+      // Verify reset token was rolled back and cleared
+      const { loadData, isMongoConnected } = require('../db');
+      const UserModel = require('../models/User');
+      if (isMongoConnected()) {
+        const u = await UserModel.findOne({ email: testModeUserEmail });
+        assert.strictEqual(u.reset_password_token_hash, null, 'Reset token hash must be cleared in test mode');
+      } else {
+        const db = loadData();
+        const u = (db.users || []).find(usr => usr.email === testModeUserEmail);
+        assert.strictEqual(u.reset_password_token_hash, null, 'Reset token hash must be cleared in test mode');
+      }
+
+    } finally {
+      global.fetch = originalFetch;
+      console.error = originalConsoleError;
+      console.warn = originalConsoleWarn;
+      if (savedTransport === undefined) delete process.env.EMAIL_TRANSPORT; else process.env.EMAIL_TRANSPORT = savedTransport;
+      if (savedEmail59Key === undefined) delete process.env.EMAIL59_API_KEY; else process.env.EMAIL59_API_KEY = savedEmail59Key;
+      if (savedEmail59From === undefined) delete process.env.EMAIL59_FROM; else process.env.EMAIL59_FROM = savedEmail59From;
+      if (savedResendKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = savedResendKey;
+      if (savedSmtpHost === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = savedSmtpHost;
+      if (savedSmtpUser === undefined) delete process.env.SMTP_USER; else process.env.SMTP_USER = savedSmtpUser;
+      if (savedSmtpPass === undefined) delete process.env.SMTP_PASS; else process.env.SMTP_PASS = savedSmtpPass;
       process.env.EMAIL_TRANSPORT = 'test';
     }
   });

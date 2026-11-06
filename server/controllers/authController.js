@@ -409,8 +409,9 @@ const registerUser = async (req, res) => {
     }
 
     let emailSent = false;
+    let isTestMode = false;
     try {
-      await sendVerificationEmail({
+      const emailRes = await sendVerificationEmail({
         to: normalizedEmail,
         name: normalized.name,
         role: assignedRole,
@@ -418,7 +419,13 @@ const registerUser = async (req, res) => {
         token: rawToken,
         req
       });
-      emailSent = true;
+      emailSent = Boolean(emailRes && emailRes.delivered === true);
+      isTestMode = Boolean(emailRes && emailRes.testMode === true);
+      if (!emailSent) {
+        targetUser.email_verification_sent_at = null;
+        await targetUser.save().catch(() => {});
+        await rollbackOtpSendReservation(rateLimit.reservation);
+      }
     } catch (err) {
       targetUser.email_verification_sent_at = null;
       await targetUser.save().catch(() => {});
@@ -428,17 +435,22 @@ const registerUser = async (req, res) => {
       );
     }
 
+    const registrationMessage = emailSent
+      ? 'Account created! We have sent a 6-digit verification OTP to your email address.'
+      : isTestMode
+      ? 'Account created in test mode. Email was intercepted by provider sandbox and not delivered to your inbox.'
+      : 'Your account was created, but we could not send the verification OTP email right now. Please check the server SMTP/email configuration or click "Resend OTP" to try again.';
+
     return res.status(201).json({
       success: true,
       requires_verification: true,
       email_sent: emailSent,
       delivery_error: !emailSent,
+      test_mode: isTestMode || undefined,
       cooldown_seconds: emailSent ? rateLimit.cooldown_seconds : 0,
       email: normalizedEmail,
       user: normalized,
-      message: emailSent
-        ? 'Account created! We have sent a 6-digit verification OTP to your email address.'
-        : 'Your account was created, but we could not send the verification OTP email right now. Please check the server SMTP/email configuration or click "Resend OTP" to try again.'
+      message: registrationMessage
     });
   }
 
@@ -515,8 +527,9 @@ const registerUser = async (req, res) => {
   }
 
   let emailSent = false;
+  let isTestMode = false;
   try {
-    await sendVerificationEmail({
+    const emailRes = await sendVerificationEmail({
       to: normalizedEmail,
       name: safeUser.name,
       role: assignedRole,
@@ -524,7 +537,17 @@ const registerUser = async (req, res) => {
       token: rawToken,
       req
     });
-    emailSent = true;
+    emailSent = Boolean(emailRes && emailRes.delivered === true);
+    isTestMode = Boolean(emailRes && emailRes.testMode === true);
+    if (!emailSent) {
+      const rollbackDb = loadData();
+      const rIdx = (rollbackDb.users || []).findIndex(u => normalizeEmail(u.email) === normalizedEmail);
+      if (rIdx !== -1) {
+        rollbackDb.users[rIdx].email_verification_sent_at = null;
+        saveData(rollbackDb);
+      }
+      await rollbackOtpSendReservation(rateLimit.reservation);
+    }
   } catch (err) {
     const rollbackDb = loadData();
     const rIdx = (rollbackDb.users || []).findIndex(u => normalizeEmail(u.email) === normalizedEmail);
@@ -538,17 +561,22 @@ const registerUser = async (req, res) => {
     );
   }
 
+  const registrationMessage = emailSent
+    ? 'Account created! We have sent a 6-digit verification OTP to your email address.'
+    : isTestMode
+    ? 'Account created in test mode. Email was intercepted by provider sandbox and not delivered to your inbox.'
+    : 'Your account was created, but we could not send the verification OTP email right now. Please check the server SMTP/email configuration or click "Resend OTP" to try again.';
+
   return res.status(201).json({
     success: true,
     requires_verification: true,
     email_sent: emailSent,
     delivery_error: !emailSent,
+    test_mode: isTestMode || undefined,
     cooldown_seconds: emailSent ? rateLimit.cooldown_seconds : 0,
     email: normalizedEmail,
     user: safeUser,
-    message: emailSent
-      ? 'Account created! We have sent a 6-digit verification OTP to your email address.'
-      : 'Your account was created, but we could not send the verification OTP email right now. Please check the server SMTP/email configuration or click "Resend OTP" to try again.'
+    message: registrationMessage
   });
 };
 
@@ -759,8 +787,10 @@ const resendVerificationEmail = async (req, res) => {
       user.email_verification_attempts = 0;
       await user.save();
 
+      let emailSent = false;
+      let isTestMode = false;
       try {
-        await sendVerificationEmail({
+        const emailRes = await sendVerificationEmail({
           to: user.email,
           name: user.name,
           role: user.role,
@@ -768,6 +798,13 @@ const resendVerificationEmail = async (req, res) => {
           token: rawToken,
           req
         });
+        emailSent = Boolean(emailRes && emailRes.delivered === true);
+        isTestMode = Boolean(emailRes && emailRes.testMode === true);
+        if (!emailSent) {
+          user.email_verification_sent_at = null;
+          await user.save().catch(() => {});
+          await rollbackOtpSendReservation(rateLimit.reservation);
+        }
       } catch (err) {
         user.email_verification_sent_at = null;
         await user.save().catch(() => {});
@@ -780,6 +817,23 @@ const resendVerificationEmail = async (req, res) => {
             ? 'Failed to send verification OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
             : 'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.';
         throw new ExpressError(clientMessage, 503);
+      }
+
+      if (isTestMode) {
+        return res.json({
+          success: true,
+          email_sent: false,
+          test_mode: true,
+          cooldown_seconds: 0,
+          message: 'Verification OTP generated in test mode. Email was intercepted by provider sandbox and not delivered to your inbox.'
+        });
+      }
+
+      if (!emailSent) {
+        throw new ExpressError(
+          'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.',
+          503
+        );
       }
     }
     return res.json({
@@ -800,8 +854,10 @@ const resendVerificationEmail = async (req, res) => {
     db.users[uIdx].email_verification_attempts = 0;
     saveData(db);
 
+    let emailSent = false;
+    let isTestMode = false;
     try {
-      await sendVerificationEmail({
+      const emailRes = await sendVerificationEmail({
         to: db.users[uIdx].email,
         name: db.users[uIdx].name,
         role: db.users[uIdx].role,
@@ -809,6 +865,17 @@ const resendVerificationEmail = async (req, res) => {
         token: rawToken,
         req
       });
+      emailSent = Boolean(emailRes && emailRes.delivered === true);
+      isTestMode = Boolean(emailRes && emailRes.testMode === true);
+      if (!emailSent) {
+        const rollbackDb = loadData();
+        const rIdx = (rollbackDb.users || []).findIndex(u => normalizeEmail(u.email) === normalizedEmail);
+        if (rIdx !== -1) {
+          rollbackDb.users[rIdx].email_verification_sent_at = null;
+          saveData(rollbackDb);
+        }
+        await rollbackOtpSendReservation(rateLimit.reservation);
+      }
     } catch (err) {
       const rollbackDb = loadData();
       const rIdx = (rollbackDb.users || []).findIndex(u => normalizeEmail(u.email) === normalizedEmail);
@@ -825,6 +892,23 @@ const resendVerificationEmail = async (req, res) => {
           ? 'Failed to send verification OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
           : 'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.';
       throw new ExpressError(clientMessage, 503);
+    }
+
+    if (isTestMode) {
+      return res.json({
+        success: true,
+        email_sent: false,
+        test_mode: true,
+        cooldown_seconds: 0,
+        message: 'Verification OTP generated in test mode. Email was intercepted by provider sandbox and not delivered to your inbox.'
+      });
+    }
+
+    if (!emailSent) {
+      throw new ExpressError(
+        'Failed to send verification OTP email. Please verify your server SMTP/email settings and try again.',
+        503
+      );
     }
   }
 
@@ -1188,14 +1272,25 @@ const forgotPassword = async (req, res) => {
       user.reset_password_attempts = 0;
       await user.save();
 
+      let emailSent = false;
+      let isTestMode = false;
       try {
-        await sendPasswordResetEmail({
+        const emailRes = await sendPasswordResetEmail({
           to: user.email,
           name: user.name,
           otp: rawToken,
           token: rawToken,
           req
         });
+        emailSent = Boolean(emailRes && emailRes.delivered === true);
+        isTestMode = Boolean(emailRes && emailRes.testMode === true);
+        if (!emailSent) {
+          user.reset_password_token_hash = null;
+          user.reset_password_expires_at = null;
+          user.reset_password_sent_at = null;
+          await user.save().catch(() => {});
+          await rollbackOtpSendReservation(rateLimit.reservation);
+        }
       } catch (err) {
         user.reset_password_token_hash = null;
         user.reset_password_expires_at = null;
@@ -1210,6 +1305,23 @@ const forgotPassword = async (req, res) => {
             ? 'Failed to send password reset OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
             : 'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.';
         throw new ExpressError(clientMessage, 503);
+      }
+
+      if (isTestMode) {
+        return res.json({
+          success: true,
+          email_sent: false,
+          test_mode: true,
+          cooldown_seconds: 0,
+          message: 'Password reset OTP generated in test mode. Email was intercepted by provider sandbox and not delivered to your inbox.'
+        });
+      }
+
+      if (!emailSent) {
+        throw new ExpressError(
+          'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.',
+          503
+        );
       }
     }
     return res.json({
@@ -1230,14 +1342,29 @@ const forgotPassword = async (req, res) => {
     db.users[uIdx].reset_password_attempts = 0;
     saveData(db);
 
+    let emailSent = false;
+    let isTestMode = false;
     try {
-      await sendPasswordResetEmail({
+      const emailRes = await sendPasswordResetEmail({
         to: db.users[uIdx].email,
         name: db.users[uIdx].name,
         otp: rawToken,
         token: rawToken,
         req
       });
+      emailSent = Boolean(emailRes && emailRes.delivered === true);
+      isTestMode = Boolean(emailRes && emailRes.testMode === true);
+      if (!emailSent) {
+        const rollbackDb = loadData();
+        const rIdx = (rollbackDb.users || []).findIndex(u => normalizeEmail(u.email) === normalizedEmail);
+        if (rIdx !== -1) {
+          rollbackDb.users[rIdx].reset_password_token_hash = null;
+          rollbackDb.users[rIdx].reset_password_expires_at = null;
+          rollbackDb.users[rIdx].reset_password_sent_at = null;
+          saveData(rollbackDb);
+        }
+        await rollbackOtpSendReservation(rateLimit.reservation);
+      }
     } catch (err) {
       const rollbackDb = loadData();
       const rIdx = (rollbackDb.users || []).findIndex(u => normalizeEmail(u.email) === normalizedEmail);
@@ -1256,6 +1383,23 @@ const forgotPassword = async (req, res) => {
           ? 'Failed to send password reset OTP email: sender email address is not authorized on the server. Please verify your server email domain configuration.'
           : 'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.';
       throw new ExpressError(clientMessage, 503);
+    }
+
+    if (isTestMode) {
+      return res.json({
+        success: true,
+        email_sent: false,
+        test_mode: true,
+        cooldown_seconds: 0,
+        message: 'Password reset OTP generated in test mode. Email was intercepted by provider sandbox and not delivered to your inbox.'
+      });
+    }
+
+    if (!emailSent) {
+      throw new ExpressError(
+        'Failed to send password reset OTP email. Please verify your server SMTP/email settings and try again.',
+        503
+      );
     }
   }
 

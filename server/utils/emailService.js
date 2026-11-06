@@ -34,6 +34,8 @@ const PLACEHOLDER_VALUES = new Set([
   'your_smtp_app_password',
   'your_email@gmail.com',
   'your_app_password',
+  'your_email59_api_key_here',
+  'e59_your_api_key_here',
   're_your_resend_api_key_here',
   'your_brevo_api_key_here',
   'your_sendgrid_api_key_here',
@@ -98,6 +100,9 @@ const detectProviderOnce = () => {
   ) {
     return 'test';
   }
+  if (sanitizeEnvValue(process.env.EMAIL59_API_KEY)) {
+    return 'email59';
+  }
   if (sanitizeEnvValue(process.env.RESEND_API_KEY)) {
     return 'resend';
   }
@@ -130,6 +135,13 @@ const isEmailProviderConfigured = () => Boolean(getConfiguredProvider());
 
 const getFromAddress = (provider = null) => {
   const activeProvider = provider || getConfiguredProvider();
+
+  if (activeProvider === 'email59') {
+    const rawFrom = sanitizeEnvValue(process.env.EMAIL59_FROM) || 'petpaws';
+    const fromPrefix = rawFrom.includes('@') ? rawFrom.split('@')[0].trim() : rawFrom.trim();
+    return `${fromPrefix || 'petpaws'}@email59.com`;
+  }
+
   const configuredFrom = sanitizeEnvValue(
     process.env.EMAIL_FROM || process.env.SMTP_FROM || (activeProvider === 'resend' ? process.env.RESEND_FROM : '')
   );
@@ -490,7 +502,7 @@ const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
 
   if (!provider) {
     const configError = new Error(
-      'Email service is not configured on the server. Please set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS (or RESEND_API_KEY) in server/.env.'
+      'Email service is not configured on the server. Please set EMAIL59_API_KEY (or SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS) in server/.env.'
     );
     configError.code = 'EMAIL_NOT_CONFIGURED';
     console.error(`❌ [EmailService] Failed to send "${subject}" to ${recipient}: ${configError.message}`);
@@ -509,6 +521,104 @@ const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
   }
 
   try {
+    if (provider === 'email59') {
+      const apiUrl = (process.env.EMAIL59_API_URL || 'https://email59.com/v1/send').trim();
+      const apiKey = sanitizeEnvValue(process.env.EMAIL59_API_KEY);
+      const rawFrom = sanitizeEnvValue(process.env.EMAIL59_FROM) || 'petpaws';
+      const fromPrefix = rawFrom.includes('@') ? rawFrom.split('@')[0].trim() : rawFrom.trim();
+
+      const payload = {
+        from: fromPrefix || 'petpaws',
+        to: recipient,
+        subject
+      };
+      if (html) payload.html = html;
+      if (text) payload.text = text;
+      if (process.env.EMAIL59_CATEGORY) {
+        payload.category = process.env.EMAIL59_CATEGORY.trim();
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const errMsg =
+          (data && (data.message || data.error)) ||
+          `email59 API request failed with status ${response.status}`;
+        const apiErr = new Error(errMsg);
+        apiErr.code = `EMAIL59_API_${response.status}`;
+        throw apiErr;
+      }
+
+      if (!data || typeof data !== 'object') {
+        const structErr = new Error('email59 API returned an invalid response structure.');
+        structErr.code = 'EMAIL59_INVALID_RESPONSE';
+        throw structErr;
+      }
+      if (data.error) {
+        const errMsg = typeof data.error === 'string' ? data.error : data.error.message || 'email59 API returned an error';
+        const err = new Error(errMsg);
+        err.code = 'EMAIL59_API_ERROR';
+        throw err;
+      }
+
+      // 4. Require genuine message ID from data.id or data.messageId (no synthetic IDs)
+      const messageId =
+        typeof data.id === 'string' && data.id.trim()
+          ? data.id.trim()
+          : typeof data.messageId === 'string' && data.messageId.trim()
+          ? data.messageId.trim()
+          : null;
+
+      if (!messageId) {
+        const idErr = new Error('email59 API response did not return a valid message ID.');
+        idErr.code = 'EMAIL59_MISSING_MESSAGE_ID';
+        throw idErr;
+      }
+
+      const status = typeof data.status === 'string' ? data.status.trim().toLowerCase() : '';
+
+      // 1, 2, 3. Test mode handling: status "test" means email was intercepted in sandbox and not delivered
+      if (status === 'test') {
+        if (process.env.NODE_ENV === 'production') {
+          const testKeyErr = new Error(
+            'email59 intercepted email in test mode because a test API key (e59_test_...) is in use. The recipient did not receive this email.'
+          );
+          testKeyErr.code = 'EMAIL59_TEST_KEY_IN_PROD';
+          throw testKeyErr;
+        }
+
+        recordInTestOutbox({ delivered: false, testMode: true, providerMessageId: messageId });
+        return {
+          delivered: false,
+          testMode: true,
+          configured: true,
+          provider: 'email59',
+          id: messageId,
+          status: 'test'
+        };
+      }
+
+      // 5. For status: "sent", return delivered: true only when API response is valid and confirmed
+      if (status !== 'sent') {
+        const statusErr = new Error(
+          `email59 API response status "${data.status || 'unknown'}" did not confirm delivery acceptance.`
+        );
+        statusErr.code = 'EMAIL59_DELIVERY_UNCONFIRMED';
+        throw statusErr;
+      }
+
+      recordInTestOutbox({ delivered: true, providerMessageId: messageId });
+      return { delivered: true, configured: true, provider: 'email59', id: messageId, status: 'sent' };
+    }
+
     if (provider === 'resend') {
       const fromParsed = parseFromHeader(from);
       const isTestingSender = /onboarding@resend\.dev/i.test(fromParsed.email);
@@ -693,7 +803,7 @@ const sendEmail = async ({ to, subject, html, text, meta = {} }) => {
       const isNetworkBlocked = isTimeout || err.code === 'ECONNREFUSED' || err.code === 'EHOSTUNREACH';
       if (provider === 'smtp' && isNetworkBlocked) {
         console.warn(
-          '💡 [EmailService] Notice for Cloud Deployments (e.g. Render): Outbound connections on SMTP ports 25, 465, and 587 are blocked by default on Render standard/free plans. If deploying on Render, configure RESEND_API_KEY (HTTPS API over port 443) in your Render environment variables or request SMTP unblocking from Render support.'
+          '💡 [EmailService] Notice for Cloud Deployments (e.g. Render): Outbound connections on SMTP ports 25, 465, and 587 are blocked by default on Render standard/free plans. If deploying on Render, configure EMAIL59_API_KEY (HTTPS API over port 443) in your Render environment variables or request SMTP unblocking from Render support.'
         );
       }
     }
