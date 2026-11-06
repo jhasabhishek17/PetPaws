@@ -216,8 +216,26 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
 
                 <div className="pt-4 border-t border-[#EFE9DF] flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] font-bold uppercase text-[#8C847C] block">Package Price</span>
-                    <span className="text-xl font-black text-[#231F20] font-display">${srv.price}</span>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-[10px] font-bold uppercase text-[#8C847C] block">Package Price</span>
+                      {srv.has_active_discount && (
+                        <span className="px-1.5 py-0.5 bg-[#2A5C4A] text-white text-[9px] font-black rounded">
+                          {srv.discount_info?.title || `${srv.discount?.value}% OFF`}
+                        </span>
+                      )}
+                    </div>
+                    {srv.has_active_discount ? (
+                      <div className="flex items-baseline space-x-1.5">
+                        <span className="text-xl font-black text-[#2A5C4A] font-display">
+                          ${srv.effective_price || srv.price}
+                        </span>
+                        <span className="text-xs font-bold text-[#8C847C] line-through">
+                          ${srv.original_price || srv.price}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xl font-black text-[#231F20] font-display">${srv.price}</span>
+                    )}
                   </div>
                   {isProvider(currentUser) ? (
                     <span className="px-3.5 py-2 bg-[#FAF6F0] text-[#65605B] border border-[#E6DCCF] font-bold text-xs rounded-xl">
@@ -326,7 +344,7 @@ export default function GroomingCareSection({ currentUser, onRequireAuth, onAddT
                       : 'cursor-pointer'
                   }`}
                 >
-                  Confirm Booking (${selectedService.price})
+                  Confirm Booking (${selectedService.has_active_discount ? (selectedService.effective_price || selectedService.price) : selectedService.price})
                 </button>
               </form>
             )}
