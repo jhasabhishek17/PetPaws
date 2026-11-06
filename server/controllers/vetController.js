@@ -88,7 +88,8 @@ const createAppointment = async (req, res) => {
   if (!req.user) {
     throw new ExpressError('Authentication required to schedule an appointment', 401);
   }
-  if (req.user.role !== 'buyer' && req.user.role !== 'admin') {
+  const effectiveRole = req.user.role === 'customer' ? 'buyer' : req.user.role;
+  if (effectiveRole !== 'buyer' && effectiveRole !== 'admin') {
     throw new ExpressError('Service provider accounts cannot book veterinary appointments as customers. Please use a customer account.', 403);
   }
 

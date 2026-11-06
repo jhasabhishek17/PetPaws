@@ -45,6 +45,8 @@ export default function BuyerDashboard({
 }) {
   const [section, setSection] = useState(initialSection); // 'overview' | 'orders' | 'wishlist' | 'appointments' | 'account'
   const [orders, setOrders] = useState([]);
+  const [productOrders, setProductOrders] = useState([]);
+  const [orderSubTab, setOrderSubTab] = useState('pets'); // 'pets' | 'products'
   const [appointments, setAppointments] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,14 +68,18 @@ export default function BuyerDashboard({
   const fetchBuyerData = useCallback(async () => {
     setLoading(true);
     try {
-      const [orderRes, vetRes, svcRes] = await Promise.all([
+      const [orderRes, prodRes, vetRes, svcRes] = await Promise.all([
         apiGet('/api/orders'),
+        apiGet('/api/product-orders'),
         apiGet('/api/vets/appointments'),
         apiGet('/api/services/bookings')
       ]);
 
       if (orderRes?.success && Array.isArray(orderRes.orders)) {
         setOrders(orderRes.orders);
+      }
+      if (prodRes?.success && Array.isArray(prodRes.orders)) {
+        setProductOrders(prodRes.orders);
       }
       if (vetRes?.success && Array.isArray(vetRes.appointments)) {
         setAppointments(vetRes.appointments);
@@ -288,7 +294,7 @@ export default function BuyerDashboard({
         <div className="flex flex-wrap gap-2 bg-white p-1.5 rounded-2xl border border-[#EFE9DF] shadow-sm">
           {[
             { id: 'overview', label: 'Overview' },
-            { id: 'orders', label: `Orders (${orders.length})` },
+            { id: 'orders', label: `Orders (${orders.length + productOrders.length})` },
             { id: 'wishlist', label: `Wishlist (${wishlistPets.length})` },
             { id: 'appointments', label: `Care Schedule (${appointments.length + bookings.length})` },
             { id: 'account', label: 'Account Details' }
@@ -311,15 +317,19 @@ export default function BuyerDashboard({
       {/* Summary Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <button
-          onClick={() => setSection('orders')}
+          onClick={() => {
+            setSection('orders');
+            setOrderSubTab('pets');
+          }}
           className="bg-white p-5 rounded-3xl border border-[#EFE9DF] shadow-sm text-left hover:border-[#E07A5F] transition-all flex items-center space-x-4"
         >
           <div className="w-12 h-12 rounded-2xl bg-[#FFF5F0] text-[#E07A5F] flex items-center justify-center">
             <Truck className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8C847C]">Pet Orders</span>
-            <h3 className="text-2xl font-black text-[#231F20] font-display">{orders.length}</h3>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8C847C]">All Orders</span>
+            <h3 className="text-2xl font-black text-[#231F20] font-display">{orders.length + productOrders.length}</h3>
+            <p className="text-[10px] text-[#8C847C]">{orders.length} Pets • {productOrders.length} Products</p>
           </div>
         </button>
 
@@ -480,90 +490,164 @@ export default function BuyerDashboard({
       {/* ORDERS SECTION */}
       {(section === 'orders' || section === 'overview') && (
         <div className="bg-white rounded-3xl border border-[#EFE9DF] p-6 shadow-aesthetic mb-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl font-black text-[#231F20] font-display flex items-center gap-2">
                 <Truck className="w-5 h-5 text-[#52796F]" />
-                <span>My Pet Orders ({orders.length})</span>
+                <span>My Orders ({orders.length + productOrders.length})</span>
               </h2>
               <p className="text-xs text-[#65605B] mt-0.5">
                 Private order history and live transport tracking for {currentUser.name}.
               </p>
             </div>
-            {orders.length > 0 && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => onNavigate?.('orders')}
-                className="px-4 py-2 bg-[#52796F] text-white rounded-xl text-xs font-extrabold hover:bg-[#3A5A40]"
+                type="button"
+                onClick={() => setOrderSubTab('pets')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
+                  orderSubTab === 'pets'
+                    ? 'bg-[#231F20] text-white shadow-sm'
+                    : 'bg-[#FAF6F0] text-[#4A4344] hover:bg-[#EFE9DF]'
+                }`}
               >
-                Open Live Radar & Invoices
+                Pets ({orders.length})
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => setOrderSubTab('products')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
+                  orderSubTab === 'products'
+                    ? 'bg-[#52796F] text-white shadow-sm'
+                    : 'bg-[#FAF6F0] text-[#4A4344] hover:bg-[#EFE9DF]'
+                }`}
+              >
+                Products ({productOrders.length})
+              </button>
+              {(orders.length > 0 || productOrders.length > 0) && (
+                <button
+                  onClick={() => onNavigate?.('orders')}
+                  className="px-4 py-2 bg-[#E07A5F] text-white rounded-xl text-xs font-extrabold hover:bg-[#D0654A]"
+                >
+                  Live Radar
+                </button>
+              )}
+            </div>
           </div>
 
           {loading ? (
             <div className="text-center py-8 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
-              <p className="text-xs font-bold text-[#65605B] animate-pulse">Loading pet orders...</p>
+              <p className="text-xs font-bold text-[#65605B] animate-pulse">Loading order records...</p>
             </div>
-          ) : orders.length === 0 ? (
-            <div className="text-center py-8 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
-              <p className="text-xs font-bold text-[#65605B]">You have not placed any pet orders yet.</p>
-            </div>
+          ) : orderSubTab === 'pets' ? (
+            orders.length === 0 ? (
+              <div className="text-center py-8 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
+                <p className="text-xs font-bold text-[#65605B]">You have not placed any pet adoption orders yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {orders.map((ord) => (
+                  <div
+                    key={ord.id}
+                    className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#E6DCCF] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      {ord.pet_image && (
+                        <img src={ord.pet_image} alt={ord.pet_title} className="w-14 h-14 rounded-xl object-cover" />
+                      )}
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h4 className="text-sm font-extrabold text-[#231F20]">{ord.pet_title}</h4>
+                          <span className="text-[11px] font-mono text-[#65605B]">({ord.id})</span>
+                        </div>
+                        <p className="text-xs text-[#65605B]">
+                          Seller: <strong>{ord.seller_name}</strong> • Tracking: <span className="font-mono font-bold text-[#231F20]">{ord.tracking_code}</span>
+                        </p>
+                        <p className="text-[11px] text-[#65605B]">
+                          Destination: {ord.shipping_address}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0">
+                      <div className="text-right">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold inline-block mb-1 border ${
+                          ord.tracking_status === 'Cancelled'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : ord.tracking_status === 'Delivered'
+                            ? 'bg-[#EAEFE9] text-[#2A5C4A] border-[#D1E7DD]'
+                            : 'bg-[#FFF5F0] text-[#E07A5F] border-[#F4C4B7]'
+                        }`}>
+                          {ord.tracking_status}
+                        </span>
+                        <p className="text-sm font-black text-[#231F20] font-display">${ord.total_amount}</p>
+                      </div>
+                      {ord.tracking_status !== 'Delivered' && ord.tracking_status !== 'Cancelled' && (
+                        <button
+                          onClick={() => handleCancelOrder(ord.id)}
+                          className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 text-xs font-extrabold rounded-xl flex items-center space-x-1 transition-colors"
+                        >
+                          <XCircle className="w-3.5 h-3.5 text-red-500" />
+                          <span>Cancel</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onNavigate?.('orders')}
+                        className="px-3.5 py-2 bg-white border border-[#E6DCCF] hover:border-[#E07A5F] text-xs font-extrabold text-[#231F20] rounded-xl"
+                      >
+                        Track
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
-            <div className="space-y-3">
-              {orders.map((ord) => (
-                <div
-                  key={ord.id}
-                  className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#E6DCCF] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  <div className="flex items-center space-x-3.5">
-                    {ord.pet_image && (
-                      <img src={ord.pet_image} alt={ord.pet_title} className="w-14 h-14 rounded-xl object-cover" />
-                    )}
+            productOrders.length === 0 ? (
+              <div className="text-center py-8 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF]">
+                <p className="text-xs font-bold text-[#65605B]">You have not placed any pet supply product orders yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {productOrders.map((pord) => (
+                  <div
+                    key={pord.id}
+                    className="p-4 rounded-2xl bg-[#FAF6F0] border border-[#E6DCCF] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
                     <div>
                       <div className="flex items-center space-x-2">
-                        <h4 className="text-sm font-extrabold text-[#231F20]">{ord.pet_title}</h4>
-                        <span className="text-[11px] font-mono text-[#65605B]">({ord.id})</span>
+                        <h4 className="text-sm font-extrabold text-[#231F20]">Order {pord.id}</h4>
+                        <span className="text-[11px] font-mono font-bold text-[#52796F]">({pord.tracking_code})</span>
                       </div>
-                      <p className="text-xs text-[#65605B]">
-                        Seller: <strong>{ord.seller_name}</strong> • Tracking: <span className="font-mono font-bold text-[#231F20]">{ord.tracking_code}</span>
+                      <p className="text-xs text-[#65605B] mt-0.5">
+                        Items: <strong>{(pord.items || []).map(i => `${i.quantity}x ${i.title}`).join(', ')}</strong>
                       </p>
                       <p className="text-[11px] text-[#65605B]">
-                        Destination: {ord.shipping_address}
+                        Payment: <strong>{pord.payment_method}</strong> ({pord.payment_status}) • Destination: {pord.shipping_address}
                       </p>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0">
-                    <div className="text-right">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold inline-block mb-1 border ${
-                        ord.tracking_status === 'Cancelled'
-                          ? 'bg-red-50 text-red-700 border-red-200'
-                          : ord.tracking_status === 'Delivered'
-                          ? 'bg-[#EAEFE9] text-[#2A5C4A] border-[#D1E7DD]'
-                          : 'bg-[#FFF5F0] text-[#E07A5F] border-[#F4C4B7]'
-                      }`}>
-                        {ord.tracking_status}
-                      </span>
-                      <p className="text-sm font-black text-[#231F20] font-display">${ord.total_amount}</p>
-                    </div>
-                    {ord.tracking_status !== 'Delivered' && ord.tracking_status !== 'Cancelled' && (
+                    <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0">
+                      <div className="text-right">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold inline-block mb-1 border ${
+                          pord.tracking_status === 'Cancelled'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : pord.tracking_status === 'Delivered'
+                            ? 'bg-[#EAEFE9] text-[#2A5C4A] border-[#D1E7DD]'
+                            : 'bg-[#EAEFE9] text-[#2A5C4A] border-[#D1E7DD]'
+                        }`}>
+                          {pord.tracking_status}
+                        </span>
+                        <p className="text-sm font-black text-[#231F20] font-display">₹{Number(pord.total_amount || 0).toLocaleString('en-IN')}</p>
+                      </div>
                       <button
-                        onClick={() => handleCancelOrder(ord.id)}
-                        className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 text-xs font-extrabold rounded-xl flex items-center space-x-1 transition-colors"
+                        onClick={() => onNavigate?.('orders')}
+                        className="px-3.5 py-2 bg-white border border-[#E6DCCF] hover:border-[#52796F] text-xs font-extrabold text-[#231F20] rounded-xl"
                       >
-                        <XCircle className="w-3.5 h-3.5 text-red-500" />
-                        <span>Cancel</span>
+                        Track
                       </button>
-                    )}
-                    <button
-                      onClick={() => onNavigate?.('orders')}
-                      className="px-3.5 py-2 bg-white border border-[#E6DCCF] hover:border-[#E07A5F] text-xs font-extrabold text-[#231F20] rounded-xl"
-                    >
-                      Track
-                    </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
           )}
         </div>
       )}

@@ -13,7 +13,9 @@ import {
   Search,
   Heart,
   LayoutDashboard,
-  ChevronDown
+  ChevronDown,
+  ShieldCheck,
+  Activity
 } from 'lucide-react';
 
 /**
@@ -57,10 +59,11 @@ const getNavItems = (role, wishlistCount) => {
 
   if (role === 'admin') {
     return [
-      { id: 'saas-portal', label: 'Admin Portal', icon: Store, activeClass: 'bg-[#231F20] text-white shadow-md', customInactive: 'text-[#D97706] bg-[#FFF8EB] border border-[#F4A261]/40 hover:bg-[#F4A261]/20' },
-      { id: 'marketplace', label: 'Pets Moderation', icon: ShoppingBag, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
-      { id: 'products', label: 'Products', icon: Package, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
-      { id: 'support', label: 'Support Tickets', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' }
+      { id: 'admin-portal', label: 'Overview', icon: LayoutDashboard, activeClass: 'bg-[#231F20] text-white shadow-md' },
+      { id: 'admin-support', label: 'Support Desk', icon: HelpCircle, activeClass: 'bg-[#E07A5F] text-white shadow-md shadow-[#E07A5F]/25' },
+      { id: 'admin-vendors', label: 'Vendor Management', icon: Store, activeClass: 'bg-[#52796F] text-white shadow-md shadow-[#52796F]/25' },
+      { id: 'admin-products', label: 'Product Moderation', icon: Package, activeClass: 'bg-[#D97706] text-white shadow-md shadow-[#D97706]/25' },
+      { id: 'admin-health', label: 'System Health', icon: Activity, activeClass: 'bg-[#243D36] text-white shadow-md' }
     ];
   }
 
@@ -328,7 +331,7 @@ export default function Navbar({
                         </>
                       )}
 
-                      {(currentUser.role === 'seller' || currentUser.role === 'shopkeeper' || currentUser.role === 'groomer' || currentUser.role === 'admin') && (
+                      {(currentUser.role === 'seller' || currentUser.role === 'shopkeeper' || currentUser.role === 'groomer') && (
                         <>
                           {currentUser.role === 'seller' && (
                             <button
@@ -357,6 +360,33 @@ export default function Navbar({
                         </>
                       )}
 
+                      {currentUser.role === 'admin' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('admin-portal');
+                              setUserDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-bold text-[#231F20] hover:bg-[#FAF6F0] rounded-xl flex items-center space-x-2 transition-colors cursor-pointer"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-[#E07A5F]" />
+                            <span>Platform Admin Console</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('admin-support');
+                              setUserDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-bold text-[#52796F] hover:bg-[#FAF6F0] rounded-xl flex items-center space-x-2 transition-colors cursor-pointer"
+                          >
+                            <HelpCircle className="w-4 h-4 text-[#52796F]" />
+                            <span>Support Desk</span>
+                          </button>
+                        </>
+                      )}
+
                       {currentUser.role === 'vet' && (
                         <button
                           type="button"
@@ -371,17 +401,19 @@ export default function Navbar({
                         </button>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('support');
-                          setUserDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs font-bold text-[#4A4344] hover:bg-[#FAF6F0] rounded-xl flex items-center space-x-2 transition-colors cursor-pointer"
-                      >
-                        <HelpCircle className="w-4 h-4 text-[#8C847C]" />
-                        <span>Customer Help & Tickets</span>
-                      </button>
+                      {currentUser.role !== 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('support');
+                            setUserDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-[#4A4344] hover:bg-[#FAF6F0] rounded-xl flex items-center space-x-2 transition-colors cursor-pointer"
+                        >
+                          <HelpCircle className="w-4 h-4 text-[#8C847C]" />
+                          <span>Customer Help & Tickets</span>
+                        </button>
+                      )}
                     </div>
 
                     <div className="pt-2 border-t border-[#EFE9DF]">

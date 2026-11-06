@@ -94,7 +94,7 @@ export default function ProductsMarketplace({
   const [buyerPhone, setBuyerPhone] = useState(currentUser?.phone || '');
   const [shippingAddress, setShippingAddress] = useState(currentUser?.address || '');
   const [deliveryInstructions, setDeliveryInstructions] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('UPI'); // 'UPI' | 'Card' | 'NetBanking' | 'COD'
+  const [paymentMethod, setPaymentMethod] = useState('COD'); // Online payments disabled; COD is default
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutSummary, setCheckoutSummary] = useState(null);
   const [paymentChallenge, setPaymentChallenge] = useState(null);
@@ -328,6 +328,10 @@ export default function ProductsMarketplace({
   // Step progression in checkout
   const handleProceedToDetails = () => {
     if (cart.length === 0) return;
+    if (isProvider(currentUser)) {
+      onAddToast?.('Only customer accounts can place product orders. Providers should use a customer account.', 'error');
+      return;
+    }
     onRequireAuth('Please sign in or create an account to complete checkout.', () => {
       setCheckoutStep('details');
     });
@@ -372,6 +376,11 @@ export default function ProductsMarketplace({
     setCheckingOut(true);
     try {
       const isCOD = paymentMethod === 'COD';
+      if (!isCOD) {
+        onAddToast?.('Online payment is currently unavailable. Please select Cash on Delivery (COD) to complete your order.', 'error');
+        setCheckingOut(false);
+        return;
+      }
       const payload = {
         items: cart.map(item => ({
           product_id: item.product_id,
@@ -1756,24 +1765,34 @@ export default function ProductsMarketplace({
                       </legend>
                       <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
                         {[
-                          { id: 'UPI', label: 'UPI / QR', desc: 'Instant verification' },
-                          { id: 'Card', label: 'Debit / Credit', desc: 'Visa, MC, RuPay' },
-                          { id: 'NetBanking', label: 'Net Banking', desc: 'All Indian banks' },
-                          { id: 'COD', label: 'Cash on Delivery', desc: 'Pay upon delivery' }
+                          { id: 'COD', label: 'Cash on Delivery', desc: 'Pay upon delivery (Cash or QR)', enabled: true },
+                          { id: 'UPI', label: 'UPI / QR', desc: 'Online gateway currently offline', enabled: false },
+                          { id: 'Card', label: 'Debit / Credit', desc: 'Online gateway currently offline', enabled: false },
+                          { id: 'NetBanking', label: 'Net Banking', desc: 'Online gateway currently offline', enabled: false }
                         ].map(m => (
                           <button
                             key={m.id}
                             type="button"
                             role="radio"
                             aria-checked={paymentMethod === m.id}
-                            onClick={() => setPaymentMethod(m.id)}
-                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                              paymentMethod === m.id
-                                ? 'border-[#E07A5F] bg-[#FFF5F0] text-[#E07A5F] ring-1 ring-[#E07A5F]'
-                                : 'border-[#E6DCCF] bg-white text-[#4A4344] hover:bg-[#FAF6F0]'
+                            disabled={!m.enabled}
+                            onClick={() => m.enabled && setPaymentMethod(m.id)}
+                            className={`p-2.5 rounded-xl border text-left transition-all ${
+                              !m.enabled
+                                ? 'border-[#E6DCCF] bg-[#FAF6F0]/60 text-[#8C847C] opacity-60 cursor-not-allowed'
+                                : paymentMethod === m.id
+                                ? 'border-[#E07A5F] bg-[#FFF5F0] text-[#E07A5F] ring-1 ring-[#E07A5F] cursor-pointer'
+                                : 'border-[#E6DCCF] bg-white text-[#4A4344] hover:bg-[#FAF6F0] cursor-pointer'
                             }`}
                           >
-                            <span className="block text-xs font-black">{m.label}</span>
+                            <div className="flex items-center justify-between">
+                              <span className="block text-xs font-black">{m.label}</span>
+                              {!m.enabled && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                  Offline
+                                </span>
+                              )}
+                            </div>
                             <span className="block text-[10px] text-[#65605B]">{m.desc}</span>
                           </button>
                         ))}
@@ -1851,7 +1870,7 @@ export default function ProductsMarketplace({
                       <p className="text-[11px] text-[#2A5C4A]/80">
                         {paymentMethod === 'COD'
                           ? 'Payment status will remain Pending until the package is handed over by the courier.'
-                          : 'Your payment is verified on the server (HMAC-SHA256) before the order is confirmed.'}
+                          : 'Online payment is currently unavailable. Please select Cash on Delivery (COD) to complete your order.'}
                       </p>
                     </section>
                   </div>

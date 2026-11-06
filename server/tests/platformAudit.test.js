@@ -24,7 +24,7 @@ process.env.EMAIL_TRANSPORT = 'test';
 const http = require('http');
 const { Duplex } = require('stream');
 const assert = require('assert');
-const { test, describe, before } = require('node:test');
+const { test, describe, before, after } = require('node:test');
 const { app } = require('../server');
 const connectDB = require('../config/db');
 const { computePaymentSignature } = require('../utils/paymentGateway');
@@ -43,11 +43,59 @@ const {
 } = require('../utils/otpRateLimiter');
 const { isCloudinaryConfigured, configureCloudinary, assertCloudinaryConfigured } = require('../config/cloudinary');
 
+/**
+ * Deterministic DNS resolver test double for the audit test suite.
+ * Resolves test and simulated mail domains immediately without querying external public DNS,
+ * while accurately reflecting RFC 5321 / RFC 7505 test cases.
+ */
+const auditTestDnsResolver = {
+  resolveMx: async (domain) => {
+    const d = String(domain || '').toLowerCase().trim();
+    if (d === 'valid-mx-domain.org') {
+      return [{ exchange: 'mx1.valid-mx-domain.org', priority: 10 }];
+    }
+    if (d === 'null-mx-domain.org') {
+      return [{ exchange: '.', priority: 0 }];
+    }
+    if (d === 'implicit-a-domain.org' || d === 'no-mx-no-a-domain.org') {
+      const err = new Error('queryMx ENODATA');
+      err.code = 'ENODATA';
+      throw err;
+    }
+    if (d === 'example.com' || d === 'test.com' || d === 'gmail.com' || d === 'petpaws.com' || d === 'petpaws.org' || d === 'email59.com') {
+      return [{ exchange: `mail.${d}`, priority: 10 }];
+    }
+    const nxErr = new Error(`queryMx ENOTFOUND ${d}`);
+    nxErr.code = 'ENOTFOUND';
+    throw nxErr;
+  },
+  resolve4: async (domain) => {
+    const d = String(domain || '').toLowerCase().trim();
+    if (d === 'implicit-a-domain.org' || d === 'example.com' || d === 'test.com' || d === 'gmail.com' || d === 'petpaws.com') {
+      return ['127.0.0.1'];
+    }
+    const err = new Error('queryA ENODATA');
+    err.code = 'ENODATA';
+    throw err;
+  },
+  resolve6: async () => {
+    const err = new Error('queryAAAA ENODATA');
+    err.code = 'ENODATA';
+    throw err;
+  }
+};
+
+// Install deterministic test resolver immediately at file load
+setDnsResolverForTesting(auditTestDnsResolver);
+
+let timestamp;
 let customerToken;
 let customerUser;
 let sellerToken;
 let sellerUser;
 let testProduct;
+const createdUserEmails = new Set();
+const createdOrderIds = new Set();
 
 function makeRequest(app, { method = 'GET', url = '/', headers = {}, body = null }) {
   return new Promise((resolve) => {
@@ -126,6 +174,9 @@ const putJson = (endpoint, data, token) => {
 };
 
 async function registerAndVerify(payload) {
+  if (payload && payload.email) {
+    createdUserEmails.add(String(payload.email).toLowerCase().trim());
+  }
   const regRes = await postJson('/api/auth/register', payload);
   assert.strictEqual(regRes.status, 201, `Registration failed for ${payload.email}: ${JSON.stringify(regRes.data)}`);
   assert.strictEqual(regRes.data.requires_verification, true);
@@ -151,9 +202,11 @@ async function registerAndVerify(payload) {
 
 describe('PetPaws Platform Audit & Feature Verification', async () => {
   before(async () => {
+    // Install deterministic test resolver so tests remain independent of live DNS
+    setDnsResolverForTesting(auditTestDnsResolver);
     await connectDB();
 
-    const timestamp = Date.now();
+    timestamp = Date.now();
 
     // 1. Register & verify test customer
     const custAuth = await registerAndVerify({
@@ -210,7 +263,7 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
     assert.strictEqual(res.data.product.discount_info.amount_saved, 50);
   });
 
-  test('2. Checkout initiation pre-calculates verified totals and challenges on server', async () => {
+  test('2. Checkout initiation pre-calculates verified totals on server and indicates payment mode', async () => {
     const res = await postJson('/api/product-orders/initiate', {
       items: [{ product_id: testProduct.id, quantity: 2 }]
     }, customerToken);
@@ -221,7 +274,8 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
     assert.strictEqual(res.data.summary.total_discount, 100);
     assert.strictEqual(res.data.summary.total_amount, 1051); // 900 + 72 tax + 79 shipping
     assert.strictEqual(res.data.prefill.buyer_name, customerUser.name);
-    assert.ok(res.data.payment_challenge, 'Payment challenge must be returned');
+    assert.strictEqual(res.data.online_payment_available, false);
+    assert.strictEqual(res.data.payment_mode, 'cod_only');
   });
 
   test('3. Server rejects manipulated/tampered prices and calculates real price', async () => {
@@ -256,7 +310,7 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
     assert.match(res.data.message, /stock|quantity/i);
   });
 
-  test('5. Failed online payments with invalid HMAC signatures do not create paid orders', async () => {
+  test('5. Online product checkout rejects unconfigured online payment safely without creating orders', async () => {
     const res = await postJson('/api/product-orders/checkout', {
       items: [{ product_id: testProduct.id, quantity: 1 }],
       customer_name: customerUser.name,
@@ -270,15 +324,16 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
     }, customerToken);
 
     assert.strictEqual(res.status, 400);
-    assert.match(res.data.message, /signature|verification/i);
+    assert.match(res.data.message, /online payment is currently unavailable/i);
   });
 
-  test('6. Valid cryptographic HMAC signature succeeds and confirms online order', async () => {
+  test('6. Fabricated online payment details cannot create completed orders; valid COD order creates pending order', async () => {
     const orderId = `order_test_${Date.now()}`;
     const paymentId = `pay_test_${Date.now()}`;
     const validSignature = computePaymentSignature(orderId, paymentId);
 
-    const res = await postJson('/api/product-orders/checkout', {
+    // Online payment with fabricated IDs and signature must be rejected
+    const onlineRes = await postJson('/api/product-orders/checkout', {
       items: [{ product_id: testProduct.id, quantity: 1 }],
       customer_name: customerUser.name,
       customer_phone: '+91 9876543210',
@@ -287,12 +342,26 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       provider_order_id: orderId,
       provider_payment_id: paymentId,
       payment_signature: validSignature,
-      idempotency_key: `idem_valid_${Date.now()}`
+      idempotency_key: `idem_fabricated_${Date.now()}`
     }, customerToken);
 
-    assert.strictEqual(res.status, 201);
-    assert.strictEqual(res.data.order.payment_status, 'Paid');
-    assert.strictEqual(res.data.order.order_status, 'Confirmed');
+    assert.strictEqual(onlineRes.status, 400);
+    assert.match(onlineRes.data.message, /online payment is currently unavailable/i);
+
+    // Cash on Delivery checkout succeeds and produces an order with payment_status: 'Pending'
+    const codRes = await postJson('/api/product-orders/checkout', {
+      items: [{ product_id: testProduct.id, quantity: 1 }],
+      customer_name: customerUser.name,
+      customer_phone: '+91 9876543210',
+      shipping_address: '123 Pet Lane, Mumbai',
+      payment_method: 'COD',
+      idempotency_key: `idem_cod_${Date.now()}`
+    }, customerToken);
+
+    assert.strictEqual(codRes.status, 201);
+    assert.strictEqual(codRes.data.order.payment_status, 'Pending');
+    assert.strictEqual(codRes.data.order.order_status, 'Order Placed');
+    if (codRes.data.order?.id) createdOrderIds.add(codRes.data.order.id);
   });
 
   test('7. Duplicate idempotency callbacks do not duplicate orders or double-decrement stock', async () => {
@@ -348,10 +417,39 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
   });
 
   test('10. Customer accounts can book appointments', async () => {
-    const vetsRes = await getJson('/api/vets');
-    const vetId = (vetsRes.data && vetsRes.data.vets && vetsRes.data.vets.length > 0)
-      ? vetsRes.data.vets[0].id
-      : 'vet-01';
+    let vetsRes = await getJson('/api/vets');
+    let vetId = (vetsRes.data && vetsRes.data.vets && vetsRes.data.vets.length > 0)
+      ? (vetsRes.data.vets[0].custom_id || vetsRes.data.vets[0].id)
+      : null;
+
+    if (!vetId) {
+      const VetProfile = require('../models/VetProfile');
+      const { loadData, saveData, isMongoConnected } = require('../db');
+      if (isMongoConnected()) {
+        const doc = await VetProfile.create({
+          custom_id: 'vet-test-seed-01',
+          name: 'Dr. Test Vet',
+          specialty: 'General Veterinary Care',
+          consultation_fee: 500,
+          contact: '+91 9876543210'
+        });
+        vetId = doc.custom_id;
+      } else {
+        const db = loadData();
+        if (!Array.isArray(db.vet_profiles)) db.vet_profiles = [];
+        const entry = {
+          id: 'vet-test-seed-01',
+          custom_id: 'vet-test-seed-01',
+          name: 'Dr. Test Vet',
+          specialty: 'General Veterinary Care',
+          consultation_fee: 500,
+          contact: '+91 9876543210'
+        };
+        db.vet_profiles.push(entry);
+        saveData(db);
+        vetId = entry.id;
+      }
+    }
 
     const res = await postJson('/api/vets/appointments', {
       vet_id: vetId,
@@ -527,6 +625,7 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
     assert.strictEqual(typeof nodemailer.createTransport, 'function', 'Nodemailer must be installed and available');
 
     const unverifiedEmail = `unverified_${Date.now()}@test.com`;
+    createdUserEmails.add(unverifiedEmail.toLowerCase().trim());
     const regRes = await postJson('/api/auth/register', {
       name: 'Unverified Buyer',
       email: unverifiedEmail,
@@ -653,10 +752,12 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
   });
 
   test('18. Email delivery failure handling: never falsely claims email was sent when SMTP is unconfigured and recovers cleanly', async () => {
+    setDnsResolverForTesting(auditTestDnsResolver);
     const savedTransport = process.env.EMAIL_TRANSPORT;
     const savedSmtpHost = process.env.SMTP_HOST;
     const savedResendKey = process.env.RESEND_API_KEY;
-    const failEmail = `smtp_fail_${Date.now()}@test.com`;
+    const failEmail = `smtp_fail_${Date.now()}@valid-mx-domain.org`;
+    createdUserEmails.add(failEmail);
 
     try {
       process.env.EMAIL_TRANSPORT = '';
@@ -847,7 +948,7 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       assert.strictEqual(noMxNoAReg.status, 400);
       assert.strictEqual(noMxNoAReg.data.message, 'Please enter a valid email address.');
     } finally {
-      setDnsResolverForTesting(null);
+      setDnsResolverForTesting(auditTestDnsResolver);
       clearDnsCache();
     }
   });
@@ -855,6 +956,7 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
   test('21. Persistent OTP sending limits (60s cooldown, 3/hour, 5/24h, IP limit) and cross-endpoint bypass prevention', async () => {
     const rawMixedEmail = `  RateLimit_${Date.now()}@GMAIL.COM  `;
     const normalizedTarget = rawMixedEmail.trim().toLowerCase();
+    createdUserEmails.add(normalizedTarget);
     await resetOtpRateLimit({ email: normalizedTarget });
 
     // --- SEND #1 (via /api/auth/register) ---
@@ -1523,6 +1625,7 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
 
       // 12. Controller test mode handling: Verify API never reports email_sent: true when provider returns status: "test"
       const testModeUserEmail = `e59_testmode_${Date.now()}@gmail.com`;
+      createdUserEmails.add(testModeUserEmail.toLowerCase().trim());
       global.fetch = async () => ({
         ok: true,
         status: 200,
@@ -1580,6 +1683,112 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       if (savedSmtpUser === undefined) delete process.env.SMTP_USER; else process.env.SMTP_USER = savedSmtpUser;
       if (savedSmtpPass === undefined) delete process.env.SMTP_PASS; else process.env.SMTP_PASS = savedSmtpPass;
       process.env.EMAIL_TRANSPORT = 'test';
+    }
+  });
+
+  test('28. Test database isolation: Atlas URLs and remote TEST_MONGODB_URI cannot redirect test connections', () => {
+    const { resolveMongoURI, isTestMode, TEST_DB_URI } = connectDB;
+    assert.strictEqual(TEST_DB_URI, 'mongodb://127.0.0.1:27017/petpaws_test');
+
+    // 1. In test environment (NODE_ENV=test), Atlas MONGODB_URI is ignored
+    const testEnvAtlas = {
+      NODE_ENV: 'test',
+      MONGODB_URI: 'mongodb+srv://admin:supersecret@cluster0.mongodb.net/petpaws_production?retryWrites=true&w=majority',
+      TEST_MONGODB_URI: 'mongodb+srv://admin:supersecret@cluster0.mongodb.net/petpaws_test'
+    };
+    assert.strictEqual(resolveMongoURI(testEnvAtlas, ['node', 'test']), TEST_DB_URI);
+
+    // 2. Remote TEST_MONGODB_URI cannot redirect test connections
+    const testEnvRemoteTestUri = {
+      NODE_ENV: 'test',
+      TEST_MONGODB_URI: 'mongodb://remote-server.evil.com:27017/petpaws_test'
+    };
+    assert.strictEqual(resolveMongoURI(testEnvRemoteTestUri, ['node', 'test']), TEST_DB_URI);
+
+    // 3. Missing or empty environment variables always default to local petpaws_test in test mode
+    const testEnvEmpty = {
+      NODE_ENV: 'test',
+      MONGODB_URI: '',
+      TEST_MONGODB_URI: ''
+    };
+    assert.strictEqual(resolveMongoURI(testEnvEmpty, ['node', 'test']), TEST_DB_URI);
+
+    // 4. Malformed URI values are ignored in test mode
+    const testEnvMalformed = {
+      NODE_ENV: 'test',
+      MONGODB_URI: 'not-a-valid-uri://???',
+      TEST_MONGODB_URI: 'malformed_data'
+    };
+    assert.strictEqual(resolveMongoURI(testEnvMalformed, ['node', 'test']), TEST_DB_URI);
+
+    // 5. EMAIL_TRANSPORT=test or argv with 'test' triggers test mode
+    assert.strictEqual(isTestMode({ EMAIL_TRANSPORT: 'test' }, ['node']), true);
+    assert.strictEqual(isTestMode({}, ['node', 'tests/platformAudit.test.js']), true);
+
+    // 6. Production configuration is preserved when not in test mode
+    const prodEnv = {
+      NODE_ENV: 'production',
+      MONGODB_URI: 'mongodb+srv://produser:secret@cluster0.mongodb.net/petpaws?retryWrites=true&w=majority'
+    };
+    assert.strictEqual(isTestMode(prodEnv, ['node', 'server.js']), false);
+    assert.strictEqual(resolveMongoURI(prodEnv, ['node', 'server.js']), prodEnv.MONGODB_URI);
+
+    // 7. Non-test default fallback when MONGODB_URI is not set
+    const prodEnvDefault = {
+      NODE_ENV: 'production'
+    };
+    assert.strictEqual(resolveMongoURI(prodEnvDefault, ['node', 'server.js']), 'mongodb://127.0.0.1:27017/petpaws');
+  });
+
+  after(async () => {
+    // 1. Reset test DNS resolver and clear cache
+    setDnsResolverForTesting(null);
+    clearDnsCache();
+
+    // 2. Clean up test database records created during audit
+    try {
+      const { loadData, saveData, isMongoConnected } = require('../db');
+      const User = require('../models/User');
+      const Product = require('../models/Product');
+      const ProductOrder = require('../models/ProductOrder');
+      const Business = require('../models/Business');
+      const VetProfile = require('../models/VetProfile');
+
+      const targetEmails = Array.from(createdUserEmails);
+      const prodId = testProduct?.id || testProduct?.custom_id;
+
+      if (isMongoConnected()) {
+        await VetProfile.deleteMany({ custom_id: 'vet-test-seed-01' });
+        if (targetEmails.length > 0) {
+          const testUsers = await User.find({ email: { $in: targetEmails } });
+          const userIds = testUsers.map(u => u.custom_id || u._id.toString());
+          await User.deleteMany({ email: { $in: targetEmails } });
+          if (userIds.length > 0) {
+            await ProductOrder.deleteMany({ buyer_id: { $in: userIds } });
+            await Business.deleteMany({ owner_user_id: { $in: userIds } });
+          }
+        }
+        if (prodId) {
+          await Product.deleteMany({ $or: [{ custom_id: prodId }, { id: prodId }] });
+        }
+      } else {
+        const db = loadData();
+        if (Array.isArray(db.users) && targetEmails.length > 0) {
+          db.users = db.users.filter(u => !targetEmails.includes(u.email?.toLowerCase().trim()));
+        }
+        if (prodId && Array.isArray(db.products)) {
+          db.products = db.products.filter(p => p.id !== prodId && p.custom_id !== prodId);
+        }
+        if (Array.isArray(db.product_orders) && targetEmails.length > 0) {
+          db.product_orders = db.product_orders.filter(o => !targetEmails.some(em => o.buyer_email === em));
+        }
+        if (Array.isArray(db.vet_profiles)) {
+          db.vet_profiles = db.vet_profiles.filter(v => v.custom_id !== 'vet-test-seed-01' && v.id !== 'vet-test-seed-01');
+        }
+        saveData(db);
+      }
+    } catch (err) {
+      // Soft cleanup warning
     }
   });
 });

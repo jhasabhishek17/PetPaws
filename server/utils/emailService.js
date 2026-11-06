@@ -971,6 +971,207 @@ const sendPasswordResetEmail = async ({ to, name, otp, token }) => {
   });
 };
 
+const escapeHtml = (str) =>
+  String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
+ * Dispatch an internal notification to the support team when a customer creates a ticket.
+ */
+const sendSupportTicketCreatedEmail = async ({ to, ticket }) => {
+  const recipient = String(to || process.env.SUPPORT_TEAM_EMAIL || process.env.SUPPORT_EMAIL || '').trim();
+  if (!recipient) {
+    return { skipped: true, reason: 'NO_SUPPORT_RECIPIENT_CONFIGURED' };
+  }
+
+  const ticketId = ticket.custom_id || ticket.id || 'N/A';
+  const customerName = escapeHtml(ticket.user_name || 'Customer');
+  const customerEmail = escapeHtml(ticket.user_email || 'N/A');
+  const subject = `[PetPaws Support] New Ticket #${ticketId}: ${ticket.subject}`;
+  const priority = escapeHtml(ticket.priority || 'Medium');
+  const rawMessage = ticket.message || '';
+  const safeMessageHtml = escapeHtml(rawMessage).replace(/\r?\n/g, '<br />');
+
+  const text = [
+    `A new customer support ticket has been submitted on PetPaws.`,
+    '',
+    `Ticket ID: ${ticketId}`,
+    `Customer: ${ticket.user_name} (${ticket.user_email})`,
+    `Priority: ${ticket.priority || 'Medium'}`,
+    `Subject: ${ticket.subject}`,
+    '',
+    'Message:',
+    rawMessage,
+    '',
+    'Log in to the Platform Admin portal to review and respond to this ticket.'
+  ].join('\n');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FAF6F0;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#231F20;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#FAF6F0;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background-color:#FFFFFF;border-radius:24px;border:1px solid #EFE9DF;overflow:hidden;box-shadow:0 10px 30px rgba(35,31,32,0.06);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#243D36 0%,#52796F 100%);padding:24px 32px;color:#FFFFFF;">
+              <div style="font-size:20px;font-weight:800;">🐾 PetPaws Customer Support Desk</div>
+              <div style="font-size:12px;opacity:0.9;margin-top:4px;">Incoming Customer Help Request</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 32px;">
+              <div style="display:inline-block;padding:4px 10px;border-radius:999px;background-color:#FFF8EB;border:1px solid #F4A261;color:#D97706;font-size:11px;font-weight:700;margin-bottom:14px;">
+                Priority: ${priority}
+              </div>
+              <h2 style="margin:0 0 16px 0;font-size:18px;font-weight:800;color:#231F20;">
+                Ticket #${escapeHtml(ticketId)}: ${escapeHtml(ticket.subject)}
+              </h2>
+              <div style="padding:14px 16px;background-color:#FAF6F0;border:1px solid #E6DCCF;border-radius:12px;font-size:12px;line-height:1.6;color:#65605B;margin-bottom:20px;">
+                <strong style="color:#231F20;">Customer Details:</strong><br />
+                Name: ${customerName}<br />
+                Email: ${customerEmail}
+              </div>
+              <div style="font-size:13px;line-height:1.6;color:#4A4344;padding:16px;background-color:#FFFFFF;border-left:4px solid #52796F;border-radius:4px;margin-bottom:24px;">
+                ${safeMessageHtml}
+              </div>
+              <p style="margin:0;font-size:12px;color:#8C847C;line-height:1.5;">
+                To reply or update this ticket status, please open the PetPaws Platform Admin portal.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px;background-color:#243D36;color:#C5DFD2;text-align:center;font-size:11px;">
+              PetPaws Platform Governance &amp; Support Operations
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return sendEmail({
+    to: recipient,
+    subject,
+    text,
+    html,
+    meta: {
+      type: 'support-ticket-created',
+      ticketId,
+      customerEmail: ticket.user_email
+    }
+  });
+};
+
+/**
+ * Dispatch an email notification to the customer when a Platform Admin replies to their ticket.
+ */
+const sendSupportTicketReplyEmail = async ({ to, customerName, ticketId, subject, replyMessage, status, priority }) => {
+  const recipient = String(to || '').trim();
+  if (!recipient) {
+    return { skipped: true, reason: 'NO_CUSTOMER_RECIPIENT' };
+  }
+
+  const safeCustomerName = escapeHtml(customerName || 'Valued Customer');
+  const safeTicketId = escapeHtml(String(ticketId || ''));
+  const safeSubject = escapeHtml(String(subject || 'Support Ticket'));
+  const safeStatus = escapeHtml(String(status || 'In Progress'));
+  const safePriority = escapeHtml(String(priority || 'Medium'));
+  const rawReply = String(replyMessage || '');
+  const safeReplyHtml = escapeHtml(rawReply).replace(/\r?\n/g, '<br />');
+
+  const emailSubject = `[PetPaws Support] Update on Ticket #${ticketId}: ${subject}`;
+
+  const text = [
+    `Hi ${customerName || 'there'},`,
+    '',
+    `Our customer care team has replied to your support ticket #${ticketId} ("${subject}").`,
+    '',
+    `Status: ${status || 'In Progress'}`,
+    `Priority: ${priority || 'Medium'}`,
+    '',
+    'Support Response:',
+    rawReply,
+    '',
+    'You can view your ticket history anytime by signing in to your PetPaws account.',
+    '',
+    'Best regards,',
+    'The PetPaws Care Team'
+  ].join('\n');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHtml(emailSubject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FAF6F0;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#231F20;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#FAF6F0;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background-color:#FFFFFF;border-radius:24px;border:1px solid #EFE9DF;overflow:hidden;box-shadow:0 10px 30px rgba(35,31,32,0.06);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#E07A5F 0%,#F4A261 100%);padding:24px 32px;color:#FFFFFF;">
+              <div style="font-size:20px;font-weight:800;">🐾 PetPaws Customer Support</div>
+              <div style="font-size:12px;opacity:0.9;margin-top:4px;">Inquiry Update &amp; Team Reply</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 32px;">
+              <div style="display:inline-block;padding:4px 10px;border-radius:999px;background-color:#FAF6F0;border:1px solid #E6DCCF;color:#65605B;font-size:11px;font-weight:700;margin-bottom:14px;">
+                Status: <strong style="color:#231F20;">${safeStatus}</strong> • Priority: <strong>${safePriority}</strong>
+              </div>
+              <h2 style="margin:0 0 12px 0;font-size:18px;font-weight:800;color:#231F20;">
+                Ticket #${safeTicketId}: ${safeSubject}
+              </h2>
+              <p style="margin:0 0 16px 0;font-size:13px;line-height:1.6;color:#4A4344;">
+                Hi <strong>${safeCustomerName}</strong>,<br />
+                Our support team has reviewed your inquiry and replied below:
+              </p>
+              <div style="padding:18px;background-color:#FFF5F0;border:1px solid #F4C4B7;border-left:4px solid #E07A5F;border-radius:12px;font-size:13px;line-height:1.65;color:#231F20;margin-bottom:24px;">
+                ${safeReplyHtml}
+              </div>
+              <p style="margin:0;font-size:12px;color:#8C847C;line-height:1.5;">
+                You can review your full inquiry history by signing in to PetPaws and opening the Customer Support tab.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px;background-color:#243D36;color:#C5DFD2;text-align:center;font-size:11px;">
+              © ${new Date().getFullYear()} PetPaws Marketplace &amp; Care Desk
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return sendEmail({
+    to: recipient,
+    subject: emailSubject,
+    text,
+    html,
+    meta: {
+      type: 'support-ticket-reply',
+      ticketId,
+      customerEmail: recipient,
+      status: safeStatus
+    }
+  });
+};
+
 const getDevOutbox = () => [...testOutbox];
 
 const getLastEmailTo = (email, type = null) => {
@@ -999,6 +1200,8 @@ module.exports = {
   sendVerificationOtpEmail: sendVerificationEmail,
   sendPasswordResetEmail,
   sendPasswordResetOtpEmail: sendPasswordResetEmail,
+  sendSupportTicketCreatedEmail,
+  sendSupportTicketReplyEmail,
   getDevOutbox,
   getLastEmailTo,
   clearDevOutbox

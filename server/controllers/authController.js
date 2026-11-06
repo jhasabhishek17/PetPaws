@@ -128,6 +128,12 @@ const isCompatibleRoleLogin = (requestedRole, actualRole) => {
   ) {
     return true;
   }
+  if (
+    (requestedRole === 'customer' && actualRole === 'buyer') ||
+    (requestedRole === 'buyer' && actualRole === 'customer')
+  ) {
+    return true;
+  }
   return false;
 };
 

@@ -13,9 +13,38 @@ process.env.EMAIL_TRANSPORT = 'test';
 const http = require('http');
 const { Duplex } = require('stream');
 const assert = require('assert');
-const { test, describe, before } = require('node:test');
+const { test, describe, before, after } = require('node:test');
+const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../config/jwt');
 const { app } = require('../server');
 const { getLastEmailTo } = require('../utils/emailService');
+const { setDnsResolverForTesting, clearDnsCache } = require('../utils/emailValidator');
+
+const testDnsResolver = {
+  resolveMx: async (domain) => {
+    const d = String(domain || '').toLowerCase().trim();
+    if (d === 'test.com' || d === 'petpaws.com' || d === 'gmail.com') {
+      return [{ exchange: `mail.${d}`, priority: 10 }];
+    }
+    const nxErr = new Error(`queryMx ENOTFOUND ${d}`);
+    nxErr.code = 'ENOTFOUND';
+    throw nxErr;
+  },
+  resolve4: async (domain) => {
+    const d = String(domain || '').toLowerCase().trim();
+    if (d === 'test.com' || d === 'petpaws.com' || d === 'gmail.com') {
+      return ['127.0.0.1'];
+    }
+    const err = new Error('queryA ENODATA');
+    err.code = 'ENODATA';
+    throw err;
+  },
+  resolve6: async () => {
+    const err = new Error('queryAAAA ENODATA');
+    err.code = 'ENODATA';
+    throw err;
+  }
+};
 
 function makeRequest(app, { method = 'GET', url = '/', headers = {}, body = null }) {
   return new Promise((resolve) => {
@@ -76,14 +105,22 @@ function makeRequest(app, { method = 'GET', url = '/', headers = {}, body = null
 }
 
 describe('PetPaws Role-Based Permissions & Checkout Policy Enforcement', () => {
+  const createdUserEmails = new Set();
+  const createdProductIds = new Set();
+  const createdOrderIds = new Set();
   let buyerToken;
   let sellerToken;
   let vetToken;
   let groomerToken;
   let shopkeeperToken;
   let testProductId;
+  let lastLoginUser;
+  let sellerUser;
 
   async function registerAndVerifyUser(payload) {
+    if (payload && payload.email) {
+      createdUserEmails.add(payload.email);
+    }
     const regRes = await makeRequest(app, {
       method: 'POST',
       url: '/api/auth/register',
@@ -109,10 +146,12 @@ describe('PetPaws Role-Based Permissions & Checkout Policy Enforcement', () => {
     });
     assert.strictEqual(loginRes.statusCode, 200);
     assert.ok(loginRes.body.token);
+    lastLoginUser = loginRes.body.user;
     return loginRes.body.token;
   }
 
   before(async () => {
+    setDnsResolverForTesting(testDnsResolver);
     const ts = Date.now();
 
     // 1. Register & Verify Buyer
@@ -131,6 +170,7 @@ describe('PetPaws Role-Based Permissions & Checkout Policy Enforcement', () => {
       role: 'seller',
       business_name: `Breeder ${ts}`
     });
+    sellerUser = lastLoginUser;
 
     // 3. Register & Verify Vet
     vetToken = await registerAndVerifyUser({
@@ -174,6 +214,7 @@ describe('PetPaws Role-Based Permissions & Checkout Policy Enforcement', () => {
     });
     assert.strictEqual(prodRes.statusCode, 201);
     testProductId = prodRes.body.product.id;
+    if (testProductId) createdProductIds.add(testProductId);
   });
 
   test('1. Guest / unauthenticated user cannot initiate product checkout (401)', async () => {
@@ -284,6 +325,7 @@ describe('PetPaws Role-Based Permissions & Checkout Policy Enforcement', () => {
     });
     assert.strictEqual(res.statusCode, 201);
     assert.strictEqual(res.body.success, true);
+    if (res.body.order?.id) createdOrderIds.add(res.body.order.id);
     assert.strictEqual(res.body.order.payment_method, 'COD');
     assert.strictEqual(res.body.order.payment_status, 'Pending');
   });
@@ -302,5 +344,82 @@ describe('PetPaws Role-Based Permissions & Checkout Policy Enforcement', () => {
     });
     assert.strictEqual(res.statusCode, 403);
     assert.match(res.body.message, /Only buyer accounts can place pet orders/i);
+  });
+
+  test('10. Authentication security: JWT for nonexistent user ID is rejected with 401', async () => {
+    const forgedToken = jwt.sign(
+      { id: 'nonexistent-user-id-99999', email: 'ghost@petpaws.com', role: 'admin' },
+      getJwtSecret(),
+      { expiresIn: '1h' }
+    );
+    const res = await makeRequest(app, {
+      method: 'GET',
+      url: '/api/product-orders/my-orders',
+      headers: { authorization: `Bearer ${forgedToken}` }
+    });
+    assert.strictEqual(res.statusCode, 401);
+  });
+
+  test('11. Role claim tampering: database user role is authoritative and cannot be overridden by JWT claims', async () => {
+    assert.ok(sellerUser && sellerUser.id, 'Seller user must be initialized');
+    const tamperedToken = jwt.sign(
+      { id: sellerUser.id, email: sellerUser.email, role: 'admin', tv: 0 },
+      getJwtSecret(),
+      { expiresIn: '1h' }
+    );
+    // Attempting to place an order as seller (even with a JWT claiming role: 'admin') is checked against DB role
+    const res = await makeRequest(app, {
+      method: 'POST',
+      url: '/api/product-orders/initiate',
+      headers: { authorization: `Bearer ${tamperedToken}` },
+      body: {
+        items: [{ product_id: testProductId, quantity: 1 }]
+      }
+    });
+    // In database, user is a seller, so provider restriction (403) must strictly be enforced
+    assert.strictEqual(res.statusCode, 403);
+    assert.match(res.body.message, /customer accounts can place product orders/i);
+  });
+
+  after(async () => {
+    setDnsResolverForTesting(null);
+    clearDnsCache();
+
+    try {
+      const { loadData, saveData, isMongoConnected } = require('../db');
+      const User = require('../models/User');
+      const Product = require('../models/Product');
+      const ProductOrder = require('../models/ProductOrder');
+
+      const userEmails = Array.from(createdUserEmails);
+      const productIds = Array.from(createdProductIds);
+      const orderIds = Array.from(createdOrderIds);
+
+      if (isMongoConnected()) {
+        if (userEmails.length > 0) {
+          await User.deleteMany({ email: { $in: userEmails } });
+        }
+        if (productIds.length > 0) {
+          await Product.deleteMany({ $or: [{ custom_id: { $in: productIds } }, { id: { $in: productIds } }] });
+        }
+        if (orderIds.length > 0) {
+          await ProductOrder.deleteMany({ $or: [{ custom_id: { $in: orderIds } }, { id: { $in: orderIds } }] });
+        }
+      } else {
+        const db = loadData();
+        if (Array.isArray(db.users) && userEmails.length > 0) {
+          db.users = db.users.filter(u => !userEmails.includes(u.email));
+        }
+        if (Array.isArray(db.products) && productIds.length > 0) {
+          db.products = db.products.filter(p => !productIds.includes(p.custom_id) && !productIds.includes(p.id));
+        }
+        if (Array.isArray(db.product_orders) && orderIds.length > 0) {
+          db.product_orders = db.product_orders.filter(o => !orderIds.includes(o.custom_id) && !orderIds.includes(o.id));
+        }
+        saveData(db);
+      }
+    } catch {
+      // Soft cleanup
+    }
   });
 });

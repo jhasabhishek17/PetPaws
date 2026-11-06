@@ -64,7 +64,20 @@ export default function FloatingQuickActions({ currentUser, onOpenQuiz, onOpenRa
             </button>
           )}
 
-          {(currentUser?.role === 'shopkeeper' || currentUser?.role === 'groomer' || currentUser?.role === 'admin') && (
+          {currentUser?.role === 'admin' && (
+            <button
+              onClick={() => {
+                onOpenPortal ? onOpenPortal('admin-portal') : (window.location.hash = '#admin-portal');
+                setIsOpen(false);
+              }}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-[#231F20] to-[#3D3536] text-white font-bold text-xs rounded-full shadow-aesthetic hover:scale-105 transition-all cursor-pointer"
+            >
+              <LayoutDashboard className="w-4 h-4 text-[#F4A261]" />
+              <span>Platform Admin Portal</span>
+            </button>
+          )}
+
+          {(currentUser?.role === 'shopkeeper' || currentUser?.role === 'groomer') && (
             <button
               onClick={() => {
                 onOpenPortal ? onOpenPortal('saas-portal') : (window.location.hash = '#saas-portal');
@@ -73,7 +86,7 @@ export default function FloatingQuickActions({ currentUser, onOpenQuiz, onOpenRa
               className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-[#231F20] to-[#3D3536] text-white font-bold text-xs rounded-full shadow-aesthetic hover:scale-105 transition-all cursor-pointer"
             >
               <LayoutDashboard className="w-4 h-4 text-[#F4A261]" />
-              <span>{currentUser.role === 'admin' ? 'Admin Portal' : 'Business Dashboard'}</span>
+              <span>Business Dashboard</span>
             </button>
           )}
 

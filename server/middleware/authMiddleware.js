@@ -13,18 +13,27 @@ const { loadData, isMongoConnected } = require('../db');
 const ExpressError = require('../utils/ExpressError');
 const { getJwtSecret } = require('../config/jwt');
 
+const normalizeRole = (role) => {
+  if (role === 'customer') return 'buyer';
+  return role;
+};
+
 const lookupUserById = async (userId) => {
-  if (!userId) return null;
+  if (!userId || typeof userId !== 'string') return null;
+  const cleanId = userId.trim();
+  if (!cleanId) return null;
+
   if (isMongoConnected()) {
-    return User.findOne({
-      $or: [
-        { custom_id: userId },
-        { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null }
-      ]
-    });
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      return User.findOne({
+        $or: [{ custom_id: cleanId }, { _id: cleanId }]
+      });
+    }
+    return User.findOne({ custom_id: cleanId });
   }
+
   const db = loadData();
-  return (db.users || []).find(u => u.id === userId || u.custom_id === userId) || null;
+  return (db.users || []).find(u => u.id === cleanId || u.custom_id === cleanId) || null;
 };
 
 /**
@@ -33,6 +42,7 @@ const lookupUserById = async (userId) => {
  * 1. Valid JWT signature and expiration.
  * 2. Matching token_version (invalidates old JWTs after a password reset).
  * 3. Verified email status (email_verified === true).
+ * 4. Authoritative database role assignment (JWT claims never override the database role).
  */
 const protect = async (req, res, next) => {
   try {
@@ -69,10 +79,15 @@ const protect = async (req, res, next) => {
       );
     }
 
+    if (!user.role || typeof user.role !== 'string') {
+      return next(new ExpressError('Invalid user account configuration', 403));
+    }
+
+    // Authoritative database-backed identity — JWT role claims cannot override database role
+    // Supports intentional legacy 'customer' mapping to standard 'buyer' role
     req.user = {
-      ...decoded,
       id: user.custom_id || user.id || (user._id ? user._id.toString() : decoded.id),
-      role: user.role,
+      role: normalizeRole(user.role),
       email: user.email,
       name: user.name,
       email_verified: true
@@ -97,12 +112,12 @@ const optionalAuth = async (req, res, next) => {
       if (
         user &&
         user.email_verified &&
+        user.role &&
         Number(user.token_version || 0) === Number(decoded.tv || 0)
       ) {
         req.user = {
-          ...decoded,
           id: user.custom_id || user.id || (user._id ? user._id.toString() : decoded.id),
-          role: user.role,
+          role: normalizeRole(user.role),
           email: user.email,
           name: user.name,
           email_verified: true
@@ -123,7 +138,9 @@ const requireRole = (...roles) => (req, res, next) => {
   if (!req.user) {
     return next(new ExpressError('Authentication required', 401));
   }
-  if (!roles.includes(req.user.role)) {
+  const userRole = normalizeRole(req.user.role);
+  const allowedRoles = roles.map(normalizeRole);
+  if (!allowedRoles.includes(userRole)) {
     return next(new ExpressError(`Access denied. Required role: ${roles.join(' or ')}`, 403));
   }
   return next();

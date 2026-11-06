@@ -9,7 +9,7 @@
     "seed": "node seed.js",
     "seed:products": "node seedProducts.js",
     "seed:demo": "node seed-demo.js",
-    "test": "node --test tests/platformAudit.test.js"
+    "test": "MONGODB_URI=\"mongodb://127.0.0.1:27017/petpaws_test\" node --test tests/platformAudit.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

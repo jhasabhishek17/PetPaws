@@ -185,23 +185,12 @@ const initiateProductCheckout = async (req, res) => {
       buyer_phone: req.user.phone || '',
       shipping_address: req.user.address || ''
     },
-    payment_mode: isRazorpayConfigured() ? 'razorpay' : 'sandbox_dev',
-    provider_order_id: providerOrderId,
-    razorpay_key_id: process.env.RAZORPAY_KEY_ID || '',
-    payment_challenge: !isRazorpayConfigured()
-      ? {
-          provider_order_id: providerOrderId,
-          provider_payment_id: simulatedPaymentId,
-          provider_signature: expectedSignature
-        }
-      : null,
-    sandbox_handshake: !isRazorpayConfigured()
-      ? {
-          provider_order_id: providerOrderId,
-          provider_payment_id: simulatedPaymentId,
-          provider_signature: expectedSignature
-        }
-      : null
+    payment_mode: 'cod_only',
+    online_payment_available: false,
+    provider_order_id: null,
+    razorpay_key_id: '',
+    payment_challenge: null,
+    sandbox_handshake: null
   });
 };
 
@@ -284,7 +273,7 @@ const checkoutCart = async (req, res) => {
     }
   }
 
-  // Verify payment if online payment method is chosen
+  // Verify payment method: Only COD is permitted until a verified payment provider flow is configured
   const isCOD = chosenMethod.toUpperCase() === 'COD' || chosenMethod.toLowerCase() === 'cash on delivery';
   let paymentStatus = 'Pending';
   let recordedPaymentId = rawPaymentId || '';
@@ -294,22 +283,7 @@ const checkoutCart = async (req, res) => {
   if (isCOD) {
     paymentStatus = 'Pending';
   } else {
-    // Online payment validation: verify cryptographic signature if provided
-    if (payment_signature && rawOrderId && rawPaymentId) {
-      const isValid = verifyPaymentSignature(rawOrderId, rawPaymentId, payment_signature);
-      if (!isValid) {
-        throw new ExpressError('Payment verification failed: Invalid HMAC-SHA256 signature. Payment could not be confirmed.', 400);
-      }
-      paymentStatus = 'Paid';
-    } else if (payment_signature && (!rawOrderId || !rawPaymentId)) {
-      throw new ExpressError('Payment verification failed: missing order ID or payment ID', 400);
-    } else {
-      // If payment details were omitted in online payment, check whether test dev mode is active
-      paymentStatus = 'Paid';
-      if (!recordedOrderId) recordedOrderId = `order_prd_${Date.now()}`;
-      if (!recordedPaymentId) recordedPaymentId = `pay_prd_${Date.now()}`;
-      recordedSignature = computePaymentSignature(recordedOrderId, recordedPaymentId);
-    }
+    throw new ExpressError('Online payment is currently unavailable. Please select Cash on Delivery (COD) to complete your order.', 400);
   }
 
   const orderId = `PORD-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -435,7 +409,7 @@ const checkoutCart = async (req, res) => {
       idempotency_key: cleanIdempotencyKey || undefined,
       tracking_code: trackingCode,
       tracking_status: 'Order Placed',
-      order_status: paymentStatus === 'Paid' ? 'Confirmed' : 'Order Placed',
+      order_status: paymentStatus === 'Completed' ? 'Confirmed' : 'Order Placed',
       final_amount: totalAmount,
       estimated_delivery: 'Within 2-4 Business Days'
     });
@@ -576,7 +550,7 @@ const checkoutCart = async (req, res) => {
     idempotency_key: cleanIdempotencyKey || undefined,
     tracking_code: trackingCode,
     tracking_status: 'Order Placed',
-    order_status: paymentStatus === 'Paid' ? 'Confirmed' : 'Order Placed',
+    order_status: paymentStatus === 'Completed' ? 'Confirmed' : 'Order Placed',
     final_amount: totalAmount,
     estimated_delivery: 'Within 2-4 Business Days',
     return_reason: '',

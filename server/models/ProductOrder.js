@@ -142,6 +142,11 @@ const productOrderSchema = new mongoose.Schema({
     enum: ['Order Placed', 'Confirmed', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled', 'Return Requested', 'Returned'],
     default: 'Order Placed'
   },
+  order_status: {
+    type: String,
+    enum: ['Order Placed', 'Confirmed'],
+    default: 'Order Placed'
+  },
   estimated_delivery: {
     type: String,
     default: 'Within 2-4 Business Days'

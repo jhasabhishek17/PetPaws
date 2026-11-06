@@ -10,6 +10,7 @@ import VetDashboard from './components/VetDashboard';
 import VetSection from './components/VetSection';
 import GroomingCareSection from './components/GroomingCareSection';
 import CustomerSupport from './components/CustomerSupport';
+import AdminPortal from './components/AdminPortal';
 import ProductsMarketplace from './components/ProductsMarketplace';
 import BusinessSaaSPortal from './components/BusinessSaaSPortal';
 import AuthModal from './components/AuthModal';
@@ -22,6 +23,11 @@ import { getToken, setToken, removeToken, apiGet, apiPost } from './utils/auth';
 import { ShieldCheck } from 'lucide-react';
 
 const VALID_TABS = [
+  'admin-portal',
+  'admin-support',
+  'admin-vendors',
+  'admin-products',
+  'admin-health',
   'marketplace',
   'products',
   'saas-portal',
@@ -295,8 +301,9 @@ export default function App() {
       pendingAction();
       setPendingAction(null);
     } else {
-      if (user.role === 'seller') handleSelectTab('seller');
-      else if (user.role === 'shopkeeper' || user.role === 'groomer' || user.role === 'admin') handleSelectTab('saas-portal');
+      if (user.role === 'admin') handleSelectTab('admin-portal');
+      else if (user.role === 'seller') handleSelectTab('seller');
+      else if (user.role === 'shopkeeper' || user.role === 'groomer') handleSelectTab('saas-portal');
       else if (user.role === 'vet') handleSelectTab('vet-dashboard');
       else if (user.role === 'buyer') handleSelectTab('marketplace');
     }
@@ -484,7 +491,33 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'support' && (
+        {/* Platform Administrator Portal */}
+        {(activeTab === 'admin-portal' ||
+          activeTab === 'admin-support' ||
+          activeTab === 'admin-vendors' ||
+          activeTab === 'admin-products' ||
+          activeTab === 'admin-health' ||
+          (activeTab === 'support' && currentUser?.role === 'admin')) && (
+          <AdminPortal
+            currentUser={currentUser}
+            initialSection={
+              activeTab === 'admin-support' || activeTab === 'support'
+                ? 'support'
+                : activeTab === 'admin-vendors'
+                ? 'vendors'
+                : activeTab === 'admin-products'
+                ? 'products'
+                : activeTab === 'admin-health'
+                ? 'health'
+                : 'overview'
+            }
+            onNavigate={handleSelectTab}
+            onAddToast={addToast}
+          />
+        )}
+
+        {/* Customer Support for non-admin users */}
+        {activeTab === 'support' && currentUser?.role !== 'admin' && (
           <CustomerSupport
             currentUser={currentUser}
             onRequireAuth={(msg, callback) => requireAuth(msg, callback)}

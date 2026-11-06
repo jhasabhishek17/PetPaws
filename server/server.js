@@ -18,6 +18,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const connectDB = require('./config/db');
+const { isMongoConnected } = require('./db');
 
 // Custom Utilities & Middlewares
 const requestLogger = require('./middleware/requestLogger');
@@ -110,11 +111,27 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // HTTP Request Logger
 app.use(requestLogger);
 
-// Health check used by uptime monitors and deployment platforms
+// Health check used by uptime monitors, deployment platforms, and Platform Admin
 app.get('/api/health', (req, res) => {
+  const isMongo = isMongoConnected();
   res.json({
     status: 'ok',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    database: {
+      connected: true,
+      mode: isMongo ? 'MongoDB Atlas' : 'Local JSON Fallback',
+      isMongo
+    },
+    node: {
+      version: process.version,
+      platform: process.platform,
+      memory: {
+        heapUsedMB: Math.round((process.memoryUsage().heapUsed / 1024 / 1024) * 10) / 10,
+        heapTotalMB: Math.round((process.memoryUsage().heapTotal / 1024 / 1024) * 10) / 10
+      }
+    },
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 

@@ -171,6 +171,14 @@ export const apiPut = (url, body) =>
     body: JSON.stringify(body)
   }).then(parseJsonSafe);
 
+export const apiPatch = (url, body) =>
+  fetch(resolveApiUrl(url), {
+    method: 'PATCH',
+    headers: authHeaders(),
+    credentials: 'include',
+    body: JSON.stringify(body)
+  }).then(parseJsonSafe);
+
 export const apiDelete = (url, body) =>
   fetch(resolveApiUrl(url), {
     method: 'DELETE',
