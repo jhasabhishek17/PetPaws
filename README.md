@@ -275,8 +275,6 @@ PetPaws/
 │   ├── seedProducts.js                    # Idempotent 20 INR products & core platform accounts seeder
 │   ├── server.js                          # Express app bootstrap & middleware/route mounting
 │   └── package.json                       # Backend dependencies & scripts
-│
-└── docs/                                  # Architecture & learning guides (PDF documentation)
 ```
 
 ---
