@@ -770,8 +770,20 @@ export default function OrdersTracking({ currentUser, onOpenAuth, onAddToast }) 
                     <span>
                       1x {activeOrder.pet_title} ({activeOrder.pet_category})
                     </span>
-                    <span>${activeOrder.price}</span>
+                    <span>
+                      ${activeOrder.original_price && activeOrder.discount_amount > 0 ? activeOrder.original_price : activeOrder.price}
+                    </span>
                   </div>
+
+                  {activeOrder.discount_amount > 0 && (
+                    <div className="flex justify-between text-xs text-[#2A5C4A] font-bold">
+                      <span className="flex items-center gap-1">
+                        <span>🏷️</span>
+                        <span>Promotional Offer Savings ({activeOrder.discount_info?.title || `${activeOrder.discount_info?.value}% OFF`}):</span>
+                      </span>
+                      <span>-${activeOrder.discount_amount}</span>
+                    </div>
+                  )}
 
                   <div className="flex justify-between text-xs text-[#65605B]">
                     <span>Veterinary Health Certificate & Logistics</span>
