@@ -16,6 +16,10 @@ const {
   uploadFilesBatchToCloudinary
 } = require('./uploadController');
 const ExpressError = require('../utils/ExpressError');
+const {
+  parseAndValidateDiscount,
+  decorateWithDiscount
+} = require('../utils/discountEngine');
 
 const DEFAULT_PET_IMAGE = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80';
 
@@ -23,7 +27,7 @@ const ALLOWED_PET_FIELDS = [
   'title', 'category', 'price', 'age', 'breed', 'gender',
   'health_status', 'description', 'image_url', 'image_public_id',
   'video_url', 'video_public_id', 'media_type', 'media',
-  'stock', 'status'
+  'stock', 'status', 'discount'
 ];
 
 /**
@@ -230,7 +234,7 @@ const getPets = async (req, res) => {
     }
 
     const pets = await Pet.find(query).sort({ createdAt: -1 });
-    const normalizedPets = pets.map(normalizeItem);
+    const normalizedPets = pets.map(p => decorateWithDiscount(normalizeItem(p)));
     return res.json({ success: true, count: normalizedPets.length, pets: normalizedPets });
   }
 
@@ -259,7 +263,8 @@ const getPets = async (req, res) => {
     );
   }
 
-  res.json({ success: true, count: pets.length, pets });
+  const decoratedPets = pets.map(p => decorateWithDiscount(normalizeItem(p)));
+  res.json({ success: true, count: decoratedPets.length, pets: decoratedPets });
 };
 
 /**
@@ -274,12 +279,14 @@ const getSellerInventory = async (req, res) => {
 
   if (isMongoConnected()) {
     const pets = await Pet.find({ seller_id: sellerId }).sort({ createdAt: -1 });
-    const normalizedPets = pets.map(normalizeItem);
+    const normalizedPets = pets.map(p => decorateWithDiscount(normalizeItem(p)));
     return res.json({ success: true, count: normalizedPets.length, pets: normalizedPets });
   }
 
   const db = loadData();
-  const pets = db.pets.filter(p => p.seller_id === sellerId);
+  const pets = db.pets
+    .filter(p => p.seller_id === sellerId)
+    .map(p => decorateWithDiscount(normalizeItem(p)));
   res.json({ success: true, count: pets.length, pets });
 };
 
@@ -293,13 +300,13 @@ const getPetById = async (req, res) => {
   if (isMongoConnected()) {
     const pet = await findDocByAnyId(Pet, id);
     if (!pet) throw new ExpressError('Pet listing not found', 404);
-    return res.json({ success: true, pet: normalizeItem(pet) });
+    return res.json({ success: true, pet: decorateWithDiscount(normalizeItem(pet)) });
   }
 
   const db = loadData();
-  const pet = db.pets.find(p => p.id === id);
+  const pet = db.pets.find(p => p.id === id || p.custom_id === id || (p._id && p._id.toString() === id));
   if (!pet) throw new ExpressError('Pet listing not found', 404);
-  res.json({ success: true, pet });
+  res.json({ success: true, pet: decorateWithDiscount(normalizeItem(pet)) });
 };
 
 /**
@@ -349,6 +356,12 @@ const createPet = async (req, res) => {
   // A listing created with zero stock is saved as 'sold' straight away.
   const parsedStatus = parsedStock > 0 ? 'active' : 'sold';
   const customId = `pet-${Date.now()}`;
+  const numericPrice = Math.max(0, Number(price) || 0);
+
+  let parsedDiscount = null;
+  if (req.body.discount !== undefined) {
+    parsedDiscount = parseAndValidateDiscount(req.body.discount, numericPrice, { isFreeListing: numericPrice <= 0 });
+  }
 
   const resolvedMedia = resolvePetMediaFields({
     image_url,
@@ -365,7 +378,8 @@ const createPet = async (req, res) => {
     seller_name,
     title: String(title).trim(),
     category: category || 'Dogs',
-    price: Math.max(0, Number(price) || 0),
+    price: numericPrice,
+    discount: parsedDiscount || { is_active: false, value: 0 },
     age: age || 'Young',
     breed: breed || 'Mixed',
     gender: gender || 'Male',
@@ -382,19 +396,20 @@ const createPet = async (req, res) => {
         custom_id: customId,
         ...petPayload
       });
-      return res.status(201).json({ success: true, pet: normalizeItem(newPet), message: 'Pet listed successfully!' });
+      return res.status(201).json({ success: true, pet: decorateWithDiscount(normalizeItem(newPet)), message: 'Pet listed successfully!' });
     }
 
     const db = loadData();
     const newPet = {
       id: customId,
+      custom_id: customId,
       ...petPayload,
       created_at: new Date().toISOString()
     };
 
     db.pets.unshift(newPet);
     saveData(db);
-    return res.status(201).json({ success: true, pet: newPet, message: 'Pet listed successfully!' });
+    return res.status(201).json({ success: true, pet: decorateWithDiscount(normalizeItem(newPet)), message: 'Pet listed successfully!' });
   } catch (err) {
     // If DB creation fails after direct file uploads, clean up those newly uploaded assets
     for (const item of directUploads) {
@@ -449,6 +464,10 @@ const updatePet = async (req, res) => {
     }
 
     if (updates.price !== undefined) updates.price = Math.max(0, Number(updates.price));
+    if (updates.discount !== undefined) {
+      const targetPrice = updates.price !== undefined ? updates.price : existing.price;
+      updates.discount = parseAndValidateDiscount(updates.discount, targetPrice, { isFreeListing: targetPrice <= 0 });
+    }
     if (updates.stock !== undefined) {
       updates.stock = Math.max(0, Number(updates.stock));
       if (updates.stock === 0) {
@@ -478,12 +497,12 @@ const updatePet = async (req, res) => {
       { new: true }
     );
 
-    return res.json({ success: true, pet: normalizeItem(updatedPet), message: 'Pet updated successfully' });
+    return res.json({ success: true, pet: decorateWithDiscount(normalizeItem(updatedPet)), message: 'Pet updated successfully' });
   }
 
   // Fallback JSON File Branch
   const db = loadData();
-  const petIndex = db.pets.findIndex(p => p.id === id);
+  const petIndex = db.pets.findIndex(p => p.id === id || p.custom_id === id || (p._id && p._id.toString() === id));
   if (petIndex === -1) throw new ExpressError('Pet listing not found', 404);
 
   const existing = db.pets[petIndex];
@@ -492,6 +511,11 @@ const updatePet = async (req, res) => {
       await deleteFromCloudinary(item.public_id, item.resource_type);
     }
     throw new ExpressError('Not authorized: only the listing owner can edit this listing', 403);
+  }
+
+  const targetPrice = updates.price !== undefined ? Math.max(0, Number(updates.price)) : existing.price;
+  if (updates.discount !== undefined) {
+    updates.discount = parseAndValidateDiscount(updates.discount, targetPrice, { isFreeListing: targetPrice <= 0 });
   }
 
   const nextStock = updates.stock !== undefined ? Math.max(0, Number(updates.stock)) : existing.stock;
@@ -518,13 +542,13 @@ const updatePet = async (req, res) => {
   db.pets[petIndex] = {
     ...existing,
     ...updates,
-    price: updates.price !== undefined ? Math.max(0, Number(updates.price)) : existing.price,
+    price: targetPrice,
     stock: nextStock,
     status: nextStatus
   };
 
   saveData(db);
-  res.json({ success: true, pet: db.pets[petIndex], message: 'Pet updated successfully' });
+  res.json({ success: true, pet: decorateWithDiscount(normalizeItem(db.pets[petIndex])), message: 'Pet updated successfully' });
 };
 
 /**
@@ -554,7 +578,7 @@ const deletePet = async (req, res) => {
 
   // Fallback JSON File Branch
   const db = loadData();
-  const petIndex = db.pets.findIndex(p => p.id === id);
+  const petIndex = db.pets.findIndex(p => p.id === id || p.custom_id === id || (p._id && p._id.toString() === id));
   if (petIndex === -1) throw new ExpressError('Pet listing not found', 404);
 
   const target = db.pets[petIndex];
