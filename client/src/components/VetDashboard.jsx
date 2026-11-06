@@ -38,6 +38,10 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
   const [qualifications, setQualifications] = useState('');
   const [clinicAddress, setClinicAddress] = useState('');
   const [consultationFee, setConsultationFee] = useState('');
+  const [hasOffer, setHasOffer] = useState(false);
+  const [offerType, setOfferType] = useState('percentage');
+  const [offerValue, setOfferValue] = useState('');
+  const [offerTitle, setOfferTitle] = useState('');
   const [bio, setBio] = useState('');
   const [slotsText, setSlotsText] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -68,6 +72,12 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
         setQualifications(v.qualifications || '');
         setClinicAddress(v.clinic_address || '');
         setConsultationFee(String(v.consultation_fee || 50));
+        if (v.discount) {
+          setHasOffer(Boolean(v.discount.is_active));
+          setOfferType(v.discount.type || 'percentage');
+          setOfferValue(String(v.discount.value || ''));
+          setOfferTitle(v.discount.title || '');
+        }
         setBio(v.bio || '');
         setSlotsText((v.available_slots || []).join(', '));
         setImageUrl(v.image_url || '');
@@ -138,6 +148,12 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
         qualifications,
         clinic_address: clinicAddress,
         consultation_fee: Number(consultationFee),
+        discount: hasOffer && Number(offerValue) > 0 ? {
+          is_active: true,
+          type: offerType,
+          value: Number(offerValue),
+          title: offerTitle || (offerType === 'percentage' ? `${offerValue}% OFF` : `$${offerValue} OFF`)
+        } : { is_active: false, value: 0 },
         bio,
         image_url: imageUrl,
         image_public_id: imagePublicId,
@@ -409,6 +425,64 @@ export default function VetDashboard({ currentUser, onNavigate, onAddToast }) {
                   className="w-full px-3.5 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold"
                 />
               </div>
+            </div>
+
+            {/* Consultation Offer Settings */}
+            <div className="p-3.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-[#231F20] block">Consultation Promotional Offer</span>
+                  <span className="text-[10px] text-[#65605B]">Attract new pet parents with a special consultation discount</span>
+                </div>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={hasOffer}
+                    onChange={(e) => setHasOffer(e.target.checked)}
+                    className="w-4 h-4 text-[#52796F] rounded"
+                  />
+                  <span className="text-xs font-bold text-[#231F20]">Enable Offer</span>
+                </label>
+              </div>
+              {hasOffer && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#E6DCCF]">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Discount Type</label>
+                    <select
+                      value={offerType}
+                      onChange={(e) => setOfferType(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-bold"
+                    >
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="fixed">Fixed ($)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#4A4344] mb-1">
+                      Discount Value {offerType === 'percentage' ? '(1-90%)' : '($ USD)'}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max={offerType === 'percentage' ? 90 : consultationFee || 999999}
+                      placeholder={offerType === 'percentage' ? '15' : '10'}
+                      value={offerValue}
+                      onChange={(e) => setOfferValue(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Offer Title</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. New Patient Wellness Special"
+                      value={offerTitle}
+                      onChange={(e) => setOfferTitle(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
