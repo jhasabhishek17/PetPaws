@@ -14,6 +14,47 @@ const mediaItemSchema = new mongoose.Schema({
   resource_type: { type: String, enum: ['image', 'video'], default: 'image' }
 }, { _id: false });
 
+const discountSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    enum: ['percentage', 'fixed'],
+    default: 'percentage'
+  },
+  value: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
+  start_date: {
+    type: String,
+    default: ''
+  },
+  end_date: {
+    type: String,
+    default: ''
+  },
+  is_active: {
+    type: Boolean,
+    default: false
+  },
+  title: {
+    type: String,
+    default: ''
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  min_purchase: {
+    type: Number,
+    default: 0
+  },
+  max_discount: {
+    type: Number,
+    default: 0
+  }
+}, { _id: false });
+
 const petSchema = new mongoose.Schema({
   // Unique custom identifier (e.g., pet-101, pet-1726000000)
   custom_id: { 
@@ -115,6 +156,11 @@ const petSchema = new mongoose.Schema({
     type: String, 
     enum: ['active', 'sold', 'unlisted'], 
     default: 'active' 
+  },
+  // Optional promotional offer / discount for paid pet sales
+  discount: {
+    type: discountSchema,
+    default: () => ({ is_active: false, value: 0 })
   }
 }, {
   timestamps: true
