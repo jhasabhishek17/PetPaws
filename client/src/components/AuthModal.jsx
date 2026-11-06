@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   User,
@@ -10,42 +10,127 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
-  KeyRound,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  KeyRound
 } from 'lucide-react';
-import { apiPost } from '../utils/auth';
+import {
+  apiPost,
+  normalizeEmailInput,
+  validateEmailFormat,
+  formatCooldownLabel
+} from '../utils/auth';
 
-export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) {
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'forgot' | 'reset'
-  const [role, setRole] = useState('buyer');
+export default function AuthModal({
+  isOpen,
+  onClose,
+  onLoginSuccess,
+  message,
+  initialMode = 'login',
+  initialEmail = '',
+  initialRole = 'buyer'
+}) {
+  // 'login' | 'register' | 'verify-otp' | 'forgot'
+  const [authMode, setAuthMode] = useState(initialMode || 'login');
+  const [role, setRole] = useState(initialRole || 'buyer');
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
+  const [phone] = useState('');
+  const [address] = useState('');
 
-  // Password Reset state
-  const [resetToken, setResetToken] = useState('');
+  // Email verification OTP state
+  const [verificationOtp, setVerificationOtp] = useState('');
+  const [verifyNoticeMsg, setVerifyNoticeMsg] = useState('');
+  const [emailDeliveryFailed, setEmailDeliveryFailed] = useState(false);
+  const [resendSuccessMsg, setResendSuccessMsg] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Forgot password OTP multi-step state: 'request' | 'verify-otp' | 'new-password' | 'done'
+  const [forgotStep, setForgotStep] = useState('request');
+  const [resetOtp, setResetOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [resetSuccessMsg, setResetSuccessMsg] = useState('');
-  const [devToken, setDevToken] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [forgotInfoMsg, setForgotInfoMsg] = useState('');
+  const [forgotCooldown, setForgotCooldown] = useState(0);
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setAuthMode(initialMode || 'login');
+      if (initialEmail) setEmail(initialEmail);
+      if (initialRole) setRole(initialRole);
+      setError('');
+      setVerificationOtp('');
+      setEmailDeliveryFailed(false);
+      setResendSuccessMsg('');
+      setForgotStep('request');
+      setResetOtp('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setForgotInfoMsg('');
+    }
+  }, [isOpen, initialMode, initialEmail, initialRole]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  useEffect(() => {
+    if (forgotCooldown <= 0) return undefined;
+    const timer = setInterval(() => {
+      setForgotCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [forgotCooldown]);
 
   if (!isOpen) return null;
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setResendSuccessMsg('');
     setLoading(true);
 
     try {
-      const data = await apiPost('/api/auth/login', { email, password, role });
+      const normalizedEmail = normalizeEmailInput(email);
+      const data = await apiPost('/api/auth/login', {
+        email: normalizedEmail,
+        password,
+        role
+      });
 
-      if (data.success) {
+      if (data.success && data.token) {
         onLoginSuccess(data.user, data.token);
+      } else if (data.requires_verification || data.code === 'EMAIL_NOT_VERIFIED') {
+        const failed = Boolean(data.delivery_error);
+        setEmail(normalizedEmail);
+        setVerificationOtp('');
+        setEmailDeliveryFailed(failed);
+        setVerifyNoticeMsg(
+          data.message ||
+            (failed
+              ? 'Please verify your email address before signing in. We could not automatically send the verification OTP right now — please click "Resend OTP" to try again.'
+              : 'Please verify your email address before signing in. Enter the 6-digit OTP sent to your email inbox.')
+        );
+        const waitSec =
+          typeof data.cooldown_seconds === 'number'
+            ? data.cooldown_seconds
+            : typeof data.retry_after_seconds === 'number'
+            ? data.retry_after_seconds
+            : data.email_sent
+            ? 60
+            : 0;
+        setResendCooldown(waitSec);
+        setAuthMode('verify-otp');
       } else {
         setError(data.message || 'Invalid email or password');
       }
@@ -59,14 +144,53 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setResendSuccessMsg('');
 
+    const emailCheck = validateEmailFormat(email);
+    if (!emailCheck.valid) {
+      setError(emailCheck.message || 'Please enter a valid email address.');
+      return;
+    }
+    const normalizedEmail = emailCheck.normalized;
+
+    if (!password || password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const data = await apiPost('/api/auth/register', { name, email, password, role, phone, address });
+      const data = await apiPost('/api/auth/register', {
+        name: name.trim(),
+        email: normalizedEmail,
+        password,
+        role,
+        phone,
+        address
+      });
 
       if (data.success) {
-        onLoginSuccess(data.user, data.token);
+        if (data.requires_verification || !data.token) {
+          const failed = data.email_sent === false || Boolean(data.delivery_error);
+          setEmail(normalizedEmail);
+          setPassword('');
+          setVerificationOtp('');
+          setEmailDeliveryFailed(failed);
+          setVerifyNoticeMsg(
+            data.message ||
+              (failed
+                ? 'Your account was created, but we could not send the verification OTP email right now. Please check the server SMTP/email configuration or click "Resend OTP" to try again.'
+                : 'Account created! Enter the 6-digit verification OTP sent to your email address.')
+          );
+          setResendCooldown(failed ? 0 : data.cooldown_seconds || 60);
+          setAuthMode('verify-otp');
+        } else {
+          onLoginSuccess(data.user, data.token);
+        }
       } else {
+        if (data.retry_after_seconds || data.cooldown_seconds) {
+          setResendCooldown(Number(data.retry_after_seconds || data.cooldown_seconds));
+        }
         setError(data.message || 'Registration failed');
       }
     } catch {
@@ -76,25 +200,152 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
     }
   };
 
-  const handleForgotPasswordSubmit = async (e) => {
+  const handleVerifyOtpSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setResetSuccessMsg('');
-    setLoading(true);
+    setResendSuccessMsg('');
 
+    const cleanOtp = verificationOtp.replace(/\D/g, '').trim();
+    if (cleanOtp.length !== 6) {
+      setError('Please enter the complete 6-digit verification OTP.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const data = await apiPost('/api/auth/forgot-password', { email });
-      if (data.success) {
-        setResetSuccessMsg(data.message || 'Password recovery instructions have been dispatched.');
-        if (data.dev_reset_token) {
-          setDevToken(data.dev_reset_token);
-          setResetToken(data.dev_reset_token);
+      const data = await apiPost('/api/auth/verify-otp', {
+        email: normalizeEmailInput(email),
+        otp: cleanOtp
+      });
+
+      if (data.success && data.verified) {
+        if (data.token && data.user) {
+          onLoginSuccess(data.user, data.token);
+        } else {
+          setAuthMode('login');
+          setError('');
         }
       } else {
-        setError(data.message || 'Could not process password recovery.');
+        setError(data.message || 'Invalid or expired verification OTP.');
       }
     } catch {
-      setError('Network error while processing password recovery.');
+      setError('Network error while verifying OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerificationOtp = async () => {
+    if (!email.trim() || resendCooldown > 0) return;
+    setError('');
+    setResendSuccessMsg('');
+
+    const emailCheck = validateEmailFormat(email);
+    if (!emailCheck.valid) {
+      setError(emailCheck.message || 'Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await apiPost('/api/auth/resend-otp', {
+        email: emailCheck.normalized
+      });
+      if (data.success && data.email_sent !== false) {
+        setVerificationOtp('');
+        setEmailDeliveryFailed(false);
+        setVerifyNoticeMsg(
+          'We have sent a fresh 6-digit verification OTP to your email address. Enter it below to activate your account.'
+        );
+        setResendSuccessMsg(
+          data.message || 'A new 6-digit verification OTP has been sent to your email.'
+        );
+        setResendCooldown(data.cooldown_seconds || 60);
+      } else {
+        const isRateLimit =
+          data.httpStatus === 429 ||
+          data.statusCode === 429 ||
+          Boolean(data.retry_after_seconds);
+        if (data.retry_after_seconds || data.cooldown_seconds) {
+          setResendCooldown(Number(data.retry_after_seconds || data.cooldown_seconds));
+        }
+        if (!isRateLimit && (data.httpStatus === 503 || data.statusCode === 503)) {
+          setEmailDeliveryFailed(true);
+        }
+        setError(
+          data.message ||
+            'Could not resend verification OTP. Please check the server SMTP settings and try again.'
+        );
+      }
+    } catch {
+      setError('Network error while resending verification OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestPasswordResetOtp = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (forgotCooldown > 0 && forgotStep === 'verify-otp') return;
+    setError('');
+
+    const emailCheck = validateEmailFormat(email);
+    if (!emailCheck.valid) {
+      setError(emailCheck.message || 'Please enter a valid email address.');
+      return;
+    }
+    const normalizedEmail = emailCheck.normalized;
+
+    setLoading(true);
+    try {
+      const data = await apiPost('/api/auth/forgot-password', { email: normalizedEmail });
+      if (data.success) {
+        setEmail(normalizedEmail);
+        setResetOtp('');
+        setForgotInfoMsg(
+          data.message ||
+            'If an account is registered with that email address, we have sent a 6-digit password reset OTP. Please check your inbox.'
+        );
+        setForgotCooldown(data.cooldown_seconds || 60);
+        setForgotStep('verify-otp');
+      } else {
+        if (data.retry_after_seconds || data.cooldown_seconds) {
+          setForgotCooldown(Number(data.retry_after_seconds || data.cooldown_seconds));
+        }
+        setError(data.message || 'Could not send password reset OTP.');
+      }
+    } catch {
+      setError('Network error while requesting password reset OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyResetOtpSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    const cleanOtp = resetOtp.replace(/\D/g, '').trim();
+    if (cleanOtp.length !== 6) {
+      setError('Please enter the 6-digit password reset OTP.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await apiPost('/api/auth/verify-reset-otp', {
+        email: normalizeEmailInput(email),
+        otp: cleanOtp
+      });
+
+      if (data.success && data.valid) {
+        setForgotStep('new-password');
+        setError('');
+      } else {
+        setError(data.message || 'Invalid or expired password reset OTP.');
+      }
+    } catch {
+      setError('Network error while verifying password reset OTP.');
     } finally {
       setLoading(false);
     }
@@ -103,25 +354,38 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
   const handleResetPasswordSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
+    if (!newPassword || newPassword.length < 6) {
+      setError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match. Please confirm your new password.');
+      return;
+    }
+
+    setLoading(true);
     try {
       const data = await apiPost('/api/auth/reset-password', {
-        token: resetToken,
-        new_password: newPassword
+        email: email.trim().toLowerCase(),
+        otp: resetOtp.replace(/\D/g, '').trim(),
+        new_password: newPassword,
+        confirm_password: confirmNewPassword
       });
+
       if (data.success) {
-        setResetSuccessMsg('Password updated successfully! Please log in with your new credentials.');
-        setAuthMode('login');
-        setPassword('');
-        setResetToken('');
+        setForgotInfoMsg(
+          data.message || 'Password reset successfully. Please sign in with your new password.'
+        );
         setNewPassword('');
-        setDevToken('');
+        setConfirmNewPassword('');
+        setResetOtp('');
+        setForgotStep('done');
       } else {
-        setError(data.message || 'Password reset failed. Invalid or expired token.');
+        setError(data.message || 'Failed to reset password. Your OTP may have expired.');
       }
     } catch {
-      setError('Network error while updating password.');
+      setError('Network error while resetting password.');
     } finally {
       setLoading(false);
     }
@@ -132,8 +396,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
       <div className="relative bg-white rounded-3xl shadow-aesthetic border border-[#EFE9DF] max-w-md w-full max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto overflow-hidden">
         <div className="bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] p-5 sm:p-6 text-white text-center relative flex-shrink-0 z-10">
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 p-1 text-white/80 hover:text-white rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+            aria-label="Close authentication modal"
+            className="absolute top-4 right-4 p-1 text-white/80 hover:text-white rounded-full bg-white/20 hover:bg-white/30 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -144,56 +410,56 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
           <h2 className="text-xl font-extrabold font-display">Welcome to PetPaws</h2>
           <p className="text-white/90 text-xs mt-1 font-medium">
             {authMode === 'register'
-              ? 'Create a new account to proceed'
+              ? 'Create a verified account to get started'
               : authMode === 'forgot'
-              ? 'Recover your account password'
-              : authMode === 'reset'
-              ? 'Enter new account password'
+              ? 'Reset your account password with email OTP'
+              : authMode === 'verify-otp'
+              ? 'Enter the 6-digit OTP sent to your email'
               : 'Log in to your account'}
           </p>
         </div>
 
-        {message && (
+        {message && authMode !== 'verify-otp' && (
           <div className="bg-[#FFF5F0] border-b border-[#F4C4B7] p-3 text-center flex items-center justify-center space-x-2 text-xs font-semibold text-[#E07A5F]">
-            <Sparkles className="w-4 h-4 text-[#F4A261] flex-shrink-0 animate-spin" />
+            <Sparkles className="w-4 h-4 text-[#F4A261] flex-shrink-0" />
             <span>{message}</span>
           </div>
         )}
 
-        {/* Tab switchers */}
-        <div className="flex border-b border-[#EFE9DF] bg-[#FAF6F0] flex-shrink-0 z-10">
-          <button
-            type="button"
-            onClick={() => {
-              setAuthMode('login');
-              setError('');
-              setResetSuccessMsg('');
-            }}
-            className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 ${
-              authMode === 'login'
-                ? 'border-[#E07A5F] text-[#E07A5F] bg-white'
-                : 'border-transparent text-[#65605B] hover:text-[#231F20]'
-            }`}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAuthMode('register');
-              if (role === 'admin') setRole('buyer');
-              setError('');
-              setResetSuccessMsg('');
-            }}
-            className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 ${
-              authMode === 'register'
-                ? 'border-[#E07A5F] text-[#E07A5F] bg-white'
-                : 'border-transparent text-[#65605B] hover:text-[#231F20]'
-            }`}
-          >
-            Register Account
-          </button>
-        </div>
+        {/* Tab switchers (shown on Sign In and Register views) */}
+        {(authMode === 'login' || authMode === 'register') && (
+          <div className="flex border-b border-[#EFE9DF] bg-[#FAF6F0] flex-shrink-0 z-10">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('login');
+                setError('');
+              }}
+              className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                authMode === 'login'
+                  ? 'border-[#E07A5F] text-[#E07A5F] bg-white'
+                  : 'border-transparent text-[#65605B] hover:text-[#231F20]'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('register');
+                if (role === 'admin') setRole('buyer');
+                setError('');
+              }}
+              className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                authMode === 'register'
+                  ? 'border-[#E07A5F] text-[#E07A5F] bg-white'
+                  : 'border-transparent text-[#65605B] hover:text-[#231F20]'
+              }`}
+            >
+              Register Account
+            </button>
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {/* Role selector (shown on login & register) */}
@@ -206,7 +472,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                 <button
                   type="button"
                   onClick={() => setRole('buyer')}
-                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center cursor-pointer ${
                     role === 'buyer'
                       ? 'border-[#E07A5F] bg-[#FFF5F0] text-[#E07A5F] font-bold ring-2 ring-[#E07A5F]/30'
                       : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
@@ -219,7 +485,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                 <button
                   type="button"
                   onClick={() => setRole('shopkeeper')}
-                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center cursor-pointer ${
                     role === 'shopkeeper'
                       ? 'border-[#52796F] bg-[#EAEFE9] text-[#2A5C4A] font-bold ring-2 ring-[#52796F]/30'
                       : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
@@ -232,7 +498,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                 <button
                   type="button"
                   onClick={() => setRole('seller')}
-                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center cursor-pointer ${
                     role === 'seller'
                       ? 'border-[#F4A261] bg-[#FFFDF0] text-[#D97706] font-bold ring-2 ring-[#F4A261]/30'
                       : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
@@ -245,7 +511,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                 <button
                   type="button"
                   onClick={() => setRole('vet')}
-                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center cursor-pointer ${
                     role === 'vet'
                       ? 'border-[#52796F] bg-[#EAEFE9] text-[#2A5C4A] font-bold ring-2 ring-[#52796F]/30'
                       : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
@@ -258,7 +524,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                 <button
                   type="button"
                   onClick={() => setRole('groomer')}
-                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                  className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center cursor-pointer ${
                     role === 'groomer'
                       ? 'border-[#E07A5F] bg-[#FFF5F0] text-[#E07A5F] font-bold ring-2 ring-[#E07A5F]/30'
                       : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
@@ -272,7 +538,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                   <button
                     type="button"
                     onClick={() => setRole('admin')}
-                    className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center ${
+                    className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center cursor-pointer ${
                       role === 'admin'
                         ? 'border-[#231F20] bg-[#FAF6F0] text-[#231F20] font-bold ring-2 ring-[#231F20]/20'
                         : 'border-[#EFE9DF] text-[#65605B] hover:bg-[#FAF6F0]'
@@ -289,13 +555,6 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-700 text-center">
               ⚠️ {error}
-            </div>
-          )}
-
-          {resetSuccessMsg && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800 text-center flex items-center justify-center space-x-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>{resetSuccessMsg}</span>
             </div>
           )}
 
@@ -324,10 +583,14 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                     type="button"
                     onClick={() => {
                       setAuthMode('forgot');
+                      setForgotStep('request');
+                      setResetOtp('');
+                      setNewPassword('');
+                      setConfirmNewPassword('');
+                      setForgotInfoMsg('');
                       setError('');
-                      setResetSuccessMsg('');
                     }}
-                    className="text-[11px] font-bold text-[#E07A5F] hover:underline"
+                    className="text-[11px] font-bold text-[#E07A5F] hover:underline cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -398,7 +661,8 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                   <input
                     type="password"
                     required
-                    placeholder="••••••••"
+                    minLength={6}
+                    placeholder="Minimum 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-sm text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
@@ -411,151 +675,321 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, message }) 
                 disabled={loading}
                 className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] text-white font-bold rounded-xl shadow-md shadow-[#E07A5F]/20 transition-all text-sm flex items-center justify-center space-x-2 mt-2 cursor-pointer"
               >
-                <span>{loading ? 'Creating Account...' : 'Create Account'}</span>
+                <span>{loading ? 'Sending Verification OTP...' : 'Create Account & Send OTP'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
           )}
 
-          {/* FORGOT PASSWORD FORM */}
-          {authMode === 'forgot' && (
-            <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
-              <p className="text-xs text-[#65605B] leading-relaxed">
-                Enter your registered account email address. We will verify your credentials and dispatch a cryptographically secure, single-use password recovery token.
-              </p>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#4A4344] mb-1">Registered Email Address</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-[#8C847C] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="user@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-sm text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
-                  />
-                </div>
+          {/* DEDICATED EMAIL OTP VERIFICATION SCREEN */}
+          {authMode === 'verify-otp' && (
+            <div className="space-y-4 text-center py-1">
+              <div
+                className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${
+                  emailDeliveryFailed
+                    ? 'bg-amber-50 border border-amber-200 text-amber-600'
+                    : 'bg-[#FFF5F0] border border-[#F4C4B7] text-[#E07A5F]'
+                }`}
+              >
+                {emailDeliveryFailed ? <AlertTriangle className="w-7 h-7" /> : <KeyRound className="w-7 h-7" />}
               </div>
 
-              {devToken && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2">
-                  <div className="flex items-center space-x-1.5 font-bold text-amber-900">
-                    <KeyRound className="w-4 h-4 text-amber-600" />
-                    <span>Dev Recovery Token Generated:</span>
-                  </div>
-                  <code className="block bg-white p-2 rounded border border-amber-200 text-[11px] font-mono break-all text-amber-950">
-                    {devToken}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetToken(devToken);
-                      setAuthMode('reset');
-                      setError('');
-                    }}
-                    className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Proceed to Reset Password with this Token →
-                  </button>
+              <div className="space-y-1.5">
+                <h3 className="text-base sm:text-lg font-extrabold text-[#231F20] font-display">
+                  {emailDeliveryFailed ? 'Verification OTP Not Delivered' : 'Enter Email Verification OTP'}
+                </h3>
+                <p
+                  className={`text-xs leading-relaxed ${
+                    emailDeliveryFailed ? 'text-amber-800 font-semibold' : 'text-[#4A4344]'
+                  }`}
+                >
+                  {verifyNoticeMsg ||
+                    (emailDeliveryFailed
+                      ? 'Your account was created, but we could not send the verification OTP email. Please check the server SMTP configuration or click Resend OTP below.'
+                      : 'Enter the 6-digit one-time verification code sent to your email address (valid for 10 minutes).')}
+                </p>
+                {email && (
+                  <p className="text-xs font-extrabold text-[#52796F] break-all">
+                    {email}
+                  </p>
+                )}
+              </div>
+
+              {resendSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800 flex items-center justify-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{resendSuccessMsg}</span>
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <form onSubmit={handleVerifyOtpSubmit} className="space-y-3 text-left">
+                <div>
+                  <label
+                    htmlFor="verify-email-otp-input"
+                    className="block text-xs font-bold text-[#4A4344] mb-1.5 text-center uppercase tracking-wider"
+                  >
+                    6-Digit Verification OTP
+                  </label>
+                  <input
+                    id="verify-email-otp-input"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    required
+                    placeholder="000000"
+                    value={verificationOtp}
+                    onChange={(e) => setVerificationOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full py-3 px-4 bg-[#FAF6F0] border-2 border-[#E6DCCF] rounded-2xl text-center font-mono text-2xl font-black tracking-[0.35em] text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || verificationOtp.replace(/\D/g, '').length !== 6}
+                  className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-60 text-white font-bold rounded-xl shadow-md shadow-[#E07A5F]/20 transition-all text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>{loading ? 'Verifying OTP…' : 'Verify OTP & Activate Account'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  disabled={loading || resendCooldown > 0}
+                  onClick={handleResendVerificationOtp}
+                  className="w-full py-2.5 bg-[#52796F] hover:bg-[#3E5E56] disabled:bg-gray-300 text-white font-bold rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                  <span>
+                    {loading
+                      ? 'Sending OTP…'
+                      : resendCooldown > 0
+                      ? `Resend OTP (${formatCooldownLabel(resendCooldown)})`
+                      : 'Resend Verification OTP'}
+                  </span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
                     setAuthMode('login');
                     setError('');
-                    setResetSuccessMsg('');
+                    setResendSuccessMsg('');
                   }}
-                  className="px-4 py-3 bg-[#FAF6F0] text-[#4A4344] font-bold text-xs rounded-xl"
+                  className="w-full py-2.5 bg-white hover:bg-[#FAF6F0] text-[#4A4344] border border-[#E6DCCF] font-bold rounded-xl text-xs transition-colors cursor-pointer"
                 >
-                  Back to Login
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-3 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-bold rounded-xl shadow-md text-xs transition-all cursor-pointer"
-                >
-                  {loading ? 'Dispatching…' : 'Send Reset Instructions'}
+                  ← Return to Login
                 </button>
               </div>
-
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode('reset');
-                    setError('');
-                  }}
-                  className="text-xs font-bold text-[#52796F] hover:underline"
-                >
-                  Already have a recovery token? Enter it here →
-                </button>
-              </div>
-            </form>
+            </div>
           )}
 
-          {/* RESET PASSWORD FORM */}
-          {authMode === 'reset' && (
-            <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
-              <p className="text-xs text-[#65605B] leading-relaxed">
-                Enter your single-use recovery token and choose a new secure password (minimum 6 characters).
-              </p>
+          {/* FORGOT PASSWORD OTP FLOW */}
+          {authMode === 'forgot' && (
+            <div className="space-y-4">
+              {forgotStep === 'request' && (
+                <form onSubmit={handleRequestPasswordResetOtp} className="space-y-4">
+                  <p className="text-xs text-[#65605B] leading-relaxed">
+                    Enter the email address associated with your PetPaws account and we will send you a time-limited 6-digit password reset OTP.
+                  </p>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#4A4344] mb-1">Security Recovery Token</label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-[#8C847C] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Paste 64-char hex recovery token"
-                    value={resetToken}
-                    onChange={(e) => setResetToken(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-sm font-mono text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
-                  />
+                  <div>
+                    <label htmlFor="forgot-email-input" className="block text-xs font-semibold text-[#4A4344] mb-1">
+                      Registered Email Address
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-[#8C847C] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        id="forgot-email-input"
+                        type="email"
+                        required
+                        placeholder="user@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-sm text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-60 text-white font-bold rounded-xl shadow-md shadow-[#E07A5F]/20 text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>{loading ? 'Sending Reset OTP…' : 'Send Password Reset OTP'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <div className="pt-1 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('login');
+                        setError('');
+                      }}
+                      className="text-xs font-bold text-[#52796F] hover:underline cursor-pointer"
+                    >
+                      ← Return to Login
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {forgotStep === 'verify-otp' && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs text-[#4A4344] text-center space-y-1">
+                    <p className="font-semibold">{forgotInfoMsg}</p>
+                    <p className="font-bold text-[#52796F] break-all">{email}</p>
+                  </div>
+
+                  <form onSubmit={handleVerifyResetOtpSubmit} className="space-y-3">
+                    <div>
+                      <label
+                        htmlFor="forgot-reset-otp-input"
+                        className="block text-xs font-bold text-[#4A4344] mb-1.5 text-center uppercase tracking-wider"
+                      >
+                        Enter 6-Digit Password Reset OTP
+                      </label>
+                      <input
+                        id="forgot-reset-otp-input"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        required
+                        placeholder="000000"
+                        value={resetOtp}
+                        onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        className="w-full py-3 px-4 bg-[#FAF6F0] border-2 border-[#E6DCCF] rounded-2xl text-center font-mono text-2xl font-black tracking-[0.35em] text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading || resetOtp.replace(/\D/g, '').length !== 6}
+                      className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-60 text-white font-bold rounded-xl shadow-md shadow-[#E07A5F]/20 text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>{loading ? 'Verifying OTP…' : 'Verify Reset OTP'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </form>
+
+                  <div className="space-y-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={loading || forgotCooldown > 0}
+                      onClick={handleRequestPasswordResetOtp}
+                      className="w-full py-2.5 bg-[#52796F] hover:bg-[#3E5E56] disabled:bg-gray-300 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                      <span>
+                        {forgotCooldown > 0
+                          ? `Resend Reset OTP (${formatCooldownLabel(forgotCooldown)})`
+                          : 'Resend Password Reset OTP'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotStep('request');
+                        setError('');
+                      }}
+                      className="w-full py-2 bg-white hover:bg-[#FAF6F0] text-[#4A4344] border border-[#E6DCCF] font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+                    >
+                      ← Change Email Address
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div>
-                <label className="block text-xs font-semibold text-[#4A4344] mb-1">New Password</label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-[#8C847C] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    placeholder="Minimum 6 characters"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-sm text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
-                  />
+              {forgotStep === 'new-password' && (
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800 flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>OTP verified! Enter your new password below.</span>
+                  </div>
+
+                  <div>
+                    <label htmlFor="forgot-new-password" className="block text-xs font-semibold text-[#4A4344] mb-1">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-[#8C847C] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        id="forgot-new-password"
+                        type="password"
+                        required
+                        minLength={6}
+                        placeholder="Minimum 6 characters"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-sm text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="forgot-confirm-password" className="block text-xs font-semibold text-[#4A4344] mb-1">
+                      Confirm New Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-[#8C847C] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        id="forgot-confirm-password"
+                        type="password"
+                        required
+                        minLength={6}
+                        placeholder="Re-enter new password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-sm text-[#231F20] focus:outline-none focus:border-[#E07A5F] focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-60 text-white font-bold rounded-xl shadow-md shadow-[#E07A5F]/20 text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>{loading ? 'Updating Password…' : 'Reset Password'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+
+              {forgotStep === 'done' && (
+                <div className="text-center space-y-4 py-2">
+                  <div className="w-14 h-14 rounded-full bg-[#EAEFE9] border border-[#D1E7DD] flex items-center justify-center mx-auto text-[#2A5C4A]">
+                    <CheckCircle2 className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="text-base font-extrabold text-[#231F20] font-display">
+                      Password Reset Complete
+                    </h3>
+                    <p className="text-xs text-[#4A4344] leading-relaxed">
+                      {forgotInfoMsg}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('login');
+                      setForgotStep('request');
+                      setPassword('');
+                      setError('');
+                    }}
+                    className="w-full py-3 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-bold rounded-xl shadow-md text-xs transition-all cursor-pointer"
+                  >
+                    Return to Sign In
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode('login');
-                    setError('');
-                  }}
-                  className="px-4 py-3 bg-[#FAF6F0] text-[#4A4344] font-bold text-xs rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-3 bg-[#52796F] hover:bg-[#3E5E56] text-white font-bold rounded-xl shadow-md text-xs transition-all cursor-pointer"
-                >
-                  {loading ? 'Updating Password…' : 'Save New Password & Sign In'}
-                </button>
-              </div>
-            </form>
+              )}
+            </div>
           )}
         </div>
       </div>
