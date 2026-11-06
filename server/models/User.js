@@ -91,12 +91,54 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  // Cryptographically hashed password reset token and expiration
+  // Email verification status and hashed single-use token
+  email_verified: {
+    type: Boolean,
+    default: false
+  },
+  email_verified_at: {
+    type: Date,
+    default: null
+  },
+  email_verification_token_hash: {
+    type: String,
+    default: null
+  },
+  email_verification_expires_at: {
+    type: Date,
+    default: null
+  },
+  email_verification_sent_at: {
+    type: Date,
+    default: null
+  },
+  email_verification_attempts: {
+    type: Number,
+    default: 0
+  },
+  // Cryptographically hashed password reset OTP/token, expiration, and attempt counter
   reset_password_token_hash: {
     type: String,
     default: null
   },
   reset_password_expires_at: {
+    type: Date,
+    default: null
+  },
+  reset_password_sent_at: {
+    type: Date,
+    default: null
+  },
+  reset_password_attempts: {
+    type: Number,
+    default: 0
+  },
+  // Session / JWT invalidation counter (incremented on password reset)
+  token_version: {
+    type: Number,
+    default: 0
+  },
+  password_changed_at: {
     type: Date,
     default: null
   }
