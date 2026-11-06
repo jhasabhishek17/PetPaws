@@ -116,6 +116,10 @@ export default function BusinessSaaSPortal({
   const [srvPrice, setSrvPrice] = useState('');
   const [srvDuration, setSrvDuration] = useState('60 Mins');
   const [srvDesc, setSrvDesc] = useState('');
+  const [srvHasOffer, setSrvHasOffer] = useState(false);
+  const [srvOfferType, setSrvOfferType] = useState('percentage');
+  const [srvOfferValue, setSrvOfferValue] = useState('');
+  const [srvOfferTitle, setSrvOfferTitle] = useState('');
 
   // Platform Admin Moderation State
   const [adminData, setAdminData] = useState({
@@ -553,10 +557,20 @@ export default function BusinessSaaSPortal({
   const handleCreateGroomingPackage = async (e) => {
     e.preventDefault();
     try {
+      const discount = (srvHasOffer && Number(srvPrice) > 0 && Number(srvOfferValue) > 0)
+        ? {
+            is_active: true,
+            type: srvOfferType,
+            value: Number(srvOfferValue),
+            title: srvOfferTitle || (srvOfferType === 'percentage' ? `${srvOfferValue}% OFF` : `$${srvOfferValue} OFF`)
+          }
+        : null;
+
       const res = await apiPost('/api/saas/grooming/services', {
         title: srvTitle,
         category: srvCategory,
         price: Number(srvPrice),
+        discount,
         duration: srvDuration,
         description: srvDesc
       });
@@ -565,6 +579,9 @@ export default function BusinessSaaSPortal({
         setSrvTitle('');
         setSrvPrice('');
         setSrvDesc('');
+        setSrvHasOffer(false);
+        setSrvOfferValue('');
+        setSrvOfferTitle('');
         loadPortalData();
       } else {
         onAddToast?.(res.message || 'Could not create service package', 'error');
@@ -1376,6 +1393,49 @@ export default function BusinessSaaSPortal({
                       className="w-full px-3 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl"
                     />
                   </div>
+
+                  {/* Promotional Offer for Service Package */}
+                  <div className="p-3 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#231F20]">Promotional Offer</span>
+                      <label className="flex items-center space-x-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={srvHasOffer}
+                          onChange={e => setSrvHasOffer(e.target.checked)}
+                          className="w-3.5 h-3.5 text-[#52796F] rounded"
+                        />
+                        <span className="font-bold text-[#231F20]">Enable</span>
+                      </label>
+                    </div>
+                    {srvHasOffer && (
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E6DCCF]">
+                        <div>
+                          <label className="block text-[10px] font-bold mb-0.5">Type</label>
+                          <select
+                            value={srvOfferType}
+                            onChange={e => setSrvOfferType(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-white border border-[#E6DCCF] rounded-lg text-xs font-bold"
+                          >
+                            <option value="percentage">Percent (%)</option>
+                            <option value="fixed">Fixed ($)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold mb-0.5">Value</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="20"
+                            value={srvOfferValue}
+                            onChange={e => setSrvOfferValue(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-white border border-[#E6DCCF] rounded-lg text-xs font-bold"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     type="submit"
                     className="w-full py-2.5 bg-[#52796F] text-white font-extrabold rounded-xl"
