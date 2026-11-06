@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Package,
   Search,
@@ -458,6 +459,68 @@ export default function ProductsMarketplace({
       onAddToast?.('Could not submit report.', 'error');
     }
   };
+
+  // Lock background page scroll while any marketplace overlay is open so only the dialog scrolls.
+  const isAnyOverlayOpen = Boolean(isCartOpen || activeProduct || storefrontVendor);
+  useEffect(() => {
+    if (!isAnyOverlayOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isAnyOverlayOpen]);
+
+  // Shared order-summary card used by the Delivery and Review checkout steps.
+  // Groups products, quantities, subtotal, GST, delivery fee, total and the primary action together.
+  const renderOrderSummary = (actions) => (
+    <div className="bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF] p-4 space-y-3">
+      <h4 className="text-xs font-extrabold text-[#231F20] uppercase tracking-wider">
+        Order Summary ({totalCartUnits} {totalCartUnits === 1 ? 'item' : 'items'})
+      </h4>
+      <ul className="space-y-2 max-h-44 overflow-y-auto pr-1">
+        {cart.map(item => (
+          <li key={item.cartKey} className="flex items-center gap-2.5">
+            <img
+              src={item.image_url}
+              alt=""
+              className="w-10 h-10 rounded-lg object-cover border border-[#E6DCCF] flex-shrink-0 bg-white"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-[#231F20] truncate">{item.title}</p>
+              <p className="text-[10px] text-[#65605B] truncate">
+                {item.variant_label} • Qty {item.quantity}
+              </p>
+            </div>
+            <strong className="text-[11px] text-[#231F20] flex-shrink-0">
+              {formatINR(item.unit_price * item.quantity)}
+            </strong>
+          </li>
+        ))}
+      </ul>
+
+      <dl className="pt-2 border-t border-[#E6DCCF] space-y-1 text-xs">
+        <div className="flex justify-between text-[#65605B]">
+          <dt>Subtotal</dt>
+          <dd className="font-bold">{formatINR(cartSubtotal)}</dd>
+        </div>
+        <div className="flex justify-between text-[#65605B]">
+          <dt>GST (8%)</dt>
+          <dd className="font-bold">{formatINR(cartTax)}</dd>
+        </div>
+        <div className="flex justify-between text-[#65605B]">
+          <dt>Delivery fee</dt>
+          <dd className="font-bold">{cartShipping === 0 ? 'FREE' : formatINR(cartShipping)}</dd>
+        </div>
+        <div className="flex justify-between text-sm font-black text-[#231F20] pt-1.5 border-t border-[#E6DCCF]">
+          <dt>Total</dt>
+          <dd className="text-[#E07A5F]">{formatINR(cartTotal)}</dd>
+        </div>
+      </dl>
+
+      {actions}
+    </div>
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
@@ -980,8 +1043,8 @@ export default function ProductsMarketplace({
         </div>
       )}
 
-      {/* Product Details & Variant Modal Overlay */}
-      {activeProduct && (
+      {/* Product Details & Variant Modal Overlay (portaled to <body> so `fixed` is viewport-relative) */}
+      {activeProduct && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -1378,10 +1441,10 @@ export default function ProductsMarketplace({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
-      {/* Public Seller Storefront Modal */}
-      {storefrontVendor && (
+      {/* Public Seller Storefront Modal (portaled to <body>) */}
+      {storefrontVendor && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231F20]/50 backdrop-blur-sm animate-fadeIn overflow-y-auto">
           <div className="bg-white rounded-3xl border border-[#EFE9DF] max-w-4xl w-full max-h-[calc(100vh-2rem)] sm:max-h-[88vh] overflow-y-auto shadow-2xl p-6 sm:p-8 relative my-auto">
             <button
@@ -1437,99 +1500,172 @@ export default function ProductsMarketplace({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
-      {/* Multi-Step Shopping Cart & Checkout Slide-Over Drawer */}
-      {isCartOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-[#231F20]/40 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white w-full max-w-md h-full shadow-2xl border-l border-[#EFE9DF] flex flex-col justify-between overflow-hidden">
-            {/* Drawer Top Navigation */}
-            <div className="flex-shrink-0 p-5 sm:p-6 pb-4 border-b border-[#EFE9DF] flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <ShoppingCart className="w-5 h-5 text-[#E07A5F]" />
-                <h3 className="text-lg font-black text-[#231F20] font-display">
-                  {checkoutStep === 'cart'
-                    ? `Your Cart (${totalCartUnits})`
-                    : checkoutStep === 'details'
-                    ? 'Delivery Information'
-                    : 'Review & Payment'}
-                </h3>
+      {/* Product Shopping Cart & Checkout Modal (portaled to <body>) */}
+      {isCartOpen && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="checkout-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-[#231F20]/50 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !checkingOut) setIsCartOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl border border-[#EFE9DF] max-w-2xl lg:max-w-4xl w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] shadow-2xl flex flex-col my-auto overflow-hidden animate-scaleUp">
+            {/* Modal Header */}
+            <div className="flex-shrink-0 px-5 sm:px-6 py-4 border-b border-[#EFE9DF] flex items-center justify-between bg-white z-10">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-[#FFF5F0] border border-[#F4C4B7] flex items-center justify-center text-[#E07A5F] flex-shrink-0">
+                  {checkoutStep === 'cart' ? (
+                    <ShoppingCart className="w-4 h-4" />
+                  ) : checkoutStep === 'details' ? (
+                    <Truck className="w-4 h-4" />
+                  ) : (
+                    <CreditCard className="w-4 h-4" />
+                  )}
+                </div>
+                <div>
+                  <h3 id="checkout-dialog-title" className="text-base sm:text-lg font-black text-[#231F20] font-display">
+                    {checkoutStep === 'cart'
+                      ? `Your Shopping Cart (${totalCartUnits} items)`
+                      : checkoutStep === 'details'
+                      ? 'Delivery Information & Payment'
+                      : 'Review & Confirm Order'}
+                  </h3>
+                  <div className="flex items-center space-x-2 mt-0.5 text-[11px] font-bold text-[#65605B]">
+                    <span className={checkoutStep === 'cart' ? 'text-[#E07A5F]' : 'text-[#8C847C]'}>1. Cart</span>
+                    <span>→</span>
+                    <span className={checkoutStep === 'details' ? 'text-[#E07A5F]' : 'text-[#8C847C]'}>2. Delivery & Payment</span>
+                    <span>→</span>
+                    <span className={checkoutStep === 'review' ? 'text-[#E07A5F]' : 'text-[#8C847C]'}>3. Review & Confirm</span>
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCartOpen(false)}
-                className="p-1.5 rounded-full bg-[#FAF6F0] hover:bg-[#EFE9DF] cursor-pointer"
+                className="p-2 rounded-full bg-[#FAF6F0] hover:bg-[#EFE9DF] text-[#231F20] transition-colors cursor-pointer"
+                title="Close checkout"
+                aria-label="Close"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Scrollable Step Content */}
+            {/* Modal Scrollable Body */}
             <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6">
               {/* STEP 1: CART ITEMS LIST */}
               {checkoutStep === 'cart' && (
                 <>
                   {cart.length === 0 ? (
-                    <div className="text-center py-16">
-                      <ShoppingCart className="w-12 h-12 text-[#8C847C] mx-auto mb-3" />
-                      <p className="text-sm font-bold text-[#231F20]">Your cart is empty</p>
-                      <p className="text-xs text-[#65605B] mt-1">
-                        Add food, harnesses, toys, or grooming supplies to get started.
+                    <div className="text-center py-12 space-y-3">
+                      <div className="w-16 h-16 rounded-full bg-[#FAF6F0] flex items-center justify-center mx-auto text-[#8C847C]">
+                        <ShoppingCart className="w-8 h-8" />
+                      </div>
+                      <p className="text-base font-extrabold text-[#231F20]">Your cart is currently empty</p>
+                      <p className="text-xs text-[#65605B] max-w-sm mx-auto">
+                        Explore nutritious pet food, durable leashes, cozy beds, and toys from verified local pet shops.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsCartOpen(false)}
+                        className="mt-2 px-6 py-2.5 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-full shadow-sm transition-all cursor-pointer"
+                      >
+                        Browse Product Marketplace
+                      </button>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {cart.map(item => (
-                        <div
-                          key={item.cartKey}
-                          className="p-3.5 rounded-2xl border border-[#EFE9DF] bg-[#FAF6F0]/60 flex items-center justify-between gap-3"
-                        >
-                          <img
-                            src={item.image_url}
-                            alt={item.title}
-                            className="w-14 h-14 rounded-xl object-cover border border-[#E6DCCF] flex-shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-extrabold text-[#231F20] truncate">{item.title}</p>
-                            <p className="text-[11px] text-[#65605B]">
-                              Option: <strong>{item.variant_label}</strong> • {formatINR(item.unit_price)}
-                            </p>
-                            <p className="text-[10px] text-[#52796F] font-bold truncate">
-                              Shop: {item.business_name}
-                            </p>
-                            <div className="flex items-center space-x-2 mt-2">
+                    <div className="space-y-4">
+                      {/* Cart Item Cards */}
+                      <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                        {cart.map(item => (
+                          <div
+                            key={item.cartKey}
+                            className="p-3.5 rounded-2xl border border-[#EFE9DF] bg-[#FAF6F0]/60 hover:bg-[#FAF6F0] transition-colors flex items-center justify-between gap-3"
+                          >
+                            <img
+                              src={item.image_url}
+                              alt={item.title}
+                              className="w-14 h-14 rounded-xl object-cover border border-[#E6DCCF] flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-extrabold text-[#231F20] truncate">{item.title}</p>
+                              <p className="text-[11px] text-[#65605B]">
+                                Variant: <strong className="text-[#231F20]">{item.variant_label}</strong> • {formatINR(item.unit_price)}
+                              </p>
+                              <p className="text-[10px] text-[#52796F] font-bold truncate">
+                                Shop: {item.business_name}
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2 flex-shrink-0">
                               <button
                                 type="button"
                                 onClick={() => updateCartQuantity(item.cartKey, -1)}
-                                className="w-6 h-6 rounded-lg bg-white border border-[#E6DCCF] flex items-center justify-center cursor-pointer"
+                                className="w-7 h-7 rounded-lg bg-white border border-[#E6DCCF] flex items-center justify-center cursor-pointer text-[#231F20] hover:bg-[#FAF6F0]"
+                                aria-label="Decrease quantity"
                               >
                                 <Minus className="w-3 h-3" />
                               </button>
-                              <span className="text-xs font-extrabold">{item.quantity}</span>
+                              <span className="text-xs font-black w-5 text-center">{item.quantity}</span>
                               <button
                                 type="button"
                                 onClick={() => updateCartQuantity(item.cartKey, 1)}
-                                className="w-6 h-6 rounded-lg bg-white border border-[#E6DCCF] flex items-center justify-center cursor-pointer"
+                                className="w-7 h-7 rounded-lg bg-white border border-[#E6DCCF] flex items-center justify-center cursor-pointer text-[#231F20] hover:bg-[#FAF6F0]"
+                                aria-label="Increase quantity"
                               >
                                 <Plus className="w-3 h-3" />
                               </button>
                             </div>
+                            <div className="text-right flex-shrink-0 min-w-20">
+                              <p className="text-xs font-black text-[#231F20]">
+                                {formatINR(item.unit_price * item.quantity)}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => removeFromCart(item.cartKey)}
+                                className="text-red-500 hover:text-red-700 p-1 text-xs cursor-pointer inline-flex items-center space-x-1"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span className="text-[10px]">Remove</span>
+                              </button>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-xs font-black text-[#231F20]">
-                              {formatINR(item.unit_price * item.quantity)}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => removeFromCart(item.cartKey)}
-                              className="text-red-500 hover:text-red-700 p-1 mt-2 cursor-pointer"
-                              title="Remove item"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                        ))}
+                      </div>
+
+                      {/* Compact Price Summary & Action */}
+                      <div className="p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF] space-y-3">
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex justify-between text-[#65605B]">
+                            <span>Subtotal ({totalCartUnits} units)</span>
+                            <strong>{formatINR(cartSubtotal)}</strong>
+                          </div>
+                          <div className="flex justify-between text-[#65605B]">
+                            <span>GST (8%)</span>
+                            <strong>{formatINR(cartTax)}</strong>
+                          </div>
+                          <div className="flex justify-between text-[#65605B]">
+                            <span>Delivery Shipping {cartSubtotal >= 999 ? '(Free over ₹999!)' : ''}</span>
+                            <strong>{cartShipping === 0 ? 'FREE' : formatINR(cartShipping)}</strong>
+                          </div>
+                          <div className="flex justify-between text-sm font-black text-[#231F20] pt-2 border-t border-[#E6DCCF]">
+                            <span>Total Amount</span>
+                            <span className="text-[#E07A5F]">{formatINR(cartTotal)}</span>
                           </div>
                         </div>
-                      ))}
+
+                        <button
+                          type="button"
+                          onClick={handleProceedToDetails}
+                          className="w-full py-3.5 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center space-x-2"
+                        >
+                          <span>Proceed to Delivery & Checkout ({formatINR(cartTotal)})</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </>
@@ -1537,216 +1673,250 @@ export default function ProductsMarketplace({
 
               {/* STEP 2: DELIVERY DETAILS & PAYMENT METHOD */}
               {checkoutStep === 'details' && (
-                <form id="details-step-form" onSubmit={handleProceedToReview} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-[#4A4344] mb-1">
-                      Customer Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Alex Morgan"
-                      value={buyerName}
-                      onChange={e => setBuyerName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold"
-                    />
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 md:items-start">
+                  {/* Left column: contact, delivery address and payment method */}
+                  <form
+                    id="details-step-form"
+                    onSubmit={handleProceedToReview}
+                    className="md:col-span-7 space-y-5"
+                  >
+                    <fieldset className="space-y-3">
+                      <legend className="flex items-center gap-1.5 text-xs font-extrabold text-[#231F20] uppercase tracking-wider mb-2">
+                        <Truck className="w-3.5 h-3.5 text-[#E07A5F]" />
+                        Contact &amp; Delivery
+                      </legend>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label htmlFor="checkout-name" className="block text-xs font-bold text-[#4A4344] mb-1">
+                            Full Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="checkout-name"
+                            type="text"
+                            required
+                            autoComplete="name"
+                            placeholder="Alex Morgan"
+                            value={buyerName}
+                            onChange={e => setBuyerName(e.target.value)}
+                            className="w-full px-3.5 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold text-[#231F20] focus:outline-none focus:border-[#E07A5F]"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="checkout-phone" className="block text-xs font-bold text-[#4A4344] mb-1">
+                            Phone Number <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="checkout-phone"
+                            type="tel"
+                            required
+                            autoComplete="tel"
+                            placeholder="+91 98201 11223"
+                            value={buyerPhone}
+                            onChange={e => setBuyerPhone(e.target.value)}
+                            className="w-full px-3.5 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold text-[#231F20] focus:outline-none focus:border-[#E07A5F]"
+                          />
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-[#4A4344] mb-1">
-                      Delivery Contact Phone <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="+91 98201 11223"
-                      value={buyerPhone}
-                      onChange={e => setBuyerPhone(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold"
-                    />
-                  </div>
+                      <div>
+                        <label htmlFor="checkout-address" className="block text-xs font-bold text-[#4A4344] mb-1">
+                          Shipping Address <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          id="checkout-address"
+                          rows={3}
+                          required
+                          autoComplete="street-address"
+                          placeholder="House/Flat No., Building Name, Street, Locality, City, State, PIN Code"
+                          value={shippingAddress}
+                          onChange={e => setShippingAddress(e.target.value)}
+                          className="w-full px-3.5 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold text-[#231F20] resize-y focus:outline-none focus:border-[#E07A5F]"
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-[#4A4344] mb-1">
-                      Complete Shipping Address <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      rows={3}
-                      required
-                      placeholder="House/Flat No., Building Name, Street, Locality, City, State, PIN Code"
-                      value={shippingAddress}
-                      onChange={e => setShippingAddress(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold"
-                    />
-                  </div>
+                      <div>
+                        <label htmlFor="checkout-notes" className="block text-xs font-bold text-[#4A4344] mb-1">
+                          Delivery Instructions <span className="font-medium text-[#8C847C]">(optional)</span>
+                        </label>
+                        <input
+                          id="checkout-notes"
+                          type="text"
+                          placeholder="e.g. Leave with building security / Ring bell twice"
+                          value={deliveryInstructions}
+                          onChange={e => setDeliveryInstructions(e.target.value)}
+                          className="w-full px-3.5 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold text-[#231F20] focus:outline-none focus:border-[#E07A5F]"
+                        />
+                      </div>
+                    </fieldset>
 
-                  <div>
-                    <label className="block text-xs font-bold text-[#4A4344] mb-1">
-                      Delivery Instructions (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Leave with security / Ring bell twice"
-                      value={deliveryInstructions}
-                      onChange={e => setDeliveryInstructions(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-[#FAF6F0] border border-[#E6DCCF] rounded-xl text-xs font-semibold"
-                    />
-                  </div>
+                    <fieldset>
+                      <legend className="flex items-center gap-1.5 text-xs font-extrabold text-[#231F20] uppercase tracking-wider mb-2">
+                        <CreditCard className="w-3.5 h-3.5 text-[#E07A5F]" />
+                        Payment Method
+                      </legend>
+                      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
+                        {[
+                          { id: 'UPI', label: 'UPI / QR', desc: 'Instant verification' },
+                          { id: 'Card', label: 'Debit / Credit', desc: 'Visa, MC, RuPay' },
+                          { id: 'NetBanking', label: 'Net Banking', desc: 'All Indian banks' },
+                          { id: 'COD', label: 'Cash on Delivery', desc: 'Pay upon delivery' }
+                        ].map(m => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={paymentMethod === m.id}
+                            onClick={() => setPaymentMethod(m.id)}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                              paymentMethod === m.id
+                                ? 'border-[#E07A5F] bg-[#FFF5F0] text-[#E07A5F] ring-1 ring-[#E07A5F]'
+                                : 'border-[#E6DCCF] bg-white text-[#4A4344] hover:bg-[#FAF6F0]'
+                            }`}
+                          >
+                            <span className="block text-xs font-black">{m.label}</span>
+                            <span className="block text-[10px] text-[#65605B]">{m.desc}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                  </form>
 
-                  <div>
-                    <label className="block text-xs font-bold text-[#4A4344] mb-2">
-                      Choose Payment Method
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: 'UPI', label: 'UPI / QR', desc: 'Instant verification' },
-                        { id: 'Card', label: 'Debit / Credit', desc: 'Visa, MC, RuPay' },
-                        { id: 'NetBanking', label: 'Net Banking', desc: 'All Indian banks' },
-                        { id: 'COD', label: 'Cash on Delivery', desc: 'Pay upon delivery' }
-                      ].map(m => (
+                  {/* Right column: order summary with the primary action (sticky on desktop) */}
+                  <aside className="md:col-span-5 md:sticky md:top-0" aria-label="Order summary">
+                    {renderOrderSummary(
+                      <div className="space-y-2 pt-1">
                         <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setPaymentMethod(m.id)}
-                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                            paymentMethod === m.id
-                              ? 'border-[#E07A5F] bg-[#FFF5F0] text-[#E07A5F] font-extrabold ring-1 ring-[#E07A5F]'
-                              : 'border-[#E6DCCF] bg-white text-[#4A4344]'
-                          }`}
+                          type="submit"
+                          form="details-step-form"
+                          disabled={checkingOut}
+                          className="w-full py-3 bg-[#E07A5F] hover:bg-[#D0654A] disabled:bg-gray-300 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-1"
                         >
-                          <span className="block text-xs font-black">{m.label}</span>
-                          <span className="block text-[10px] text-[#65605B]">{m.desc}</span>
+                          <span>{checkingOut ? 'Validating Cart on Server…' : 'Continue to Review'}</span>
+                          {!checkingOut && <ChevronRight className="w-4 h-4" />}
                         </button>
-                      ))}
-                    </div>
-                  </div>
-                </form>
+                        <button
+                          type="button"
+                          onClick={() => setCheckoutStep('cart')}
+                          className="w-full py-2 bg-white hover:bg-[#F3EEE6] text-[#65605B] font-bold text-xs rounded-xl border border-[#E6DCCF] cursor-pointer transition-colors"
+                        >
+                          ← Back to Cart
+                        </button>
+                      </div>
+                    )}
+                  </aside>
+                </div>
               )}
 
               {/* STEP 3: FINAL ORDER REVIEW & CONFIRMATION */}
               {checkoutStep === 'review' && (
-                <div className="space-y-4 text-xs">
-                  <div className="p-4 bg-[#FAF6F0] rounded-2xl border border-[#E6DCCF] space-y-2">
-                    <h4 className="font-extrabold text-[#231F20] uppercase tracking-wider text-[11px]">
-                      Delivery Summary
-                    </h4>
-                    <p><strong className="text-[#231F20]">Recipient:</strong> {buyerName}</p>
-                    <p><strong className="text-[#231F20]">Phone:</strong> {buyerPhone}</p>
-                    <p><strong className="text-[#231F20]">Address:</strong> {shippingAddress}</p>
-                    {deliveryInstructions && (
-                      <p><strong className="text-[#231F20]">Note:</strong> {deliveryInstructions}</p>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 md:items-start">
+                  {/* Left column: delivery + payment recap */}
+                  <div className="md:col-span-7 space-y-3 text-xs">
+                    <section className="p-4 bg-white rounded-2xl border border-[#E6DCCF] space-y-1.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="flex items-center gap-1.5 font-extrabold text-[#231F20] uppercase tracking-wider text-[11px]">
+                          <Truck className="w-3.5 h-3.5 text-[#E07A5F]" />
+                          Delivering To
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => setCheckoutStep('details')}
+                          className="text-[11px] font-bold text-[#E07A5F] hover:underline cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      <p className="font-bold text-[#231F20]">{buyerName}</p>
+                      <p className="text-[#4A4344]">{buyerPhone}</p>
+                      <p className="text-[#4A4344] break-words whitespace-pre-line">{shippingAddress}</p>
+                      {deliveryInstructions && (
+                        <p className="text-[#65605B]"><strong className="text-[#231F20]">Note:</strong> {deliveryInstructions}</p>
+                      )}
+                    </section>
+
+                    <section className="p-4 bg-[#EAEFE9] rounded-2xl border border-[#D1E7DD] space-y-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="flex items-center gap-1.5 font-extrabold text-[#2A5C4A]">
+                          <CreditCard className="w-4 h-4" />
+                          <span>Payment: {paymentMethod === 'COD' ? 'Cash on Delivery' : paymentMethod}</span>
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => setCheckoutStep('details')}
+                          className="text-[11px] font-bold text-[#2A5C4A] hover:underline cursor-pointer"
+                        >
+                          Change
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-[#2A5C4A]/80">
+                        {paymentMethod === 'COD'
+                          ? 'Payment status will remain Pending until the package is handed over by the courier.'
+                          : 'Your payment is verified on the server (HMAC-SHA256) before the order is confirmed.'}
+                      </p>
+                    </section>
+                  </div>
+
+                  {/* Right column: order summary with the final purchase action */}
+                  <aside className="md:col-span-5 md:sticky md:top-0" aria-label="Order summary">
+                    {renderOrderSummary(
+                      <div className="space-y-2 pt-1">
+                        <button
+                          type="button"
+                          disabled={checkingOut}
+                          onClick={handleConfirmAndPay}
+                          className="w-full py-3 bg-[#E07A5F] hover:bg-[#D0654A] disabled:bg-gray-300 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all"
+                        >
+                          {checkingOut
+                            ? 'Confirming Order…'
+                            : paymentMethod === 'COD'
+                            ? `Place Order (${formatINR(cartTotal)} COD)`
+                            : `Confirm & Pay ${formatINR(cartTotal)}`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCheckoutStep('details')}
+                          className="w-full py-2 bg-white hover:bg-[#F3EEE6] text-[#65605B] font-bold text-xs rounded-xl border border-[#E6DCCF] cursor-pointer transition-colors"
+                        >
+                          ← Edit Delivery Information
+                        </button>
+                      </div>
                     )}
-                  </div>
-
-                  <div className="p-4 bg-white rounded-2xl border border-[#EFE9DF] space-y-2">
-                    <h4 className="font-extrabold text-[#231F20] uppercase tracking-wider text-[11px]">
-                      Order Items ({cart.length})
-                    </h4>
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                      {cart.map(item => (
-                        <div key={item.cartKey} className="flex justify-between text-[#4A4344]">
-                          <span className="truncate pr-2">{item.title} ({item.variant_label}) x{item.quantity}</span>
-                          <strong className="flex-shrink-0 text-[#231F20]">{formatINR(item.unit_price * item.quantity)}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-[#EAEFE9] rounded-2xl border border-[#D1E7DD] space-y-1">
-                    <div className="flex items-center space-x-1.5 font-extrabold text-[#2A5C4A]">
-                      <CreditCard className="w-4 h-4" />
-                      <span>Payment Method: {paymentMethod === 'COD' ? 'Cash on Delivery (Pending)' : `${paymentMethod} (Verified Online)`}</span>
-                    </div>
-                    <p className="text-[11px] text-[#2A5C4A]/80">
-                      {paymentMethod === 'COD'
-                        ? 'Payment status will remain Pending until package is handed over by courier.'
-                        : 'Securely processed and verified via cryptographic server-side HMAC authorization.'}
-                    </p>
-                  </div>
+                  </aside>
                 </div>
               )}
             </div>
 
-            {/* Bottom Actions & Price Breakdown */}
-            {cart.length > 0 && (
-              <div className="flex-shrink-0 p-5 sm:p-6 pt-4 border-t border-[#EFE9DF] bg-white space-y-3">
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-[#65605B]">
-                    <span>Subtotal</span>
-                    <strong>{formatINR(cartSubtotal)}</strong>
-                  </div>
-                  <div className="flex justify-between text-[#65605B]">
-                    <span>GST (8%)</span>
-                    <strong>{formatINR(cartTax)}</strong>
-                  </div>
-                  <div className="flex justify-between text-[#65605B]">
-                    <span>Shipping {cartSubtotal >= 999 && '(Free over ₹999!)'}</span>
-                    <strong>{cartShipping === 0 ? 'FREE' : formatINR(cartShipping)}</strong>
-                  </div>
-                  <div className="flex justify-between text-sm font-black text-[#231F20] pt-2 border-t border-[#EFE9DF]">
-                    <span>Total Amount</span>
-                    <span>{formatINR(cartTotal)}</span>
-                  </div>
+            {/* Mobile-only sticky action bar: keeps total + primary action reachable without scrolling */}
+            {(checkoutStep === 'details' || checkoutStep === 'review') && cart.length > 0 && (
+              <div className="md:hidden flex-shrink-0 border-t border-[#EFE9DF] bg-white px-4 py-3 flex items-center gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-[#65605B] uppercase tracking-wider">Total</p>
+                  <p className="text-sm font-black text-[#E07A5F]">{formatINR(cartTotal)}</p>
                 </div>
-
-                {checkoutStep === 'cart' && (
+                {checkoutStep === 'details' ? (
+                  <button
+                    type="submit"
+                    form="details-step-form"
+                    disabled={checkingOut}
+                    className="flex-1 py-3 bg-[#E07A5F] hover:bg-[#D0654A] disabled:bg-gray-300 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
+                  >
+                    {checkingOut ? 'Validating…' : 'Continue to Review'}
+                  </button>
+                ) : (
                   <button
                     type="button"
-                    onClick={handleProceedToDetails}
-                    className="w-full py-3.5 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all"
+                    disabled={checkingOut}
+                    onClick={handleConfirmAndPay}
+                    className="flex-1 py-3 bg-[#E07A5F] hover:bg-[#D0654A] disabled:bg-gray-300 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
                   >
-                    Proceed to Delivery Details ({formatINR(cartTotal)})
+                    {checkingOut ? 'Confirming…' : paymentMethod === 'COD' ? 'Place Order' : 'Confirm & Pay'}
                   </button>
-                )}
-
-                {checkoutStep === 'details' && (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCheckoutStep('cart')}
-                      className="px-4 py-3 bg-[#FAF6F0] text-[#4A4344] font-bold text-xs rounded-xl cursor-pointer"
-                    >
-                      Back to Cart
-                    </button>
-                    <button
-                      type="submit"
-                      form="details-step-form"
-                      disabled={checkingOut}
-                      className="flex-1 py-3 bg-[#52796F] hover:bg-[#3E5E56] text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all"
-                    >
-                      {checkingOut ? 'Validating…' : 'Review Order Summary →'}
-                    </button>
-                  </div>
-                )}
-
-                {checkoutStep === 'review' && (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCheckoutStep('details')}
-                      className="px-4 py-3 bg-[#FAF6F0] text-[#4A4344] font-bold text-xs rounded-xl cursor-pointer"
-                    >
-                      Edit Details
-                    </button>
-                    <button
-                      type="button"
-                      disabled={checkingOut}
-                      onClick={handleConfirmAndPay}
-                      className="flex-1 py-3 bg-[#E07A5F] hover:bg-[#D0654A] text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all"
-                    >
-                      {checkingOut
-                        ? 'Confirming Order…'
-                        : paymentMethod === 'COD'
-                        ? `Confirm Order (${formatINR(cartTotal)} COD)`
-                        : `Confirm & Pay ${formatINR(cartTotal)}`}
-                    </button>
-                  </div>
                 )}
               </div>
             )}
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
