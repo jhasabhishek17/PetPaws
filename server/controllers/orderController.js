@@ -13,6 +13,7 @@ const { normalizeItem } = require('../utils/normalize');
 const { findDocByAnyId } = require('../utils/dbHelpers');
 const ExpressError = require('../utils/ExpressError');
 const mongoose = require('mongoose');
+const { calculateEffectivePrice } = require('../utils/discountEngine');
 
 // Shared helpers for checkout calculations
 const calculateOrderTotals = (price) => {
@@ -101,8 +102,20 @@ const createCheckoutOrder = async (req, res) => {
       await pet.save();
     }
 
-    const { tax, total_amount } = calculateOrderTotals(pet.price);
+    const eff = calculateEffectivePrice(pet);
+    const effectivePrice = eff.finalPrice;
+    const { tax, total_amount } = calculateOrderTotals(effectivePrice);
     const { orderId, trackingCode } = generateOrderIds();
+
+    const discountInfo = eff.isDiscountActive
+      ? {
+          title: eff.discountTitle,
+          type: eff.discountType,
+          value: eff.discountValue,
+          discount_amount: eff.discountAmount,
+          amount_saved: eff.discountAmount
+        }
+      : null;
 
     const newOrder = await Order.create({
       custom_id: orderId,
@@ -117,7 +130,10 @@ const createCheckoutOrder = async (req, res) => {
       pet_image: pet.image_url,
       seller_id: pet.seller_id,
       seller_name: pet.seller_name,
-      price: pet.price,
+      price: effectivePrice,
+      original_price: eff.basePrice,
+      discount_amount: eff.discountAmount,
+      discount_info: discountInfo,
       tax,
       total_amount,
       payment_method,
@@ -144,8 +160,20 @@ const createCheckoutOrder = async (req, res) => {
   pet.stock -= 1;
   if (pet.stock === 0) pet.status = 'sold';
 
-  const { tax, total_amount } = calculateOrderTotals(pet.price);
+  const eff = calculateEffectivePrice(pet);
+  const effectivePrice = eff.finalPrice;
+  const { tax, total_amount } = calculateOrderTotals(effectivePrice);
   const { orderId, trackingCode } = generateOrderIds();
+
+  const discountInfo = eff.isDiscountActive
+    ? {
+        title: eff.discountTitle,
+        type: eff.discountType,
+        value: eff.discountValue,
+        discount_amount: eff.discountAmount,
+        amount_saved: eff.discountAmount
+      }
+    : null;
 
   const newOrder = {
     id: orderId,
@@ -160,7 +188,10 @@ const createCheckoutOrder = async (req, res) => {
     pet_image: pet.image_url,
     seller_id: pet.seller_id,
     seller_name: pet.seller_name,
-    price: pet.price,
+    price: effectivePrice,
+    original_price: eff.basePrice,
+    discount_amount: eff.discountAmount,
+    discount_info: discountInfo,
     tax,
     total_amount,
     payment_method,
