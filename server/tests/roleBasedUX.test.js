@@ -9,11 +9,13 @@
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+process.env.EMAIL_TRANSPORT = 'test';
 const http = require('http');
 const { Duplex } = require('stream');
 const assert = require('assert');
 const { test, describe, before } = require('node:test');
 const { app } = require('../server');
+const { getLastEmailTo } = require('../utils/emailService');
 
 function makeRequest(app, { method = 'GET', url = '/', headers = {}, body = null }) {
   return new Promise((resolve) => {
@@ -81,82 +83,81 @@ describe('PetPaws Role-Based Permissions & Checkout Policy Enforcement', () => {
   let shopkeeperToken;
   let testProductId;
 
+  async function registerAndVerifyUser(payload) {
+    const regRes = await makeRequest(app, {
+      method: 'POST',
+      url: '/api/auth/register',
+      body: payload
+    });
+    assert.strictEqual(regRes.statusCode, 201);
+    assert.strictEqual(regRes.body.requires_verification, true);
+
+    const emailRecord = getLastEmailTo(payload.email, 'verify-email');
+    assert.ok(emailRecord && emailRecord.token, `Verification email must be captured for ${payload.email}`);
+
+    const verifyRes = await makeRequest(app, {
+      method: 'POST',
+      url: '/api/auth/verify-email',
+      body: { token: emailRecord.token }
+    });
+    assert.strictEqual(verifyRes.statusCode, 200);
+
+    const loginRes = await makeRequest(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      body: { email: payload.email, password: payload.password }
+    });
+    assert.strictEqual(loginRes.statusCode, 200);
+    assert.ok(loginRes.body.token);
+    return loginRes.body.token;
+  }
+
   before(async () => {
     const ts = Date.now();
 
-    // 1. Register Buyer
-    const buyerRes = await makeRequest(app, {
-      method: 'POST',
-      url: '/api/auth/register',
-      body: {
-        name: `Test Buyer ${ts}`,
-        email: `buyer_${ts}@test.com`,
-        password: 'Password123!',
-        role: 'buyer'
-      }
+    // 1. Register & Verify Buyer
+    buyerToken = await registerAndVerifyUser({
+      name: `Test Buyer ${ts}`,
+      email: `buyer_${ts}@test.com`,
+      password: 'Password123!',
+      role: 'buyer'
     });
-    assert.strictEqual(buyerRes.statusCode, 201);
-    buyerToken = buyerRes.body.token;
 
-    // 2. Register Seller
-    const sellerRes = await makeRequest(app, {
-      method: 'POST',
-      url: '/api/auth/register',
-      body: {
-        name: `Test Seller ${ts}`,
-        email: `seller_${ts}@test.com`,
-        password: 'Password123!',
-        role: 'seller',
-        business_name: `Breeder ${ts}`
-      }
+    // 2. Register & Verify Seller
+    sellerToken = await registerAndVerifyUser({
+      name: `Test Seller ${ts}`,
+      email: `seller_${ts}@test.com`,
+      password: 'Password123!',
+      role: 'seller',
+      business_name: `Breeder ${ts}`
     });
-    assert.strictEqual(sellerRes.statusCode, 201);
-    sellerToken = sellerRes.body.token;
 
-    // 3. Register Vet
-    const vetRes = await makeRequest(app, {
-      method: 'POST',
-      url: '/api/auth/register',
-      body: {
-        name: `Dr. Vet ${ts}`,
-        email: `vet_${ts}@test.com`,
-        password: 'Password123!',
-        role: 'vet',
-        business_name: `Clinic ${ts}`
-      }
+    // 3. Register & Verify Vet
+    vetToken = await registerAndVerifyUser({
+      name: `Dr. Vet ${ts}`,
+      email: `vet_${ts}@test.com`,
+      password: 'Password123!',
+      role: 'vet',
+      business_name: `Clinic ${ts}`
     });
-    assert.strictEqual(vetRes.statusCode, 201);
-    vetToken = vetRes.body.token;
 
-    // 4. Register Groomer
-    const groomerRes = await makeRequest(app, {
-      method: 'POST',
-      url: '/api/auth/register',
-      body: {
-        name: `Groomer ${ts}`,
-        email: `groomer_${ts}@test.com`,
-        password: 'Password123!',
-        role: 'groomer',
-        business_name: `Spa ${ts}`
-      }
+    // 4. Register & Verify Groomer
+    groomerToken = await registerAndVerifyUser({
+      name: `Groomer ${ts}`,
+      email: `groomer_${ts}@test.com`,
+      password: 'Password123!',
+      role: 'groomer',
+      business_name: `Spa ${ts}`
     });
-    assert.strictEqual(groomerRes.statusCode, 201);
-    groomerToken = groomerRes.body.token;
 
-    // 5. Register Shopkeeper
-    const shopRes = await makeRequest(app, {
-      method: 'POST',
-      url: '/api/auth/register',
-      body: {
-        name: `Shopkeeper ${ts}`,
-        email: `shop_${ts}@test.com`,
-        password: 'Password123!',
-        role: 'shopkeeper',
-        business_name: `Shop ${ts}`
-      }
+    // 5. Register & Verify Shopkeeper
+    shopkeeperToken = await registerAndVerifyUser({
+      name: `Shopkeeper ${ts}`,
+      email: `shop_${ts}@test.com`,
+      password: 'Password123!',
+      role: 'shopkeeper',
+      business_name: `Shop ${ts}`
     });
-    assert.strictEqual(shopRes.statusCode, 201);
-    shopkeeperToken = shopRes.body.token;
 
     // Create a product by the shopkeeper
     const prodRes = await makeRequest(app, {
