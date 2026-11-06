@@ -19,6 +19,7 @@ import Hero from './Hero';
 import Reveal from './Reveal';
 import { PetCardSkeleton } from './PawLoader';
 import { isProvider } from '../utils/permissions';
+import OfferCountdownTimer from './OfferCountdownTimer';
 
 /**
  * Reusable Pet Card item supporting both Grid and List layouts
@@ -45,13 +46,20 @@ function PetCardItem({
         <div className="flex items-center space-x-4">
           <img src={pet.image_url} alt={pet.title} className="w-20 h-20 rounded-xl object-cover" />
           <div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
               <h4 className="font-extrabold text-[#231F20] group-hover:text-[#E07A5F] text-base">
                 {pet.title}
               </h4>
               <span className="px-2 py-0.5 bg-[#FAF6F0] text-[#65605B] text-[10px] font-bold rounded">
                 {pet.category}
               </span>
+              {pet.has_active_discount && pet.price > 0 && (
+                <span className="bg-[#2A5C4A] text-white text-[10px] font-black px-2 py-0.5 rounded flex items-center gap-1">
+                  <span>🏷️</span>
+                  <span>{pet.discount_info?.title || `${pet.discount?.value}% OFF`}</span>
+                </span>
+              )}
+              <OfferCountdownTimer pet={pet} variant="text" />
             </div>
             <p className="text-xs text-[#65605B] mt-1">
               Breed: <strong>{pet.breed}</strong> • Age: <strong>{pet.age}</strong>
@@ -67,7 +75,27 @@ function PetCardItem({
         </div>
 
         <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-[#EFE9DF]">
-          <span className="text-xl font-black text-[#231F20] font-display">${pet.price}</span>
+          <div>
+            {pet.price === 0 ? (
+              <span className="text-sm font-extrabold text-[#2A5C4A] bg-[#EAEFE9] px-2.5 py-1 rounded-lg border border-[#D1E7DD]">
+                Free Adoption
+              </span>
+            ) : pet.has_active_discount ? (
+              <div className="flex flex-col sm:items-end gap-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xl font-black text-[#2A5C4A] font-display">
+                    ${pet.effective_price || pet.price}
+                  </span>
+                  <span className="text-xs font-bold text-[#8C847C] line-through">
+                    ${pet.original_price || pet.price}
+                  </span>
+                </div>
+                <OfferCountdownTimer pet={pet} variant="text" />
+              </div>
+            ) : (
+              <span className="text-xl font-black text-[#231F20] font-display">${pet.price}</span>
+            )}
+          </div>
           {isBuyer && (
             <button
               type="button"
@@ -111,7 +139,7 @@ function PetCardItem({
               }}
               className="px-4 py-2 bg-[#E07A5F] hover:bg-[#D96B43] disabled:opacity-50 text-white font-bold text-xs rounded-xl cursor-pointer"
             >
-              {isSoldOut ? 'Sold out' : `Adopt ($${pet.price})`}
+              {isSoldOut ? 'Sold out' : pet.price === 0 ? 'Adopt (Free)' : `Adopt ($${pet.effective_price || pet.price})`}
             </button>
           )}
         </div>
@@ -157,10 +185,24 @@ function PetCardItem({
             </span>
           </div>
         )}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
           <span className="bg-[#231F20]/85 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1 rounded-full shadow">
             {pet.category}
           </span>
+          {pet.has_active_discount && pet.price > 0 && (
+            <>
+              <span className="bg-[#2A5C4A] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow flex items-center gap-1 animate-pulse">
+                <span>🏷️</span>
+                <span>{pet.discount_info?.title || `${pet.discount?.value}% OFF`}</span>
+              </span>
+              <OfferCountdownTimer pet={pet} variant="badge" />
+            </>
+          )}
+          {pet.price === 0 && (
+            <span className="bg-[#2A5C4A] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow">
+              🌱 Free Adoption
+            </span>
+          )}
           {pet.video_url && (
             <span className="bg-[#E07A5F]/90 backdrop-blur-md text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow">
               🎬 Video
@@ -203,11 +245,29 @@ function PetCardItem({
           </div>
 
           {/* Breed & Price */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-xs font-medium text-[#65605B]">
               Breed: <strong className="text-[#231F20]">{pet.breed}</strong>
             </span>
-            <span className="text-xl font-black text-[#231F20] font-display">${pet.price}</span>
+            {pet.price === 0 ? (
+              <span className="text-xs font-black text-[#2A5C4A] bg-[#EAEFE9] px-2 py-0.5 rounded-lg border border-[#D1E7DD]">
+                Free Adoption
+              </span>
+            ) : pet.has_active_discount ? (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-baseline space-x-1.5">
+                  <span className="text-xl font-black text-[#2A5C4A] font-display">
+                    ${pet.effective_price || pet.price}
+                  </span>
+                  <span className="text-xs font-bold text-[#8C847C] line-through">
+                    ${pet.original_price || pet.price}
+                  </span>
+                </div>
+                <OfferCountdownTimer pet={pet} variant="text" />
+              </div>
+            ) : (
+              <span className="text-xl font-black text-[#231F20] font-display">${pet.price}</span>
+            )}
           </div>
 
           {/* Health Guarantee Chip */}
@@ -261,7 +321,7 @@ function PetCardItem({
               }}
               className="px-4 py-2 bg-gradient-to-r from-[#E07A5F] via-[#F4A261] to-[#E76F51] hover:from-[#D96B43] disabled:opacity-50 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-[#E07A5F]/20 flex items-center space-x-1 cursor-pointer"
             >
-              <span>{isSoldOut ? 'Sold out' : `Adopt Pet ($${pet.price})`}</span>
+              <span>{isSoldOut ? 'Sold out' : pet.price === 0 ? 'Adopt (Free)' : `Adopt Pet ($${pet.effective_price || pet.price})`}</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           )}
