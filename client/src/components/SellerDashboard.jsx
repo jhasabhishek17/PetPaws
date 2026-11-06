@@ -146,6 +146,13 @@ export default function SellerDashboard({
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [stock, setStock] = useState('1');
+  const [hasOffer, setHasOffer] = useState(false);
+  const [offerType, setOfferType] = useState('percentage');
+  const [offerValue, setOfferValue] = useState('');
+  const [offerTitle, setOfferTitle] = useState('');
+  const [offerStartDate, setOfferStartDate] = useState('');
+  const [offerEndDate, setOfferEndDate] = useState('');
+  const [offerDesc, setOfferDesc] = useState('');
 
   // New Pet multi-file queue (selected before upload) & uploaded media items
   const [queuedFiles, setQueuedFiles] = useState([]); // [{ id, file, previewUrl, resource_type, name, size }]
@@ -437,7 +444,26 @@ export default function SellerDashboard({
     setEditUploadError('');
     setEditUploadProgress(0);
     setEditUploadedMedia(normalizeExistingPetMedia(pet));
-    setEditingPet({ ...pet });
+
+    const disc = pet.discount || pet.discount_info || {};
+    const hasActive = Boolean(pet.has_active_discount !== undefined ? pet.has_active_discount : disc.is_active);
+    const initialDiscount = {
+      is_active: hasActive,
+      type: disc.type || 'percentage',
+      value: disc.value !== undefined && Number(disc.value) > 0 ? Number(disc.value) : 10,
+      title: disc.title || '',
+      description: disc.description || '',
+      start_date: disc.start_date ? String(disc.start_date).split('T')[0] : '',
+      end_date: disc.end_date ? String(disc.end_date).split('T')[0] : '',
+      min_purchase: Number(disc.min_purchase) || 0,
+      max_discount: Number(disc.max_discount) || 0
+    };
+
+    setEditingPet({
+      ...pet,
+      id: pet.id || pet.custom_id || pet._id,
+      discount: initialDiscount
+    });
   };
 
   // Select 1 or multiple files in "Edit Listing" modal
@@ -600,11 +626,24 @@ export default function SellerDashboard({
 
     const mediaPayload = buildMediaPayload(finalMediaList, imageUrl);
 
+    const discountPayload = (hasOffer && Number(price) > 0 && Number(offerValue) > 0)
+      ? {
+          is_active: true,
+          type: offerType,
+          value: Number(offerValue),
+          title: offerTitle || (offerType === 'percentage' ? `${offerValue}% OFF` : `$${offerValue} OFF`),
+          description: offerDesc,
+          start_date: offerStartDate,
+          end_date: offerEndDate
+        }
+      : null;
+
     try {
       const data = await apiPost('/api/pets', {
         title,
         category,
         price: Number(price),
+        discount: discountPayload,
         age,
         breed,
         gender,
@@ -618,6 +657,12 @@ export default function SellerDashboard({
         onAddToast?.('Pet listed successfully on marketplace!', 'success');
         setTitle('');
         setPrice('');
+        setHasOffer(false);
+        setOfferValue('');
+        setOfferTitle('');
+        setOfferStartDate('');
+        setOfferEndDate('');
+        setOfferDesc('');
         setAge('');
         setBreed('');
         setDescription('');
@@ -669,11 +714,52 @@ export default function SellerDashboard({
     }
 
     const mediaPayload = buildMediaPayload(finalMediaList, editingPet.image_url);
+    const targetPrice = Number(editingPet.price) || 0;
+    const targetId = editingPet.id || editingPet.custom_id || editingPet._id;
+
+    let discountPayload = null;
+    if (editingPet.discount && editingPet.discount.is_active && targetPrice > 0) {
+      const val = Number(editingPet.discount.value);
+      if (val > 0) {
+        discountPayload = {
+          is_active: true,
+          type: editingPet.discount.type || 'percentage',
+          value: val,
+          title: (editingPet.discount.title || '').trim() || (editingPet.discount.type === 'percentage' ? `${val}% OFF` : `$${val} OFF`),
+          description: (editingPet.discount.description || '').trim(),
+          start_date: editingPet.discount.start_date || '',
+          end_date: editingPet.discount.end_date || '',
+          min_purchase: Number(editingPet.discount.min_purchase) || 0,
+          max_discount: Number(editingPet.discount.max_discount) || 0
+        };
+      } else {
+        discountPayload = {
+          is_active: false,
+          type: editingPet.discount.type || 'percentage',
+          value: 0,
+          title: '',
+          description: '',
+          start_date: '',
+          end_date: ''
+        };
+      }
+    } else {
+      discountPayload = {
+        is_active: false,
+        type: 'percentage',
+        value: 0,
+        title: '',
+        description: '',
+        start_date: '',
+        end_date: ''
+      };
+    }
 
     const payload = {
       title: editingPet.title,
       category: editingPet.category,
-      price: Number(editingPet.price),
+      price: targetPrice,
+      discount: discountPayload,
       age: editingPet.age,
       breed: editingPet.breed,
       gender: editingPet.gender,
@@ -684,12 +770,31 @@ export default function SellerDashboard({
     };
 
     try {
-      const data = await apiPut(`/api/pets/${editingPet.id}`, payload);
+      const data = await apiPut(`/api/pets/${targetId}`, payload);
       if (data.success) {
         onAddToast?.(`Updated listing "${editingPet.title}"!`, 'success');
         setEditingPet(null);
         setEditQueuedFiles([]);
         setEditUploadedMedia([]);
+
+        // Explicitly sync with /api/offers/pets/:id as well
+        try {
+          await apiPut(`/api/offers/pets/${targetId}`, discountPayload);
+        } catch {
+          // Non-blocking sync
+        }
+
+        // Immediately update local inventory state
+        if (data.pet) {
+          setPets((prev) =>
+            prev.map((p) =>
+              (p.id === data.pet.id || p.custom_id === data.pet.custom_id || (data.pet.id && p.id === data.pet.id))
+                ? data.pet
+                : p
+            )
+          );
+        }
+
         await fetchSellerData();
         onPetsChanged?.();
       } else {
@@ -961,7 +1066,19 @@ export default function SellerDashboard({
                           </div>
                         </td>
                         <td className="px-6 py-4 font-bold text-[#4A4344]">{pet.category}</td>
-                        <td className="px-6 py-4 font-black text-[#231F20]">${pet.price}</td>
+                        <td className="px-6 py-4 font-black text-[#231F20]">
+                          {pet.price === 0 ? (
+                            <span className="text-xs text-[#2A5C4A] font-bold">Free Adoption</span>
+                          ) : pet.has_active_discount ? (
+                            <div>
+                              <span className="text-[#2A5C4A]">${pet.effective_price || pet.price}</span>
+                              <span className="text-xs text-[#8C847C] line-through ml-1.5">${pet.original_price || pet.price}</span>
+                              <span className="block text-[10px] text-[#2A5C4A] font-extrabold">{pet.discount_info?.title || `${pet.discount?.value}% OFF`}</span>
+                            </div>
+                          ) : (
+                            <span>${pet.price}</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center space-x-2">
                             <input
@@ -1193,6 +1310,99 @@ export default function SellerDashboard({
                 />
               </div>
             </div>
+
+            {/* Promotional Offer Configuration */}
+            {Number(price) === 0 && price !== '' ? (
+              <div className="p-3 bg-[#EAEFE9] border border-[#D1E7DD] rounded-xl text-xs text-[#2A5C4A] font-bold flex items-center gap-2">
+                <span>🌱</span>
+                <span>Free Adoption Listing: Free adoption listings cannot have commercial discounts.</span>
+              </div>
+            ) : (
+              <div className="p-3.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-[#231F20] block">Promotional Offer / Discount</span>
+                    <span className="text-[10px] text-[#65605B]">Apply a percentage or fixed discount to this listing</span>
+                  </div>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasOffer}
+                      onChange={(e) => setHasOffer(e.target.checked)}
+                      className="w-4 h-4 text-[#E07A5F] rounded"
+                    />
+                    <span className="text-xs font-bold text-[#231F20]">Enable Offer</span>
+                  </label>
+                </div>
+                {hasOffer && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#E6DCCF]">
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Discount Type</label>
+                      <select
+                        value={offerType}
+                        onChange={(e) => setOfferType(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-bold"
+                      >
+                        <option value="percentage">Percentage (%)</option>
+                        <option value="fixed">Fixed ($)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#4A4344] mb-1">
+                        Discount Value {offerType === 'percentage' ? '(1-90%)' : '($ USD)'}
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={offerType === 'percentage' ? 90 : price || 999999}
+                        placeholder={offerType === 'percentage' ? '20' : '50'}
+                        value={offerValue}
+                        onChange={(e) => setOfferValue(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Offer Title (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Summer Special"
+                        value={offerTitle}
+                        onChange={(e) => setOfferTitle(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Start Date (Optional)</label>
+                      <input
+                        type="date"
+                        value={offerStartDate}
+                        onChange={(e) => setOfferStartDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#4A4344] mb-1">End Date (Optional)</label>
+                      <input
+                        type="date"
+                        value={offerEndDate}
+                        onChange={(e) => setOfferEndDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Description (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Valid this weekend only"
+                        value={offerDesc}
+                        onChange={(e) => setOfferDesc(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Multi-Image & Video Upload Section */}
             <div className="p-4 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl space-y-3">
@@ -1665,6 +1875,172 @@ export default function SellerDashboard({
                   />
                 </div>
               </div>
+
+              {/* Promotional Offer inside Edit Modal */}
+              {Number(editingPet.price) === 0 ? (
+                <div className="p-3 bg-[#EAEFE9] border border-[#D1E7DD] rounded-xl text-xs text-[#2A5C4A] font-bold flex items-center gap-2">
+                  <span>🌱</span>
+                  <span>Free Adoption Listing: Free adoption listings cannot have commercial discounts.</span>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-[#231F20] block">Promotional Offer / Discount</span>
+                      <span className="text-[10px] text-[#65605B]">Manage active offer on this pet listing</span>
+                    </div>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editingPet.discount?.is_active)}
+                        onChange={(e) =>
+                          setEditingPet({
+                            ...editingPet,
+                            discount: {
+                              ...(editingPet.discount || {}),
+                              is_active: e.target.checked,
+                              type: editingPet.discount?.type || 'percentage',
+                              value: (editingPet.discount?.value && Number(editingPet.discount.value) > 0)
+                                ? Number(editingPet.discount.value)
+                                : 10
+                            }
+                          })
+                        }
+                        className="w-4 h-4 text-[#E07A5F] rounded"
+                      />
+                      <span className="text-xs font-bold text-[#231F20]">Active Offer</span>
+                    </label>
+                  </div>
+                  {Boolean(editingPet.discount?.is_active) && (
+                    <div className="space-y-3 pt-2 border-t border-[#E6DCCF]">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Discount Type</label>
+                          <select
+                            value={editingPet.discount?.type || 'percentage'}
+                            onChange={(e) =>
+                              setEditingPet({
+                                ...editingPet,
+                                discount: { ...(editingPet.discount || {}), type: e.target.value }
+                              })
+                            }
+                            className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-bold"
+                          >
+                            <option value="percentage">Percentage (%)</option>
+                            <option value="fixed">Fixed ($)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#4A4344] mb-1">
+                            Discount Value {editingPet.discount?.type === 'percentage' ? '(1-90%)' : '($ USD)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={editingPet.discount?.type === 'percentage' ? 90 : Number(editingPet.price) || 999999}
+                            value={editingPet.discount?.value ?? ''}
+                            onChange={(e) =>
+                              setEditingPet({
+                                ...editingPet,
+                                discount: { ...(editingPet.discount || {}), value: e.target.value === '' ? '' : Number(e.target.value) }
+                              })
+                            }
+                            className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Offer Title / Badge</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Weekend Deal"
+                            value={editingPet.discount?.title || ''}
+                            onChange={(e) =>
+                              setEditingPet({
+                                ...editingPet,
+                                discount: { ...(editingPet.discount || {}), title: e.target.value }
+                              })
+                            }
+                            className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Start Date (Optional)</label>
+                          <input
+                            type="date"
+                            value={editingPet.discount?.start_date || ''}
+                            onChange={(e) =>
+                              setEditingPet({
+                                ...editingPet,
+                                discount: { ...(editingPet.discount || {}), start_date: e.target.value }
+                              })
+                            }
+                            className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#4A4344] mb-1">End Date (Optional)</label>
+                          <input
+                            type="date"
+                            value={editingPet.discount?.end_date || ''}
+                            onChange={(e) =>
+                              setEditingPet({
+                                ...editingPet,
+                                discount: { ...(editingPet.discount || {}), end_date: e.target.value }
+                              })
+                            }
+                            className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#4A4344] mb-1">Offer Description</label>
+                          <input
+                            type="text"
+                            placeholder="Optional terms"
+                            value={editingPet.discount?.description || ''}
+                            onChange={(e) =>
+                              setEditingPet({
+                                ...editingPet,
+                                discount: { ...(editingPet.discount || {}), description: e.target.value }
+                              })
+                            }
+                            className="w-full px-3 py-2 bg-white border border-[#E6DCCF] rounded-xl text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live Calculated Pricing Preview */}
+                      {(() => {
+                        const base = Number(editingPet.price) || 0;
+                        const v = Number(editingPet.discount?.value) || 0;
+                        const t = editingPet.discount?.type || 'percentage';
+                        let saving = 0;
+                        if (t === 'percentage') {
+                          saving = Math.min(base, (base * Math.min(90, Math.max(0, v))) / 100);
+                        } else {
+                          saving = Math.min(base, Math.max(0, v));
+                        }
+                        saving = Number(saving.toFixed(2));
+                        const finalP = Number(Math.max(0, base - saving).toFixed(2));
+                        return (
+                          <div className="p-2.5 bg-white border border-[#D1E7DD] rounded-xl text-xs flex items-center justify-between text-[#2A5C4A]">
+                            <span className="font-bold flex items-center gap-1.5">
+                              <span>🏷️ Offer Preview:</span>
+                              <span className="line-through text-[#8C847C]">${base}</span>
+                              <span className="text-sm font-black text-[#2A5C4A]">${finalP}</span>
+                            </span>
+                            <span className="font-extrabold text-[#2A5C4A] bg-[#EAEFE9] px-2 py-0.5 rounded-lg">
+                              Save ${saving}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Multi-Photo & Video Media Manager inside Edit Modal */}
               <div className="p-3.5 bg-[#FAF6F0] border border-[#E6DCCF] rounded-2xl space-y-3">
