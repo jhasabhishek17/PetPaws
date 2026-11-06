@@ -62,6 +62,18 @@ const productDiscountSchema = new mongoose.Schema({
   title: {
     type: String,
     default: ''
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  min_purchase: {
+    type: Number,
+    default: 0
+  },
+  max_discount: {
+    type: Number,
+    default: 0
   }
 }, { _id: false });
 
