@@ -12,9 +12,9 @@
  * - Database Support: MongoDB Local / MongoDB Atlas with fallback JSON persistence
  */
 
-require('dotenv').config();
-const express = require('express');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const connectDB = require('./config/db');
@@ -36,6 +36,7 @@ const serviceRoutes = require('./routes/serviceRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const saasRoutes = require('./routes/saasRoutes');
+const offerRoutes = require('./routes/offerRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -118,6 +119,7 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/saas', saasRoutes);
+app.use('/api/offers', offerRoutes);
 
 // ==========================================
 // 3. 404 & GLOBAL ERROR HANDLING
