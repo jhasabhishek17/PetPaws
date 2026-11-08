@@ -352,5 +352,3 @@ PetPaws is configured for deployment on Render using two services:
 ## 16. Contributing & License
 
 Contributions are welcome. Please open an issue first to discuss substantial changes, and ensure all existing automated tests pass before submitting a pull request.
-
-This project is licensed under the [MIT License](LICENSE).
