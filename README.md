@@ -1,497 +1,356 @@
-# 🐾 PetPaws — Multi-Tenant SaaS Pet Care, Adoption & Products Marketplace
+# PetPaws — Full-Stack Pet Care & Multi-Vendor Marketplace
 
-<p align="center">
-  <strong>Discover. Adopt. Shop. Care. Scale.</strong>
-  <br />
-  A full-stack MERN & Multi-Tenant SaaS pet ecosystem connecting pet parents, independent shopkeepers, breeders/sellers, veterinarians, grooming professionals, and platform administrators through a unified web platform.
-  <br /><br />
-  <a href="https://petpaws-frontend.onrender.com"><strong>🌐 Live Website</strong></a>
-  &nbsp; • &nbsp;
-  <a href="https://github.com/jhasabhishek17/PetPaws"><strong>📂 GitHub Repository</strong></a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black" alt="React" />
-  <img src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/Express.js-4.x-000000?logo=express&logoColor=white" alt="Express.js" />
-  <img src="https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white" alt="MongoDB" />
-  <img src="https://img.shields.io/badge/Cloudinary-Media_CDN-3448C5?logo=cloudinary&logoColor=white" alt="Cloudinary" />
-  <img src="https://img.shields.io/badge/Vite-6.x-646CFF?logo=vite&logoColor=white" alt="Vite" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" />
-</p>
+PetPaws is a full-stack web application designed to unify pet adoption, multi-vendor pet supplies, and professional pet care services into a single platform with dedicated, role-based experiences.
 
 ---
 
-## 📌 Table of Contents
+## 1. Project Overview
 
-- [Overview](#-overview)
-- [Live Demo](#-live-demo)
-- [Core Features by Role](#-core-features-by-role)
-- [Technology Stack](#-technology-stack)
-- [System Architecture](#-system-architecture)
-- [Project Structure](#-project-structure)
-- [Getting Started](#-getting-started)
-- [Environment Configuration](#-environment-configuration)
-- [Database Seeding](#-database-seeding)
-- [Running Locally](#-running-locally)
-- [API Overview](#-api-overview)
-- [Database Design (14 Mongoose Models)](#-database-design-14-mongoose-models)
-- [Security & Production Hardening](#-security--production-hardening)
-- [Current Limitations](#-current-limitations)
-- [Future Enhancements](#-future-enhancements)
-- [Author](#-author)
+Finding a verified pet to adopt, purchasing quality pet supplies from independent sellers, and scheduling veterinary visits or grooming appointments often forces pet owners to use fragmented tools. Pet sellers and independent shopkeepers frequently lack tools to showcase listings, manage inventory, track shipments, and coordinate appointments.
+
+PetPaws solves this by providing a unified platform that connects six distinct user roles:
+- **Pet Parents (Buyers):** Discover adoptable pets, purchase pet supplies via multi-item cart checkout, track shipments in real time, and schedule veterinary or grooming visits.
+- **Breeders & Sellers:** List adoptable pets with health certifications, upload photos and videos, manage stock, and advance adoption delivery milestones.
+- **Shopkeepers & Merchants:** Manage supply catalogs with multi-variant SKUs (size, flavor, weight), track inventory levels, review store revenue, and fulfill orders.
+- **Veterinarians:** Manage clinic profiles, consultation fees, and patient appointment requests.
+- **Groomers:** Publish care packages and manage salon reservations.
+- **Platform Administrators:** Moderate product and business listings, handle customer support tickets, and monitor platform health telemetry.
 
 ---
 
-## 🌟 Overview
+## 2. Key Features by User Role
 
-**PetPaws** is a full-stack **MERN + Multi-Tenant SaaS** pet marketplace and care platform that unifies:
-1. **Pet Adoption & Breeder Marketplace** (dogs, cats, birds, fish, and rabbits)
-2. **Multi-Vendor Pet Products Marketplace** (food, treats, collars, harnesses, toys, grooming supplies, beds, bowls, and travel carriers priced in INR `₹`)
-3. **Multi-Tenant Business & SaaS Workspace** (tiered subscription plans, team RBAC memberships, vendor analytics, commission calculation, and billing ledger)
-4. **Veterinary Clinic Directory & Appointment Scheduling**
-5. **Grooming, Spa & Behavioral Training Bookings**
-6. **Platform Administration, Moderation & Audit Logging**
+### Buyer / Pet Parent (`buyer`)
+- **Pet Adoption Marketplace:** Search and filter pets (dogs, cats, birds, rabbits, fish) by breed, age, and health certification with an interactive pet matchmaker quiz.
+- **Pet Supplies Marketplace:** Browse pet food, accessories, toys, and grooming gear with dynamic variant selection (size, weight, flavor) and real-time stock indicators.
+- **Shopping Cart & COD Checkout:** Multi-item cart drawer with server-calculated subtotal, GST/tax, and shipping fees. Cash on Delivery (COD) checkout with atomic inventory decrements.
+- **Order Tracking & Radar:** Track adoption milestones and physical product orders with live transport progress indicators. Cancel unshipped orders with automated inventory restocking.
+- **Care Bookings:** Book verified veterinary consultations and grooming spa sessions.
+- **Dashboard & Wishlists:** Centralized buyer portal displaying order history, scheduled appointments, and saved pet and product wishlists.
 
-### Project Highlights
+### Breeder & Pet Seller (`seller`)
+- **Breeder Portal:** Dedicated dashboard to manage owned pet listings, track stock levels, and upload image and video galleries via Cloudinary.
+- **Milestone Management:** Advance adoption transport status (`Order Placed` -> `Health Check Completed` -> `In Transit` -> `Out for Delivery` -> `Delivered`).
+- **Payout Configuration:** Set up private UPI and bank account payout preferences.
 
-- **6 Role-Based Experiences:** Dedicated workflows for **Buyers**, **Shopkeepers**, **Pet Sellers/Breeders**, **Veterinarians**, **Groomers**, and **Platform Administrators**.
-- **Multi-Vendor Pet Products Marketplace:** 20+ realistic INR (`₹`) pet products across 8 categories with multi-variant SKU pricing, real-time stock badges, cart drawer, server-calculated GST/commission checkout, order tracking, cancellation restocking, and post-delivery returns.
-- **SaaS Subscription & Tenant Engine:** Tiered plans (**Free Starter**, **Starter Shop**, **Growth Business**, **Enterprise Pro**) enforcing backend catalog quotas (`max_products`, `max_pets`, `max_services`, `max_team_members`), commission rates (`12%` down to `3%`), and HMAC-SHA256 verified subscription checkout.
-- **Cloud Media Pipeline:** Multer memory-buffered uploads streamed to **Cloudinary** (`petpaws/pets`, `petpaws/products`, `petpaws/profiles`) with role-based context guards and automatic orphan asset cleanup.
-- **MongoDB Atlas + Dual Persistence:** Primary persistence on **MongoDB Atlas** via 14 Mongoose models, with a development-only JSON fallback (`server/petpaws_data.json`) that is strictly disabled in production (`NODE_ENV=production`).
+### Shopkeeper & Merchant (`shopkeeper`)
+- **Business & SaaS Workspace:** Manage vendor storefront, configure business profiles, and monitor revenue KPIs and low-stock alerts.
+- **Catalog & Variant Management:** Create and update multi-variant product items with SKUs, safety warnings, and stock allocations.
+- **Order Fulfillment:** View store-specific customer orders, update delivery status, and review customer return requests.
 
----
+### Veterinarian (`vet`)
+- **Clinical Profile:** Configure clinic address, medical qualifications, specialty, and consultation fee.
+- **Appointment Scheduling:** Manage patient appointment requests with status actions (`Confirmed`, `Completed`, `Cancelled`).
 
-## 🌐 Live Demo
+### Grooming & Care Provider (`groomer`)
+- **Service Catalog:** Publish grooming and spa treatment packages.
+- **Booking Management:** Review upcoming salon reservations and update booking statuses.
 
-| Component | Link |
-|---|---|
-| **Live Website** | [https://petpaws-frontend.onrender.com](https://petpaws-frontend.onrender.com) |
-| **GitHub Repository** | [jhasabhishek17/PetPaws](https://github.com/jhasabhishek17/PetPaws) |
-
----
-
-## ✨ Core Features by Role
-
-### 🛍️ 1. Buyer / Pet Parent (`buyer`)
-- **Pet Adoption Marketplace:** Browse verified dogs, cats, birds, fish, and rabbits with search, category filters, and interactive **Pet Matchmaker Quiz**.
-- **Pet Products Marketplace (`₹` INR):** Search and filter pet supplies by category, subcategory, pet type, brand, price range, and stock availability; select product variants (size/weight/color/flavor) and manage a persistent shopping cart.
-- **Unified Wishlists:** Save both favourite pets and pet products to database-backed wishlists (`/api/auth/wishlist` & `/api/auth/product-wishlist/:productId`).
-- **Multi-Item Checkout & Order Tracking:** Complete pet adoption or multi-vendor product cart checkouts; monitor 6-stage fulfillment progress with live radar visuals; cancel unshipped orders (with automatic inventory restoration) or request post-delivery returns.
-- **Veterinary & Grooming Bookings:** Book vet clinic consultations and grooming/spa packages, and manage upcoming appointments from the Buyer Dashboard.
-
-### 🏪 2. Shopkeeper / Product Vendor (`shopkeeper`)
-- **Business & SaaS Portal:** Dedicated multi-tenant workspace (`BusinessSaaSPortal.jsx`) with INR (`₹`) revenue KPIs, net earnings after platform commission, catalog quota progress, and low-stock alerts (`<= 5` units).
-- **Product & Variant Catalog Management:** Create, edit, and archive products with multiple variants, SKUs, ingredients/materials, safety notes, and Cloudinary product image/video uploads.
-- **Multi-Vendor Order Fulfillment:** View only customer orders containing the shopkeeper's items, advance fulfillment statuses (`Order Placed -> Confirmed -> Packed -> Shipped -> Out for Delivery -> Delivered`), and approve/decline customer return requests with automatic variant restocking.
-- **Team RBAC & Subscription Billing:** Invite staff/managers (`BusinessMembership`), configure UPI/bank payout settings, and upgrade SaaS subscription tiers (`Free`, `Starter`, `Growth`, `Pro`).
-
-### 🐕 3. Pet Seller / Breeder (`seller`)
-- **Seller Dashboard:** Create, update, and delete pet listings with multi-image/video Cloudinary galleries, vaccination/health status, and stock tracking.
-- **Order & Payout Management:** Progress pet adoption orders through transport milestones, configure seller payout details, and access the SaaS Business Portal.
-
-### 🩺 4. Veterinarian (`vet`)
-- **Veterinarian Directory & Profile:** Manage clinic profile, specialization, qualifications, consultation fees, availability status, and Cloudinary profile photo.
-- **Vet Dashboard:** Review incoming patient appointment requests, update appointment statuses, or cancel eligible consultations.
-
-### ✂️ 5. Grooming & Care Provider (`groomer`)
-- **Grooming & Spa Packages:** Publish grooming, spa, and training packages (enforced by SaaS plan `max_services` limits) and manage customer booking statuses (`Scheduled -> Confirmed -> In Progress -> Completed`) with strict tenant isolation.
-
-### 🛡️ 6. Platform Administrator (`admin`)
-- **Platform Admin Governance Console:** Review all registered business tenants, approve/reject/suspend vendor verifications, moderate or suspend reported product listings, inspect subscription transactions, and audit platform-wide security logs (`AuditLog`).
-- **Protected Admin Provisioning:** Public registration as `admin` is blocked on both the UI and backend API (`HTTP 403`); administrator accounts are provisioned exclusively via idempotent database seeding (`server/seedProducts.js`).
+### Platform Administrator (`admin`)
+- **Administration Portal:** Overview of platform-wide activity, tenant listings, and registered businesses.
+- **Customer Support Desk:** Filter, search, and respond to buyer support tickets with threaded admin responses.
+- **Vendor & Product Moderation:** Verify or suspend business accounts and review flagged product listings.
+- **System Health:** Real-time health check endpoint (`/api/health`) exposing database connectivity, process uptime, and memory usage.
 
 ---
 
-## 🧰 Technology Stack
+## 3. Technology Stack
 
 | Layer | Technology | Purpose |
-|---|---|---|
-| **Frontend SPA** | React 18.3 | Component-based single-page application |
-| **Build Tool** | Vite 6 | Fast HMR dev server and optimized production bundler |
-| **Styling** | Tailwind CSS 3.4 | Responsive utility-first styling and custom design tokens |
-| **Icons** | Lucide React | Consistent interface iconography |
+| :--- | :--- | :--- |
+| **Frontend** | React 18, Vite 6 | Component-based single-page application with fast HMR |
+| **Styling & UI** | Tailwind CSS 3.4, Lucide React | Utility-first styling, responsive layouts, and consistent iconography |
 | **Backend Runtime** | Node.js (18+) | Server-side JavaScript runtime |
-| **API Framework** | Express.js 4 | REST API routing, middleware pipeline, and EJS views |
-| **Database** | MongoDB Atlas | Cloud NoSQL persistence across 14 collections |
-| **ODM** | Mongoose 8 | Schema validation, indexing, and query builders |
-| **Authentication** | JSON Web Tokens (`jsonwebtoken`) | Stateless signed bearer tokens (`7d` default expiry) |
-| **Password Security** | `bcryptjs` | Salted password hashing |
-| **Media Upload & CDN** | Multer + Cloudinary (`streamifier`) | Memory-buffered multipart validation & cloud media storage |
-| **Payment & Billing** | Node `crypto` HMAC-SHA256 | Razorpay Live/Test & Verified Sandbox signature verification |
-| **Security Middleware** | `helmet`, `cors`, `express-rate-limit` | HTTP security headers, origin allowlist, and brute-force throttling |
-| **Server Templates** | EJS + `ejs-mate` | Server-rendered MVC web views (`server/views/`) |
-| **Deployment** | Render | Static Site (`client`) + Web Service (`server`) |
+| **API Framework** | Express.js 4 | RESTful routing, middleware pipeline, and error handling |
+| **Database** | MongoDB Atlas / Local MongoDB | Primary document database accessed via Mongoose 8 |
+| **Persistence Fallback** | JSON Storage (`db.js`) | Local development fallback for running without a local MongoDB service |
+| **Authentication** | JWT (`jsonwebtoken`), `bcryptjs` | Stateless signed tokens with token versioning and password hashing |
+| **Media Storage** | Multer, Cloudinary SDK | Memory-buffered multipart uploads streamed directly to Cloudinary |
+| **Email Delivery** | Nodemailer, email59 / Resend APIs | OTP email verification and password reset dispatch |
+| **Testing** | Node.js Native Test Runner (`node --test`) | Built-in test execution for unit, integration, and platform audit tests |
+| **Deployment** | Render | Static Site for frontend and Web Service for backend |
 
 ---
 
-## 🏗️ System Architecture
+## 4. Architecture Overview
+
+PetPaws separates concerns across client, API, database, and cloud storage layers:
 
 ```text
-                                 USERS
-        (Buyer | Shopkeeper | Seller | Vet | Groomer | Platform Admin)
-                                   |
-                                   v
-                +-------------------------------------+
-                |      React 18 + Vite Frontend       |
-                |         (Render Static Site)        |
-                |  - Marketplace & Products Store     |
-                |  - Multi-Tenant BusinessSaaSPortal  |
-                |  - Role Dashboards & Order Radar    |
-                +-------------------------------------+
-                                   |
-                          HTTPS / REST JSON API
-                        (Bearer JWT Authorization)
-                                   |
-                                   v
-                +-------------------------------------+
-                |      Node.js + Express Backend      |
-                |         (Render Web Service)        |
-                |  - Helmet, CORS, Rate Limiters      |
-                |  - Auth & Role Guard Middleware     |
-                |  - Multi-Tenant SaaS Enforcer       |
-                |  - 10 Controllers & 11 Route Modules|
-                +-------------------------------------+
-                   |               |                |
-                   v               v                v
-        +----------------+ +---------------+ +--------------+
-        | MongoDB Atlas  | |  Cloudinary   | | HMAC Billing |
-        | 14 Mongoose    | | Media Folders | | Verification |
-        | Collections    | | pets/products | | & Webhooks   |
-        +----------------+ +---------------+ +--------------+
+               React 18 + Vite Frontend (SPA)
+             [Hash Routing, Auth State, UI Portals]
+                             |
+                   HTTPS / JSON REST API
+                 (Bearer JWT Authorization)
+                             |
+                             v
+               Node.js + Express Backend Server
+     [Helmet, CORS, Rate Limiters, Auth & Role Guards]
+         |                   |                    |
+         v                   v                    v
+  MongoDB Database     Cloudinary CDN     Email Services
+  (Mongoose Models)   (Images & Videos)  (OTPs & Alerts)
 ```
+
+1. **Client SPA:** Communicates with the backend using the centralized fetch wrapper in `client/src/utils/auth.js`. Role helpers in `client/src/utils/permissions.js` ensure role-restricted UI elements are gated client-side.
+2. **API & Route Middleware:** Requests pass through security headers (Helmet), CORS whitelisting, request logging, and rate limiting. Protected endpoints use `protect` to authenticate JWTs against database records and `requireRole` to verify permissions.
+3. **Dual Persistence Architecture:** The server connects to MongoDB via Mongoose. If MongoDB is unavailable during local development, the application falls back to `server/db.js` using local JSON storage. In test environments, connections are strictly isolated to `mongodb://127.0.0.1:27017/petpaws_test`.
 
 ---
 
-## 📂 Project Structure
+## 5. Project Directory Structure
 
 ```text
 PetPaws/
-├── README.md                              # Project documentation & setup guide
-├── PROJECT_STRUCTURE.md                   # Detailed module & file-by-file architecture reference
-├── package.json                           # Root workspace scripts (install-all, seed, start)
+├── client/                                # React frontend SPA
+│   ├── index.html                         # HTML entry shell
+│   ├── vite.config.js                     # Vite build and proxy configuration
+│   ├── package.json                       # Frontend dependencies and scripts
+│   ├── .env.example                       # Client environment template
+│   └── src/
+│       ├── main.jsx                       # React DOM mount point
+│       ├── App.jsx                        # Root state and view coordinator
+│       ├── components/                    # UI components, dashboards, modals
+│       │   ├── AdminPortal.jsx            # Platform administration console
+│       │   ├── BuyerDashboard.jsx         # Buyer orders, wishlist, and care schedule
+│       │   ├── CustomerSupport.jsx        # FAQ and support ticket submission
+│       │   ├── Marketplace.jsx            # Pet adoption listings and search
+│       │   ├── OrdersTracking.jsx         # Pet and product order tracking
+│       │   ├── ProductsMarketplace.jsx    # Pet supply store and cart checkout
+│       │   ├── SellerDashboard.jsx        # Breeder portal and inventory
+│       │   └── VetDashboard.jsx           # Veterinarian clinic portal
+│       └── utils/
+│           ├── auth.js                    # Authenticated fetch client
+│           └── permissions.js             # Role constants and permission checks
 │
-├── client/                                # React 18 + Vite + Tailwind CSS Frontend SPA
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Navbar.jsx                 # Responsive wrap-safe navigation bar & role switcher
-│   │   │   ├── Hero.jsx                   # Landing hero section with quick search & CTAs
-│   │   │   ├── Marketplace.jsx            # Pet adoption/breeder listings & category filters
-│   │   │   ├── ProductsMarketplace.jsx    # Multi-vendor INR (₹) pet products store & cart drawer
-│   │   │   ├── BusinessSaaSPortal.jsx     # 7-tab SaaS workspace (Overview, Products, Orders, Grooming, Team, Plans, Admin)
-│   │   │   ├── PetDetailModal.jsx         # Pet detail modal with media gallery & health badges
-│   │   │   ├── CheckoutModal.jsx          # Pet adoption checkout modal
-│   │   │   ├── OrdersTracking.jsx         # Unified Pet & Product orders tracking, cancellation & returns
-│   │   │   ├── LiveTransportRadar.jsx     # Animated transport radar visual for active orders
-│   │   │   ├── BuyerDashboard.jsx         # Buyer overview (orders, vet appointments, grooming, wishlists)
-│   │   │   ├── SellerDashboard.jsx        # Pet seller inventory, Cloudinary uploads & order progression
-│   │   │   ├── VetSection.jsx             # Veterinarian directory & appointment booking
-│   │   │   ├── VetDashboard.jsx           # Veterinarian clinic profile & schedule management
-│   │   │   ├── GroomingCareSection.jsx    # Grooming & spa packages catalog & booking form
-│   │   │   ├── CustomerSupport.jsx        # 24/7 customer support ticket submission
-│   │   │   ├── PetMatchmakerQuiz.jsx      # Interactive lifestyle pet recommendation quiz
-│   │   │   ├── AuthModal.jsx              # Role-aware login & registration modal
-│   │   │   ├── FloatingQuickActions.jsx   # Floating quick navigation action menu
-│   │   │   ├── PawBackdrop.jsx            # Decorative background accents
-│   │   │   ├── PawLoader.jsx              # Custom loading spinner component
-│   │   │   ├── PetIllustration.jsx        # SVG pet illustrations
-│   │   │   ├── Reveal.jsx                 # Scroll reveal animation wrapper
-│   │   │   └── Toast.jsx                  # Non-blocking toast notification system
-│   │   ├── utils/
-│   │   │   └── auth.js                    # API client (apiGet, apiPost, apiPut, apiDelete, apiUploadMedia) & JWT helpers
-│   │   ├── App.jsx                        # Root SPA state, hash routing, session verification & inactivity timer
-│   │   ├── main.jsx                       # React DOM entry point
-│   │   └── index.css                      # Tailwind directives & custom aesthetic styles
-│   ├── .env.example                       # Frontend environment template (VITE_API_URL)
-│   ├── index.html                         # SPA HTML shell
-│   ├── tailwind.config.js                 # Tailwind CSS theme configuration
-│   ├── postcss.config.js                  # PostCSS plugins
-│   ├── vite.config.js                     # Vite config with /api proxy to localhost:5001
-│   └── package.json                       # Frontend dependencies & build scripts
+├── server/                                # Node.js + Express backend API
+│   ├── server.js                          # Express bootstrap and middleware
+│   ├── package.json                       # Backend dependencies and test scripts
+│   ├── .env.example                       # Backend environment template
+│   ├── config/                            # Database, JWT, and Cloudinary config
+│   ├── controllers/                       # Route controllers (auth, pets, orders, etc.)
+│   ├── middleware/                        # Auth, role check, upload, error handling
+│   ├── models/                            # Mongoose data models
+│   ├── routes/                            # Express API route modules
+│   ├── tests/                             # Node.js automated test suites
+│   └── utils/                             # Email, pricing, error, and database helpers
 │
-├── server/                                # Node.js + Express.js Backend & MVC Engine
-│   ├── config/
-│   │   ├── cloudinary.js                  # Cloudinary SDK config, stream uploader & asset deletion
-│   │   ├── db.js                          # MongoDB / MongoDB Atlas connection manager
-│   │   └── jwt.js                         # Centralized JWT secret resolver with production guard
-│   ├── controllers/
-│   │   ├── authController.js              # Login, registration (admin blocked), profile, wishlists & payouts
-│   │   ├── petController.js               # Pet CRUD, regex-safe search/filter & Cloudinary media cleanup
-│   │   ├── productController.js           # Multi-vendor product CRUD, variants, safety guard & reporting
-│   │   ├── orderController.js             # Pet order checkout, status updates, tracking & cancellation
-│   │   ├── productOrderController.js      # Multi-item cart checkout, GST/commission calc, tracking & returns
-│   │   ├── saasController.js              # Tenant dashboard, team RBAC, HMAC billing, webhooks & Admin moderation
-│   │   ├── vetController.js               # Vet directory, profile updates & appointment scheduling
-│   │   ├── serviceController.js           # Grooming service catalog & customer booking lifecycle
-│   │   ├── supportController.js           # Support ticket creation
-│   │   └── uploadController.js            # Role-guarded Cloudinary media upload (pets, products, profiles)
-│   ├── middleware/
-│   │   ├── asyncHandler.js                # Async error wrapper for Express route handlers
-│   │   ├── authMiddleware.js              # JWT verification (protect, optionalAuth, requireRole)
-│   │   ├── errorHandler.js                # Global JSON & XSS-safe HTML error response middleware
-│   │   ├── requestLogger.js               # Timestamped HTTP request logger
-│   │   ├── tenantMiddleware.js            # Multi-tenant Business resolver, plan tiers, quotas & audit logger
-│   │   └── uploadMiddleware.js            # Multer memoryStorage, MIME/size validator (images <=8MB, videos <=40MB)
-│   ├── models/
-│   │   ├── User.js                        # Users (buyer, seller, shopkeeper, vet, groomer, admin) & wishlists
-│   │   ├── Business.js                    # SaaS Business tenant, plan tier, feature limits & verification status
-│   │   ├── BusinessMembership.js          # Multi-user tenant RBAC (owner, manager, staff, vet, groomer)
-│   │   ├── Product.js                     # Marketplace pet products, variants, SKUs, INR pricing & moderation
-│   │   ├── ProductOrder.js                # Multi-vendor product orders, line items, commission & returns
-│   │   ├── SubscriptionTransaction.js     # SaaS subscription payment ledger & webhook event deduplication
-│   │   ├── AuditLog.js                    # Immutable administrative & tenant security audit trail
-│   │   ├── Pet.js                         # Pet adoption/breeder listings & media galleries
-│   │   ├── Order.js                       # Pet adoption orders & transport tracking
-│   │   ├── VetProfile.js                  # Veterinarian clinic profiles
-│   │   ├── VetAppointment.js              # Veterinary consultation bookings
-│   │   ├── GroomingService.js             # Grooming & care service packages
-│   │   ├── GroomingBooking.js             # Grooming session reservations
-│   │   └── SupportTicket.js               # Customer support tickets
-│   ├── routes/
-│   │   ├── authRoutes.js                  # /api/auth (rate-limited login & registration, profile, wishlists)
-│   │   ├── petRoutes.js                   # /api/pets
-│   │   ├── productRoutes.js               # /api/products
-│   │   ├── orderRoutes.js                 # /api/orders
-│   │   ├── productOrderRoutes.js          # /api/product-orders
-│   │   ├── saasRoutes.js                  # /api/saas (plans, my-business, team, subscriptions, admin)
-│   │   ├── vetRoutes.js                   # /api/vets
-│   │   ├── serviceRoutes.js               # /api/services
-│   │   ├── supportRoutes.js               # /api/support
-│   │   ├── uploadRoutes.js                # /api/upload
-│   │   └── viewRoutes.js                  # Server-rendered EJS routes (/, /pets, /orders, /vets, /grooming)
-│   ├── utils/
-│   │   ├── dbHelpers.js                   # findDocByAnyId & escapeRegex (ReDoS/regex injection prevention)
-│   │   ├── ExpressError.js                # Operational HTTP error class
-│   │   └── normalize.js                   # Mongoose-to-client ID normalizer
-│   ├── views/                             # EJS templates (layouts, partials, pets, orders, vets, grooming, auth)
-│   ├── public/                            # Static CSS & JS for EJS views
-│   ├── .env.example                       # Backend environment variable template
-│   ├── db.js                              # Dev-only JSON fallback helper (disabled in production)
-│   ├── petpaws_data.json                  # Local development fallback dataset
-│   ├── seed.js                            # Base pet/vet/service seeder
-│   ├── seed-demo.js                       # Full-featured multi-role demo seeder
-│   ├── seedProducts.js                    # Idempotent 20 INR products & core platform accounts seeder
-│   ├── server.js                          # Express app bootstrap & middleware/route mounting
-│   └── package.json                       # Backend dependencies & scripts
+├── package.json                           # Root workspace helper scripts
+├── PROJECT_STRUCTURE.md                   # Detailed architectural reference
+└── README.md
 ```
 
 ---
 
-## 🚀 Getting Started
+## 6. Getting Started
 
 ### Prerequisites
+- **Node.js:** v18.0.0 or higher
+- **npm:** v9.0.0 or higher
+- **MongoDB:** Local MongoDB instance or MongoDB Atlas cluster URI
+- *(Optional)* **Cloudinary:** Account for image and video uploads
 
-- **Node.js** `v18+` and **npm**
-- **Git**
-- **MongoDB Atlas** cluster URI (or local MongoDB instance)
-- **Cloudinary** account (for live image/video uploads)
+### 1. Installation
 
-### 1. Clone the Repository & Install Dependencies
+Clone the repository and install dependencies for both `server` and `client`:
 
 ```bash
 git clone https://github.com/jhasabhishek17/PetPaws.git
 cd PetPaws
 
-# Install both server and client dependencies
+# Install dependencies for both root, server, and client
 npm run install-all
+```
+
+Alternatively, install dependencies manually:
+
+```bash
+cd server && npm install
+cd ../client && npm install
+cd ..
 ```
 
 ---
 
-## ⚙️ Environment Configuration
-
-Copy the example environment files and populate your credentials:
+## 7. Environment Configuration
 
 ### Backend (`server/.env`)
+Create a `.env` file in the `server/` directory based on [`server/.env.example`](server/.env.example):
 
 ```env
 PORT=5001
 NODE_ENV=development
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.example.mongodb.net/petpaws
-JWT_SECRET=replace_with_a_strong_random_secret_at_least_32_characters
+MONGODB_URI=mongodb://127.0.0.1:27017/petpaws
+JWT_SECRET=your_secure_random_jwt_secret_key_at_least_32_characters
 JWT_EXPIRES_IN=7d
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5001
+ALLOWED_ORIGINS=http://localhost:5173
 
-# Cloudinary Media Storage
+# Reverse Proxy (Render / Production)
+TRUST_PROXY=1
+
+# Cloudinary Media Storage (Optional for local text testing)
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
-CLOUDINARY_FOLDER=petpaws
 
-# Optional: Razorpay Live/Test Keys for SaaS Subscriptions
-# (Defaults to server-signed HMAC verified_sandbox mode when omitted)
-RAZORPAY_KEY_ID=
-RAZORPAY_KEY_SECRET=
-RAZORPAY_WEBHOOK_SECRET=
+# Transactional Email (Optional for local testing; tests use mock resolvers)
+EMAIL_SERVICE=gmail
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
+SUPPORT_TEAM_EMAIL=support@yourdomain.com
 ```
 
 ### Frontend (`client/.env`)
+Create a `.env` file in the `client/` directory based on [`client/.env.example`](client/.env.example):
 
 ```env
 VITE_API_URL=http://localhost:5001
 ```
 
-> **Security Note:** Never commit `.env` files or real credentials to version control.
-
 ---
 
-## 🌱 Database Seeding
+## 8. Database Seeding
 
-PetPaws includes an **idempotent** product and core platform account seeder (`server/seedProducts.js`) that uses `$setOnInsert` so it **never overwrites existing users, never resets passwords, and never deletes existing records**:
+PetPaws provides seed scripts to populate initial catalog data and demo accounts:
 
 ```bash
+# Seed 20 realistic INR (₹) pet supply products and core platform role accounts
 cd server
 npm run seed:products
-```
 
-This ensures:
-- **Core Platform Accounts** (`admin`, `buyer`, `seller`, `shopkeeper`, `vet`, `groomer`) and **3 Demo Shopkeeper Businesses** exist in MongoDB Atlas.
-- **20 Realistic INR (`₹`) Pet Products** (`demo-prod-101` through `demo-prod-120`) across 8 categories (Dog/Cat Food, Treats, Collars & Harnesses, Toys, Grooming Supplies, Beds, Bowls & Feeders, and Carriers) are synchronized with MongoDB Atlas.
+# Seed base pet listings, veterinarians, and grooming packages
+npm run seed
+
+# Seed complete multi-role demo environment
+npm run seed:demo
+```
 
 ---
 
-## ▶️ Running Locally
+## 9. Running Locally
 
-Run the backend and frontend in two separate terminals:
-
-### Terminal 1 — Backend API (`http://localhost:5001`)
+Run backend and frontend services in separate terminals:
 
 ```bash
-cd server
-npm start
+# Terminal 1 — Backend API (http://localhost:5001)
+npm run dev:server
+
+# Terminal 2 — Frontend Client (http://localhost:5173)
+npm run dev:client
 ```
 
-### Terminal 2 — React + Vite Frontend (`http://localhost:5173`)
+Or from their respective directories:
 
 ```bash
-cd client
-npm run dev
+# Backend
+cd server && npm run dev
+
+# Frontend
+cd client && npm run dev
 ```
 
-### Production Build Check
+---
+
+## 10. API Overview
+
+All API endpoints are prefixed with `/api` and return standardized JSON responses.
+
+| Endpoint Prefix | Primary Methods | Access Level | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/auth` | `GET`, `POST`, `PUT` | Public / Protected | User registration, login, email OTP verification, password reset, profile, wishlists |
+| `/api/pets` | `GET`, `POST`, `PUT`, `DELETE` | Public / Seller | Browse adoptable pets, manage breeder inventory, upload galleries |
+| `/api/products` | `GET`, `POST`, `PUT`, `DELETE` | Public / Vendor | Browse pet supply catalog, manage product variants and stock levels |
+| `/api/orders` | `GET`, `POST`, `PUT` | Protected | Pet adoption checkout, shipment tracking, order cancellations |
+| `/api/product-orders` | `GET`, `POST`, `PUT` | Protected | Cart checkout initiation, COD order creation, order tracking, returns |
+| `/api/vets` | `GET`, `POST`, `PUT` | Public / Protected | Veterinarian directory, clinical profiles, appointment scheduling |
+| `/api/services` | `GET`, `POST`, `PUT` | Public / Protected | Grooming care package directory and appointment reservations |
+| `/api/support` | `GET`, `POST`, `PUT` | Protected | Customer support ticket submission and admin response management |
+| `/api/upload` | `POST`, `DELETE` | Protected | Memory-buffered media upload to Cloudinary with context guards |
+| `/api/saas` | `GET`, `POST`, `PUT` | Protected | Business tenant profiles, team RBAC seats, admin moderation |
+| `/api/offers` | `GET`, `PUT`, `DELETE` | Public / Protected | Item-level promotional discounts and special offers |
+| `/api/health` | `GET` | Public | Real-time service health check and database telemetry |
+
+---
+
+## 11. Testing & Build
+
+PetPaws uses Node.js's native test runner (`node --test`). Tests run in an isolated environment against a dedicated test database (`petpaws_test`) with mocked email transport and DNS resolution:
 
 ```bash
-cd client
+# Run the platform audit test suite (28 tests)
+npm test
+
+# Run individual test suites
+node --test server/tests/platformAudit.test.js
+node --test server/tests/customerSupport.test.js
+node --test server/tests/roleBasedUX.test.js
+node --test server/tests/offersDiscounts.test.js
+```
+
+### Production Build
+To verify the frontend production build:
+
+```bash
 npm run build
+# Or: cd client && npm run build
 ```
 
 ---
 
-## 🔌 API Overview
+## 12. Deployment (Render)
 
-### Authentication & User Profile (`/api/auth`)
-| Method | Endpoint | Access | Purpose |
-|---|---|---|---|
-| `POST` | `/api/auth/register` | Public (Rate-Limited) | Register a `buyer`, `seller`, `shopkeeper`, `vet`, or `groomer` account (`admin` blocked with `403`) |
-| `POST` | `/api/auth/login` | Public (Rate-Limited) | Authenticate user and issue signed JWT |
-| `GET` | `/api/auth/me` | Protected | Validate active JWT and return user profile |
-| `PUT` | `/api/auth/profile` | Protected | Update user profile details |
-| `PUT` | `/api/auth/update-payout` | `seller`, `shopkeeper`, `admin` | Update bank/UPI payout settings |
-| `GET` | `/api/auth/wishlist` | Protected | Retrieve saved pet and product wishlists |
-| `POST` | `/api/auth/wishlist/:petId` | `buyer` | Toggle pet in buyer wishlist |
-| `POST` | `/api/auth/product-wishlist/:productId` | Protected | Toggle product in user's product wishlist |
+PetPaws is configured for deployment on Render using two services:
 
-### Multi-Vendor Pet Products Marketplace (`/api/products` & `/api/product-orders`)
-| Method | Endpoint | Access | Purpose |
-|---|---|---|---|
-| `GET` | `/api/products/categories` | Public | List product categories and subcategories |
-| `GET` | `/api/products` | Public | Browse/search/filter products by category, pet_type, brand, price, stock, and sort |
-| `GET` | `/api/products/my-inventory` | `seller`, `shopkeeper`, `admin` | List authenticated vendor's product inventory |
-| `GET` | `/api/products/:id` | Public | Get product details and variants |
-| `POST` | `/api/products` | `seller`, `shopkeeper`, `admin` | Create product (enforces SaaS plan quota & safety guardrails) |
-| `PUT` | `/api/products/:id` | Vendor Owner / `admin` | Update product details, stock, or variants |
-| `DELETE` | `/api/products/:id` | Vendor Owner / `admin` | Archive/remove product listing |
-| `POST` | `/api/products/:id/report` | Protected | Report a suspicious product listing for admin review |
-| `POST` | `/api/product-orders/checkout` | Protected | Multi-item cart checkout with atomic variant stock decrement |
-| `GET` | `/api/product-orders` | Protected | Retrieve customer purchases or vendor-scoped incoming orders |
-| `GET` | `/api/product-orders/track/:code` | Protected (Owner/Vendor/Admin) | Track a product order by tracking code |
-| `PUT` | `/api/product-orders/:id/status` | `seller`, `shopkeeper`, `admin` | Advance fulfillment status (`Confirmed` -> `Packed` -> `Shipped` -> `Delivered`) |
-| `PUT` | `/api/product-orders/:id/cancel` | Protected (Buyer/Vendor/Admin) | Cancel pre-delivery order and restock variants |
-| `PUT` | `/api/product-orders/:id/return` | Protected (Buyer/Vendor/Admin) | Request or approve/reject post-delivery return with variant restocking |
+1. **Frontend (Static Site):**
+   - **Root Directory:** `client`
+   - **Build Command:** `npm run build`
+   - **Publish Directory:** `dist`
+   - **Environment Variables:** `VITE_API_URL=https://<your-backend-service>.onrender.com`
 
-### Multi-Tenant SaaS & Platform Admin (`/api/saas`)
-| Method | Endpoint | Access | Purpose |
-|---|---|---|---|
-| `GET` | `/api/saas/plans` | Public | Return SaaS subscription tiers, pricing, and limits |
-| `GET` | `/api/saas/my-business` | Protected | Resolve tenant business, membership, usage quotas, and INR/USD analytics |
-| `PUT` | `/api/saas/my-business` | Business Owner/Manager | Update business profile, GST/tax ID, and payout settings |
-| `POST` | `/api/saas/team` | Business Owner/Manager | Invite a team member (enforces `max_team_members` limit) |
-| `DELETE` | `/api/saas/team/:memberId` | Business Owner/Manager | Remove a team member seat |
-| `POST` | `/api/saas/subscriptions/checkout` | Business Owner | Initialize subscription upgrade order & cryptographic challenge |
-| `POST` | `/api/saas/subscriptions/verify` | Business Owner | Verify HMAC-SHA256 payment signature and activate SaaS plan |
-| `POST` | `/api/saas/webhooks/payment` | Public (HMAC-Verified) | Idempotent payment webhook receiver |
-| `POST` | `/api/saas/grooming/services` | `groomer`, `seller`, `shopkeeper`, `admin` | Create grooming service package (enforces `max_services` limit) |
-| `PUT` | `/api/saas/grooming/bookings/:id/status` | Tenant Owner / `admin` | Update grooming booking status |
-| `GET` | `/api/saas/admin/overview` | `admin` | Platform Admin overview (businesses, products, transactions, audit logs) |
-| `PUT` | `/api/saas/admin/businesses/:id/status` | `admin` | Approve, reject, or suspend a vendor business tenant |
-| `PUT` | `/api/saas/admin/products/:id/moderate` | `admin` | Approve, flag, or suspend a product listing |
-
-### Pet Adoption, Veterinary, Grooming, Support & Uploads
-| Method | Endpoint | Access | Purpose |
-|---|---|---|---|
-| `GET` / `POST` / `PUT` / `DELETE` | `/api/pets` & `/api/pets/:id` | Public GET / `seller` write | Pet adoption listings CRUD |
-| `POST` / `GET` / `PUT` | `/api/orders/*` | Protected | Pet adoption checkout, tracking, status updates & cancellation |
-| `GET` / `POST` / `PUT` | `/api/vets/*` | Public GET / Protected write | Veterinarian profiles & appointment scheduling |
-| `GET` / `POST` / `PUT` | `/api/services/*` | Public GET / Protected write | Grooming services & customer booking management |
-| `POST` | `/api/support` | Optional Auth | Submit customer support ticket |
-| `POST` / `DELETE` | `/api/upload` | Role-Guarded (`seller`, `shopkeeper`, `vet`, `admin`) | Upload or delete Cloudinary media (`pets`, `products`, `profiles`) |
-| `GET` | `/api/health` | Public | Service health check |
+2. **Backend (Web Service):**
+   - **Root Directory:** `server`
+   - **Build Command:** `npm install`
+   - **Start Command:** `node server.js`
+   - **Environment Variables:**
+     - `NODE_ENV=production`
+     - `PORT=5001`
+     - `TRUST_PROXY=1`
+     - `MONGODB_URI=<your-production-mongodb-atlas-uri>`
+     - `JWT_SECRET=<your-production-jwt-secret>`
+     - `ALLOWED_ORIGINS=https://<your-frontend-service>.onrender.com`
+     - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+     - `EMAIL59_API_KEY` (or SMTP credentials)
 
 ---
 
-## 🗄️ Database Design (14 Mongoose Models)
+## 13. Security Considerations
 
-| Model | Collection | Responsibility |
-|---|---|---|
-| [`User`](file:///Users/jhasabhishek17/PetPaws/server/models/User.js) | `users` | Accounts (`buyer`, `seller`, `shopkeeper`, `vet`, `groomer`, `admin`), hashed passwords, payout fields, pet & product wishlists |
-| [`Business`](file:///Users/jhasabhishek17/PetPaws/server/models/Business.js) | `businesses` | Multi-tenant vendor profile, verification status, SaaS subscription tier, billing cycle, and feature limits |
-| [`BusinessMembership`](file:///Users/jhasabhishek17/PetPaws/server/models/BusinessMembership.js) | `businessmemberships` | Tenant RBAC linking users to businesses (`owner`, `manager`, `staff`, `vet`, `groomer`) |
-| [`Product`](file:///Users/jhasabhishek17/PetPaws/server/models/Product.js) | `products` | Pet supplies, INR (`₹`) pricing, variants, SKUs, stock, media, safety notes, and moderation status |
-| [`ProductOrder`](file:///Users/jhasabhishek17/PetPaws/server/models/ProductOrder.js) | `productorders` | Multi-vendor cart orders, line items, GST, platform commission, tracking status, and return workflow |
-| [`SubscriptionTransaction`](file:///Users/jhasabhishek17/PetPaws/server/models/SubscriptionTransaction.js) | `subscriptiontransactions` | SaaS billing ledger, HMAC verification status, and webhook idempotency (`webhook_event_id`) |
-| [`AuditLog`](file:///Users/jhasabhishek17/PetPaws/server/models/AuditLog.js) | `auditlogs` | Immutable security & administrative audit trail |
-| [`Pet`](file:///Users/jhasabhishek17/PetPaws/server/models/Pet.js) | `pets` | Pet adoption/breeder listings, health status, stock, and Cloudinary media |
-| [`Order`](file:///Users/jhasabhishek17/PetPaws/server/models/Order.js) | `orders` | Pet adoption purchases and 5-stage transport tracking |
-| [`VetProfile`](file:///Users/jhasabhishek17/PetPaws/server/models/VetProfile.js) | `vetprofiles` | Veterinarian clinic profiles, qualifications, and fees |
-| [`VetAppointment`](file:///Users/jhasabhishek17/PetPaws/server/models/VetAppointment.js) | `vetappointments` | Scheduled veterinary consultations |
-| [`GroomingService`](file:///Users/jhasabhishek17/PetPaws/server/models/GroomingService.js) | `groomingservices` | Grooming, spa, and training service packages |
-| [`GroomingBooking`](file:///Users/jhasabhishek17/PetPaws/server/models/GroomingBooking.js) | `groomingbookings` | Customer grooming session bookings scoped by tenant/provider |
-| [`SupportTicket`](file:///Users/jhasabhishek17/PetPaws/server/models/SupportTicket.js) | `supporttickets` | Customer help and support requests |
+- **Authoritative Database Roles:** User permissions are determined by the verified user record in MongoDB, never by client-supplied claims in request bodies or tampered JWT payloads.
+- **Admin Registration Block:** Public registration as `admin` is rejected with `HTTP 403`. Administrative accounts are provisioned securely via seeding or direct database administration.
+- **Order Tracking Isolation:** Order tracking endpoints (`/api/orders/track/:code` and `/api/product-orders/track/:code`) verify that the requesting user owns the order, is the fulfilling seller, or holds the `admin` role.
+- **Rate Limiting:** Authentication endpoints (`/api/auth/login`, `/api/auth/register`, `/api/auth/verify-otp`, `/api/auth/forgot-password`) enforce rate limits to protect against brute-force attacks and abuse.
+- **Database Test Isolation:** When running tests (`NODE_ENV=test`), `server/config/db.js` strictly restricts connections to `mongodb://127.0.0.1:27017/petpaws_test` and aborts if remote or Atlas connection strings are provided.
+- **Secret Safety:** Environment variables containing sensitive credentials (`.env`) are excluded from version control via `.gitignore`.
 
 ---
 
-## 🔐 Security & Production Hardening
+## 14. Known Disclosures
 
-- **Server-Side Identity & Tenant Isolation:** Business tenant IDs and seller IDs are resolved from the verified JWT and `BusinessMembership` records (`ensureUserBusiness`), never trusted from client request bodies.
-- **Protected Admin Provisioning:** `POST /api/auth/register` rejects `role: 'admin'` with `HTTP 403`; the registration modal also hides the Platform Admin option.
-- **Order Tracking Privacy:** Both `/api/orders/track/:code` and `/api/product-orders/track/:code` require authentication (`protect`) and verify that the requester is the buyer, fulfilling vendor, or Platform Admin.
-- **Regex Injection & ReDoS Protection:** User-supplied query parameters (`search`, `category`, `brand`, `:code`) are sanitized through `escapeRegex()` before constructing MongoDB `RegExp` queries.
-- **Cryptographic Subscription Verification:** SaaS plan upgrades verify HMAC-SHA256 signatures via `crypto.timingSafeEqual` and deduplicate webhook replay events.
-- **Rate Limiting & Payload Caps:** `/api/auth/login` and `/api/auth/register` are protected by `express-rate-limit`; JSON and URL-encoded request bodies are capped at `1mb`; HTML error fallbacks escape special characters to prevent reflected XSS.
+- **Payment Mode:** Live online payment gateways (e.g., Razorpay) are optional. Online payment is disabled by default, and physical product orders route through Cash on Delivery (COD).
+- **Currencies:** Pet adoption listings and SaaS plan tiers display in USD (`$`), while pet supplies marketplace products, cart totals, and vendor revenue KPIs calculate in Indian Rupees (`₹`).
 
 ---
 
-## ⚠️ Current Limitations
+## 15. Future Roadmap
 
-- **Sandbox Payment Mode by Default:** When `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are not configured in `.env`, SaaS subscription checkout operates in `verified_sandbox` mode using server-signed HMAC-SHA256 verification. Do not enter real card or UPI credentials in sandbox mode.
-- **Dual Currency Convention:** Legacy pet adoption listings and SaaS plan tiers are denominated in `USD` (`$`), while all Pet Products Marketplace listings, cart checkouts, and vendor product revenue KPIs are denominated in `INR` (`₹`).
-
----
-
-## 🛣️ Future Enhancements
-
-- [ ] Connect live Razorpay production merchant keys for automated vendor split settlements.
-- [ ] Add real-time WebSocket notifications for order status transitions and vet tele-consultations.
-- [ ] Add automated CI/CD end-to-end Playwright browser tests across all 6 roles.
-- [ ] Support downloadable GST tax invoices (PDF) for product orders and SaaS subscriptions.
+- Automated CI/CD test and build validation using GitHub Actions.
+- Real-time WebSocket notifications for order status changes and chat.
+- Downloadable PDF tax invoices for completed orders.
 
 ---
 
-## 👨‍💻 Author
+## 16. Contributing & License
 
-**Abhishek Jha**
-Full-Stack Web Development Project — PetPaws
-- **Live Application:** [petpaws-frontend.onrender.com](https://petpaws-frontend.onrender.com)
-- **GitHub:** [github.com/jhasabhishek17/PetPaws](https://github.com/jhasabhishek17/PetPaws)
+Contributions are welcome. Please open an issue first to discuss substantial changes, and ensure all existing automated tests pass before submitting a pull request.
+
+This project is licensed under the [MIT License](LICENSE).
