@@ -1,207 +1,294 @@
-# PetPaws — Full-Stack Pet Care & Multi-Vendor Marketplace
+# PetPaws
 
-PetPaws is a full-stack web application designed to unify pet adoption, multi-vendor pet supplies, and professional pet care services into a single platform with dedicated, role-based experiences.
+A modern, full-stack pet care ecosystem unifying pet adoption, a multi-vendor pet supplies marketplace, veterinary consultations, and grooming services into a single platform. Built with the MERN stack, featuring robust role-based access control, atomic inventory checkout, and automated customer support.
 
----
+[![Live Demo](https://img.shields.io/badge/Live_Demo-petpaws--frontend.onrender.com-2563EB?style=for-the-badge&logo=render&logoColor=white)](https://petpaws-frontend.onrender.com/)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-jhasabhishek17%2FPetPaws-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/jhasabhishek17/PetPaws)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-## 1. Project Overview
-
-Finding a verified pet to adopt, purchasing quality pet supplies from independent sellers, and scheduling veterinary visits or grooming appointments often forces pet owners to use fragmented tools. Pet sellers and independent shopkeepers frequently lack tools to showcase listings, manage inventory, track shipments, and coordinate appointments.
-
-PetPaws solves this by providing a unified platform that connects six distinct user roles:
-- **Pet Parents (Buyers):** Discover adoptable pets, purchase pet supplies via multi-item cart checkout, track shipments in real time, and schedule veterinary or grooming visits.
-- **Breeders & Sellers:** List adoptable pets with health certifications, upload photos and videos, manage stock, and advance adoption delivery milestones.
-- **Shopkeepers & Merchants:** Manage supply catalogs with multi-variant SKUs (size, flavor, weight), track inventory levels, review store revenue, and fulfill orders.
-- **Veterinarians:** Manage clinic profiles, consultation fees, and patient appointment requests.
-- **Groomers:** Publish care packages and manage salon reservations.
-- **Platform Administrators:** Moderate product and business listings, handle customer support tickets, and monitor platform health telemetry.
+[**Explore Live Website →**](https://petpaws-frontend.onrender.com/) &nbsp;|&nbsp; [**View GitHub Repository →**](https://github.com/jhasabhishek17/PetPaws)
 
 ---
 
-## 2. Key Features by User Role
-
-### Buyer / Pet Parent (`buyer`)
-- **Pet Adoption Marketplace:** Search and filter pets (dogs, cats, birds, rabbits, fish) by breed, age, and health certification with an interactive pet matchmaker quiz.
-- **Pet Supplies Marketplace:** Browse pet food, accessories, toys, and grooming gear with dynamic variant selection (size, weight, flavor) and real-time stock indicators.
-- **Shopping Cart & COD Checkout:** Multi-item cart drawer with server-calculated subtotal, GST/tax, and shipping fees. Cash on Delivery (COD) checkout with atomic inventory decrements.
-- **Order Tracking & Radar:** Track adoption milestones and physical product orders with live transport progress indicators. Cancel unshipped orders with automated inventory restocking.
-- **Care Bookings:** Book verified veterinary consultations and grooming spa sessions.
-- **Dashboard & Wishlists:** Centralized buyer portal displaying order history, scheduled appointments, and saved pet and product wishlists.
-
-### Breeder & Pet Seller (`seller`)
-- **Breeder Portal:** Dedicated dashboard to manage owned pet listings, track stock levels, and upload image and video galleries via Cloudinary.
-- **Milestone Management:** Advance adoption transport status (`Order Placed` -> `Health Check Completed` -> `In Transit` -> `Out for Delivery` -> `Delivered`).
-- **Payout Configuration:** Set up private UPI and bank account payout preferences.
-
-### Shopkeeper & Merchant (`shopkeeper`)
-- **Business & SaaS Workspace:** Manage vendor storefront, configure business profiles, and monitor revenue KPIs and low-stock alerts.
-- **Catalog & Variant Management:** Create and update multi-variant product items with SKUs, safety warnings, and stock allocations.
-- **Order Fulfillment:** View store-specific customer orders, update delivery status, and review customer return requests.
-
-### Veterinarian (`vet`)
-- **Clinical Profile:** Configure clinic address, medical qualifications, specialty, and consultation fee.
-- **Appointment Scheduling:** Manage patient appointment requests with status actions (`Confirmed`, `Completed`, `Cancelled`).
-
-### Grooming & Care Provider (`groomer`)
-- **Service Catalog:** Publish grooming and spa treatment packages.
-- **Booking Management:** Review upcoming salon reservations and update booking statuses.
-
-### Platform Administrator (`admin`)
-- **Administration Portal:** Overview of platform-wide activity, tenant listings, and registered businesses.
-- **Customer Support Desk:** Filter, search, and respond to buyer support tickets with threaded admin responses.
-- **Vendor & Product Moderation:** Verify or suspend business accounts and review flagged product listings.
-- **System Health:** Real-time health check endpoint (`/api/health`) exposing database connectivity, process uptime, and memory usage.
+![React 18](https://img.shields.io/badge/React_18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![Node.js](https://img.shields.io/badge/Node.js_18+-339933?style=flat-square&logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express.js_4-000000?style=flat-square&logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB_Mongoose-47A248?style=flat-square&logo=mongodb&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
 
 ---
 
-## 3. Technology Stack
+## Table of Contents
+
+- [About PetPaws](#about-petpaws)
+- [Key Features](#key-features)
+  - [Buyer Experience](#buyer-experience)
+  - [Seller & Breeder Portal](#seller--breeder-portal)
+  - [Shopkeeper Portal](#shopkeeper-portal)
+  - [Veterinarian & Groomer Care](#veterinarian--groomer-care)
+  - [Administrator Portal](#administrator-portal)
+- [Technology Stack](#technology-stack)
+- [Application Architecture](#application-architecture)
+- [Live Demo & Interface](#live-demo--interface)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Database Seeding](#database-seeding)
+  - [Running Locally](#running-locally)
+- [Environment Configuration](#environment-configuration)
+- [Available Scripts and Testing](#available-scripts-and-testing)
+- [Deployment](#deployment)
+- [Security Model](#security-model)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## About PetPaws
+
+Pet care is often fragmented across multiple disconnected platforms: adoption listings are isolated from pet supply stores, and clinic appointments require independent booking tools. 
+
+**PetPaws** solves this fragmentation by providing an all-in-one web platform with tailored experiences for every participant in the pet care lifecycle:
+- **Buyers & Pet Parents:** Discover pets for adoption, shop verified pet food and accessories with dynamic variant selection, book vet visits, schedule grooming packages, and manage support tickets.
+- **Breeders & Sellers:** List available pets with health certifications, medical histories, and photo/video media galleries.
+- **Shopkeepers:** Manage multi-vendor product catalogs, track stock counts across variants, and fulfill customer orders.
+- **Service Providers (Vets & Groomers):** Maintain clinic profiles, set consultation fees, and manage client appointment calendars.
+- **Administrators:** Review vendor onboarding, moderate listings, resolve support tickets, inspect platform audit logs, and monitor real-time server health.
+
+---
+
+## Key Features
+
+### Buyer Experience
+- **Pet Adoption Catalog:** Search and filter adoptable pets (dogs, cats, birds, rabbits, fish) by species, breed, age, and health certification.
+- **Multi-Vendor Marketplace:** Browse products with multi-attribute filtering (category, pet type, price range, stock availability).
+- **Product Variants:** Select specific flavors, sizes, or weight options with dynamic pricing and variant-specific inventory tracking.
+- **Shopping Cart & Checkout:** Server-calculated tax, shipping, and promotional discounts with Cash on Delivery (COD) order placement.
+- **Order Lifecycle Tracking:** Real-time status updates (`Placed`, `In Transit`, `Delivered`) with self-service cancellation and return workflows that automatically restore inventory.
+- **Health & Wellness Bookings:** Schedule appointments with verified veterinarians and book pet grooming packages directly from the UI.
+- **Support Desk:** Submit support tickets with priority levels and track threaded staff responses.
+- **User Profile:** Manage saved wishlists, delivery addresses, and personal account security.
+
+### Seller & Breeder Portal
+- **Pet Listings Management:** Create and update listings with rich descriptions, health check details, vaccination histories, and location metadata.
+- **Media Uploads:** Multi-image and video upload support powered by Cloudinary.
+- **Adoption Applications:** Review incoming inquiries, update application stages, and record completion details.
+
+### Shopkeeper Portal
+- **Inventory & SKU Management:** Add products with multiple SKU variants, stock counters, and rich product specifications.
+- **Order Fulfillment:** Filter incoming store orders, transition shipping states, and handle return approvals.
+- **Stock Automation:** Automatic inventory decrements on order placement and restocking on cancellation.
+
+### Veterinarian & Groomer Care
+- **Provider Profiles:** Configure experience, clinic addresses, specializations, and consultation rates.
+- **Appointment Calendar:** Manage consultation requests across standardized states (`Scheduled`, `Confirmed`, `Completed`, `Cancelled`).
+- **Grooming Services:** Offer specialized spa and grooming packages with custom durations and pricing.
+
+### Administrator Portal
+- **Platform Telemetry:** Live system health monitoring via `/api/health` (memory utilization, server uptime, database mode).
+- **User & Vendor Moderation:** Manage accounts, verify newly onboarded vendors, and assign user roles.
+- **Listing & Product Oversight:** Inspect, edit, or remove marketplace items violating standards.
+- **Help Desk Operations:** Centralized support ticket resolution queue with status filters and staff reply threads.
+- **System Audit Logging:** Track administrative operations and security events via persistent audit log collections.
+
+---
+
+## Technology Stack
 
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Frontend** | React 18, Vite 6 | Component-based single-page application with fast HMR |
-| **Styling & UI** | Tailwind CSS 3.4, Lucide React | Utility-first styling, responsive layouts, and consistent iconography |
-| **Backend Runtime** | Node.js (18+) | Server-side JavaScript runtime |
-| **API Framework** | Express.js 4 | RESTful routing, middleware pipeline, and error handling |
-| **Database** | MongoDB Atlas / Local MongoDB | Primary document database accessed via Mongoose 8 |
-| **Persistence Fallback** | JSON Storage (`db.js`) | Local development fallback for running without a local MongoDB service |
-| **Authentication** | JWT (`jsonwebtoken`), `bcryptjs` | Stateless signed tokens with token versioning and password hashing |
-| **Media Storage** | Multer, Cloudinary SDK | Memory-buffered multipart uploads streamed directly to Cloudinary |
-| **Email Delivery** | Nodemailer, email59 / Resend APIs | OTP email verification and password reset dispatch |
-| **Testing** | Node.js Native Test Runner (`node --test`) | Built-in test execution for unit, integration, and platform audit tests |
-| **Deployment** | Render | Static Site for frontend and Web Service for backend |
+| **Frontend** | React 18, Vite | High-performance Single Page Application (SPA) architecture |
+| **Styling & UI** | Tailwind CSS, Lucide React | Responsive design, modern layouts, and lightweight iconography |
+| **Backend Runtime** | Node.js (v18+), Express.js (v4) | RESTful API server with modular controllers and routers |
+| **Database** | MongoDB & Mongoose (v8) | Document schema validation, indexing, and local JSON development fallback |
+| **Authentication** | JWT (`jsonwebtoken`), `bcryptjs` | Stateless signed tokens, password hashing, and token versioning |
+| **Media Storage** | Cloudinary & Multer | Secure cloud-hosted image and video upload pipelines |
+| **Email & OTP** | Nodemailer, email59 / Resend APIs | OTP email delivery, password resets, and customer support notifications |
+| **Security** | Helmet, Express Rate Limit, CORS | HTTP security headers, anti-abuse rate limits, and origin whitelisting |
+| **Deployment** | Render | Static site hosting for frontend, managed web service for backend |
 
 ---
 
-## 4. Architecture Overview
+## Application Architecture
 
-PetPaws separates concerns across client, API, database, and cloud storage layers:
+PetPaws follows a decoupled client-server architecture with an Express MVC REST API communicating over JSON:
 
 ```text
-               React 18 + Vite Frontend (SPA)
-             [Hash Routing, Auth State, UI Portals]
-                             |
-                   HTTPS / JSON REST API
-                 (Bearer JWT Authorization)
-                             |
-                             v
-               Node.js + Express Backend Server
-     [Helmet, CORS, Rate Limiters, Auth & Role Guards]
-         |                   |                    |
-         v                   v                    v
-  MongoDB Database     Cloudinary CDN     Email Services
-  (Mongoose Models)   (Images & Videos)  (OTPs & Alerts)
+┌────────────────────────────────────────────────────────┐
+│                   React 18 SPA (Vite)                  │
+│       Tailwind CSS  •  Lucide Icons  •  Role UI        │
+└───────────────────────────┬────────────────────────────┘
+                            │ HTTPS / REST API
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                   Express.js Backend                   │
+│   Rate Limiter • Helmet • JWT & RBAC • Audit Logger    │
+│   Controllers: Auth, Pets, Products, Orders, Vets, etc.│
+└────────────┬──────────────────┬─────────────────┬──────┘
+             │                  │                 │
+             ▼                  ▼                 ▼
+     ┌──────────────┐   ┌───────────────┐  ┌─────────────┐
+     │   MongoDB    │   │  Cloudinary   │  │ Transaction │
+     │  (Atlas/Dev) │   │ Media Storage │  │  Email/OTP  │
+     └──────────────┘   └───────────────┘  └─────────────┘
 ```
 
-1. **Client SPA:** Communicates with the backend using the centralized fetch wrapper in `client/src/utils/auth.js`. Role helpers in `client/src/utils/permissions.js` ensure role-restricted UI elements are gated client-side.
-2. **API & Route Middleware:** Requests pass through security headers (Helmet), CORS whitelisting, request logging, and rate limiting. Protected endpoints use `protect` to authenticate JWTs against database records and `requireRole` to verify permissions.
-3. **Dual Persistence Architecture:** The server connects to MongoDB via Mongoose. If MongoDB is unavailable during local development, the application falls back to `server/db.js` using local JSON storage. In test environments, connections are strictly isolated to `mongodb://127.0.0.1:27017/petpaws_test`.
+1. **Client Layer:** React SPA built with Vite renders responsive role-specific views. Requests to the backend pass authenticated JWT tokens in the `Authorization: Bearer <token>` header.
+2. **Middleware Layer:** Incoming requests pass through security headers (`helmet`), CORS origin checks, IP rate limiters, token verification (`protect`), and role assertions (`requireRole`).
+3. **Controller & Business Logic Layer:** Modular controllers process input validation, atomic inventory updates, and business workflows.
+4. **Data & Storage Layer:** MongoDB stores application collections (Users, Pets, Products, Orders, Appointments, Tickets, Audit Logs). Media files stream directly to Cloudinary.
 
 ---
 
-## 5. Project Directory Structure
+## Live Demo & Interface
+
+The application is deployed and available for interactive testing:
+
+👉 **[Explore the Live PetPaws Application →](https://petpaws-frontend.onrender.com/)**
+
+Reviewers and recruiters can explore the complete user journey across all roles:
+- Browse adoption listings and the multi-vendor marketplace.
+- Test variant selection, cart calculations, and Cash on Delivery checkout.
+- Schedule mock veterinary appointments and submit customer support tickets.
+- Switch between Buyer, Seller, Shopkeeper, Vet, and Admin views using built-in credentials or new accounts.
+
+---
+
+## Project Structure
 
 ```text
 PetPaws/
-├── client/                                # React frontend SPA
-│   ├── index.html                         # HTML entry shell
-│   ├── vite.config.js                     # Vite build and proxy configuration
-│   ├── package.json                       # Frontend dependencies and scripts
-│   ├── .env.example                       # Client environment template
-│   └── src/
-│       ├── main.jsx                       # React DOM mount point
-│       ├── App.jsx                        # Root state and view coordinator
-│       ├── components/                    # UI components, dashboards, modals
-│       │   ├── AdminPortal.jsx            # Platform administration console
-│       │   ├── BuyerDashboard.jsx         # Buyer orders, wishlist, and care schedule
-│       │   ├── CustomerSupport.jsx        # FAQ and support ticket submission
-│       │   ├── Marketplace.jsx            # Pet adoption listings and search
-│       │   ├── OrdersTracking.jsx         # Pet and product order tracking
-│       │   ├── ProductsMarketplace.jsx    # Pet supply store and cart checkout
-│       │   ├── SellerDashboard.jsx        # Breeder portal and inventory
-│       │   └── VetDashboard.jsx           # Veterinarian clinic portal
-│       └── utils/
-│           ├── auth.js                    # Authenticated fetch client
-│           └── permissions.js             # Role constants and permission checks
-│
-├── server/                                # Node.js + Express backend API
-│   ├── server.js                          # Express bootstrap and middleware
-│   ├── package.json                       # Backend dependencies and test scripts
-│   ├── .env.example                       # Backend environment template
-│   ├── config/                            # Database, JWT, and Cloudinary config
-│   ├── controllers/                       # Route controllers (auth, pets, orders, etc.)
-│   ├── middleware/                        # Auth, role check, upload, error handling
-│   ├── models/                            # Mongoose data models
-│   ├── routes/                            # Express API route modules
-│   ├── tests/                             # Node.js automated test suites
-│   └── utils/                             # Email, pricing, error, and database helpers
-│
-├── package.json                           # Root workspace helper scripts
-├── PROJECT_STRUCTURE.md                   # Detailed architectural reference
+├── client/                             # Frontend React Single Page Application
+│   ├── public/
+│   │   ├── _redirects                  # SPA client-side routing rewrite for Render
+│   │   └── vite.svg
+│   ├── src/
+│   │   ├── components/                 # UI components and role-specific dashboards
+│   │   │   ├── AdminPortal.jsx         # Administrative control desk and health monitor
+│   │   │   ├── BuyerDashboard.jsx      # Order history, bookings, and wishlist
+│   │   │   ├── CustomerSupportPortal.jsx # Support ticket creation and tracking
+│   │   │   ├── ProductsMarketplace.jsx # Catalog with filters and variant modals
+│   │   │   ├── SellerDashboard.jsx     # Breeder pet listing management
+│   │   │   ├── ShopkeeperDashboard.jsx # Product inventory and order fulfillment
+│   │   │   ├── VetDashboard.jsx        # Appointment calendar and clinic settings
+│   │   │   └── ...
+│   │   ├── utils/                      # API client, token handling, and role helpers
+│   │   ├── App.jsx                     # Root application routing and layout
+│   │   └── main.jsx                    # React entry point
+│   ├── package.json
+│   └── vite.config.js
+├── server/                             # Backend RESTful API Server
+│   ├── config/
+│   │   └── db.js                       # MongoDB connection with offline fallback
+│   ├── controllers/                    # Route handlers (auth, pets, products, orders, etc.)
+│   ├── middleware/                     # Auth, RBAC, rate-limiting, and error handling
+│   ├── models/                         # Mongoose schemas (15 validated models)
+│   ├── routes/                         # Express route definitions (12 modular routers)
+│   ├── scripts/                        # Database seeders
+│   ├── tests/                          # Automated Node.js test suites (73 tests)
+│   ├── utils/                          # Email dispatcher, discount engine, payment gateway
+│   ├── server.js                       # Server entry point
+│   └── package.json
+├── PROJECT_STRUCTURE.md                # Comprehensive architectural and flow documentation
+├── package.json                        # Root workspace scripts
 └── README.md
 ```
 
 ---
 
-## 6. Getting Started
+## Getting Started
 
 ### Prerequisites
-- **Node.js:** v18.0.0 or higher
-- **npm:** v9.0.0 or higher
-- **MongoDB:** Local MongoDB instance or MongoDB Atlas cluster URI
-- *(Optional)* **Cloudinary:** Account for image and video uploads
 
-### 1. Installation
+- **Node.js** (v18.0.0 or higher)
+- **npm** (v9.0.0 or higher)
+- **MongoDB** (local daemon running on `mongodb://127.0.0.1:27017` or a free MongoDB Atlas connection URI)
+- Optional: Free **Cloudinary** account for live image/video uploads
 
-Clone the repository and install dependencies for both `server` and `client`:
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/jhasabhishek17/PetPaws.git
+   cd PetPaws
+   ```
+
+2. **Install all dependencies:**
+   ```bash
+   npm run install:all
+   ```
+   *Alternatively, install each workspace individually:*
+   ```bash
+   cd server && npm install
+   cd ../client && npm install
+   cd ..
+   ```
+
+### Database Seeding
+
+Seed initial products, categories, sample pets, and demo accounts:
 
 ```bash
-git clone https://github.com/jhasabhishek17/PetPaws.git
-cd PetPaws
+# Seed product catalog with variants
+npm run seed:products --prefix server
 
-# Install dependencies for both root, server, and client
-npm run install-all
+# Seed full demo environment (users, pets, sample orders)
+npm run seed:demo --prefix server
 ```
 
-Alternatively, install dependencies manually:
+### Running Locally
+
+Start the backend and frontend development servers concurrently:
 
 ```bash
-cd server && npm install
-cd ../client && npm install
-cd ..
+# Start backend API (runs on http://localhost:5001 with auto-restart)
+npm run dev:server
+
+# In a separate terminal, start frontend client (runs on http://localhost:5173)
+npm run dev:client
 ```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 7. Environment Configuration
+## Environment Configuration
 
-### Backend (`server/.env`)
-Create a `.env` file in the `server/` directory based on [`server/.env.example`](server/.env.example):
+### Server Environment (`server/.env`)
+
+Copy `server/.env.example` to `server/.env` and update the values:
 
 ```env
+# Server Core
 PORT=5001
 NODE_ENV=development
 MONGODB_URI=mongodb://127.0.0.1:27017/petpaws
 JWT_SECRET=your_secure_random_jwt_secret_key_at_least_32_characters
 JWT_EXPIRES_IN=7d
 ALLOWED_ORIGINS=http://localhost:5173
-
-# Reverse Proxy (Render / Production)
 TRUST_PROXY=1
 
-# Cloudinary Media Storage (Optional for local text testing)
+# Cloudinary (Media Uploads)
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_FOLDER=petpaws
 
-# Transactional Email (Optional for local testing; tests use mock resolvers)
+# Transactional Email (Optional for local development)
 EMAIL_SERVICE=gmail
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
 SMTP_USER=your_email@gmail.com
 SMTP_PASS=your_app_password
 SUPPORT_TEAM_EMAIL=support@yourdomain.com
 ```
 
-### Frontend (`client/.env`)
-Create a `.env` file in the `client/` directory based on [`client/.env.example`](client/.env.example):
+### Client Environment (`client/.env`)
+
+Copy `client/.env.example` to `client/.env`:
 
 ```env
 VITE_API_URL=http://localhost:5001
@@ -209,146 +296,81 @@ VITE_API_URL=http://localhost:5001
 
 ---
 
-## 8. Database Seeding
+## Available Scripts and Testing
 
-PetPaws provides seed scripts to populate initial catalog data and demo accounts:
+### Root Scripts
+| Command | Action |
+| :--- | :--- |
+| `npm run install:all` | Installs dependencies across both `server` and `client` |
+| `npm run dev:server` | Starts the Express server in development mode (`node --watch`) |
+| `npm run dev:client` | Launches the Vite frontend development server |
+| `npm run build` | Compiles the production frontend bundle into `client/dist` |
+| `npm test` | Runs the backend platform audit test suite |
 
-```bash
-# Seed 20 realistic INR (₹) pet supply products and core platform role accounts
-cd server
-npm run seed:products
+### Automated Testing
 
-# Seed base pet listings, veterinarians, and grooming packages
-npm run seed
-
-# Seed complete multi-role demo environment
-npm run seed:demo
-```
-
----
-
-## 9. Running Locally
-
-Run backend and frontend services in separate terminals:
+PetPaws includes **73 automated backend tests** built using Node.js's native test runner (`node --test`). Tests execute in an isolated environment against a dedicated test database (`petpaws_test`) with mocked email transport and DNS resolvers to prevent side effects:
 
 ```bash
-# Terminal 1 — Backend API (http://localhost:5001)
-npm run dev:server
+# Run the platform audit suite (28 tests)
+npm test --prefix server
 
-# Terminal 2 — Frontend Client (http://localhost:5173)
-npm run dev:client
-```
-
-Or from their respective directories:
-
-```bash
-# Backend
-cd server && npm run dev
-
-# Frontend
-cd client && npm run dev
-```
-
----
-
-## 10. API Overview
-
-All API endpoints are prefixed with `/api` and return standardized JSON responses.
-
-| Endpoint Prefix | Primary Methods | Access Level | Description |
-| :--- | :--- | :--- | :--- |
-| `/api/auth` | `GET`, `POST`, `PUT` | Public / Protected | User registration, login, email OTP verification, password reset, profile, wishlists |
-| `/api/pets` | `GET`, `POST`, `PUT`, `DELETE` | Public / Seller | Browse adoptable pets, manage breeder inventory, upload galleries |
-| `/api/products` | `GET`, `POST`, `PUT`, `DELETE` | Public / Vendor | Browse pet supply catalog, manage product variants and stock levels |
-| `/api/orders` | `GET`, `POST`, `PUT` | Protected | Pet adoption checkout, shipment tracking, order cancellations |
-| `/api/product-orders` | `GET`, `POST`, `PUT` | Protected | Cart checkout initiation, COD order creation, order tracking, returns |
-| `/api/vets` | `GET`, `POST`, `PUT` | Public / Protected | Veterinarian directory, clinical profiles, appointment scheduling |
-| `/api/services` | `GET`, `POST`, `PUT` | Public / Protected | Grooming care package directory and appointment reservations |
-| `/api/support` | `GET`, `POST`, `PUT` | Protected | Customer support ticket submission and admin response management |
-| `/api/upload` | `POST`, `DELETE` | Protected | Memory-buffered media upload to Cloudinary with context guards |
-| `/api/saas` | `GET`, `POST`, `PUT` | Protected | Business tenant profiles, team RBAC seats, admin moderation |
-| `/api/offers` | `GET`, `PUT`, `DELETE` | Public / Protected | Item-level promotional discounts and special offers |
-| `/api/health` | `GET` | Public | Real-time service health check and database telemetry |
-
----
-
-## 11. Testing & Build
-
-PetPaws uses Node.js's native test runner (`node --test`). Tests run in an isolated environment against a dedicated test database (`petpaws_test`) with mocked email transport and DNS resolution:
-
-```bash
-# Run the platform audit test suite (28 tests)
-npm test
-
-# Run individual test suites
-node --test server/tests/platformAudit.test.js
+# Run the customer support suite (25 tests)
 node --test server/tests/customerSupport.test.js
+
+# Run the role-based UX suite (11 tests)
 node --test server/tests/roleBasedUX.test.js
+
+# Run the offers and discounts suite (9 tests)
 node --test server/tests/offersDiscounts.test.js
 ```
 
-### Production Build
-To verify the frontend production build:
+---
 
-```bash
-npm run build
-# Or: cd client && npm run build
-```
+## Deployment
+
+The application is architected for clean cloud deployment on platforms like Render:
+
+### Frontend (Render Static Site)
+- **Source Directory:** `client`
+- **Build Command:** `npm run build`
+- **Publish Directory:** `dist`
+- **Routing:** Supported via `client/public/_redirects` (`/* /index.html 200`) to guarantee correct Single Page Application routing on browser refreshes.
+- **Environment Variables:** `VITE_API_URL` pointing to the live backend URL.
+
+### Backend (Render Web Service)
+- **Source Directory:** `server`
+- **Build Command:** `npm install`
+- **Start Command:** `npm start` (or `node server.js`)
+- **Reverse Proxy Support:** Configured via `TRUST_PROXY=1` in `server/server.js` so that `express-rate-limit` accurately computes client IP addresses behind Render's reverse proxy.
+- **Environment Variables:** `MONGODB_URI`, `JWT_SECRET`, `ALLOWED_ORIGINS`, Cloudinary credentials, and transactional email keys.
 
 ---
 
-## 12. Deployment (Render)
+## Security Model
 
-PetPaws is configured for deployment on Render using two services:
-
-1. **Frontend (Static Site):**
-   - **Root Directory:** `client`
-   - **Build Command:** `npm run build`
-   - **Publish Directory:** `dist`
-   - **Environment Variables:** `VITE_API_URL=https://<your-backend-service>.onrender.com`
-
-2. **Backend (Web Service):**
-   - **Root Directory:** `server`
-   - **Build Command:** `npm install`
-   - **Start Command:** `node server.js`
-   - **Environment Variables:**
-     - `NODE_ENV=production`
-     - `PORT=5001`
-     - `TRUST_PROXY=1`
-     - `MONGODB_URI=<your-production-mongodb-atlas-uri>`
-     - `JWT_SECRET=<your-production-jwt-secret>`
-     - `ALLOWED_ORIGINS=https://<your-frontend-service>.onrender.com`
-     - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
-     - `EMAIL59_API_KEY` (or SMTP credentials)
+- **Token Versioning:** Each user document maintains a `token_version` field. When a password reset occurs or credentials change, the version increments, automatically invalidating all previously issued tokens.
+- **Role-Based Authorization:** Strict middleware (`protect` and `requireRole`) verifies the user's role against database state rather than trusting unverified client claims.
+- **Rate Limiting:** Protects `/api/auth/login`, `/api/auth/register`, `/api/auth/verify-otp`, and `/api/auth/forgot-password` against brute-force attacks and OTP flooding.
+- **NoSQL Injection Defense:** Uses Mongoose strict schema casting and parameterized object queries to block operator-injection vectors.
+- **HTTP Hardening:** Helmet enables secure HTTP headers; CORS strictly restricts origins in production environments.
+- **Audit Logging:** Administrative updates and critical events are logged into the `AuditLog` collection with timestamps, user IDs, and action metadata.
 
 ---
 
-## 13. Security Considerations
+## Contributing
 
-- **Authoritative Database Roles:** User permissions are determined by the verified user record in MongoDB, never by client-supplied claims in request bodies or tampered JWT payloads.
-- **Admin Registration Block:** Public registration as `admin` is rejected with `HTTP 403`. Administrative accounts are provisioned securely via seeding or direct database administration.
-- **Order Tracking Isolation:** Order tracking endpoints (`/api/orders/track/:code` and `/api/product-orders/track/:code`) verify that the requesting user owns the order, is the fulfilling seller, or holds the `admin` role.
-- **Rate Limiting:** Authentication endpoints (`/api/auth/login`, `/api/auth/register`, `/api/auth/verify-otp`, `/api/auth/forgot-password`) enforce rate limits to protect against brute-force attacks and abuse.
-- **Database Test Isolation:** When running tests (`NODE_ENV=test`), `server/config/db.js` strictly restricts connections to `mongodb://127.0.0.1:27017/petpaws_test` and aborts if remote or Atlas connection strings are provided.
-- **Secret Safety:** Environment variables containing sensitive credentials (`.env`) are excluded from version control via `.gitignore`.
+Contributions, issues, and feature requests are welcome!
 
----
-
-## 14. Known Disclosures
-
-- **Payment Mode:** Live online payment gateways (e.g., Razorpay) are optional. Online payment is disabled by default, and physical product orders route through Cash on Delivery (COD).
-- **Currencies:** Pet adoption listings and SaaS plan tiers display in USD (`$`), while pet supplies marketplace products, cart totals, and vendor revenue KPIs calculate in Indian Rupees (`₹`).
+1. Fork the repository.
+2. Create your feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m "Add amazing feature"`).
+4. Run the automated test suite to ensure clean status (`npm test --prefix server`).
+5. Push to the branch (`git push origin feature/amazing-feature`).
+6. Open a Pull Request.
 
 ---
 
-## 15. Future Roadmap
+## License
 
-- Automated CI/CD test and build validation using GitHub Actions.
-- Real-time WebSocket notifications for order status changes and chat.
-- Downloadable PDF tax invoices for completed orders.
-
----
-
-## 16. Contributing & License
-
-Contributions are welcome. Please open an issue first to discuss substantial changes, and ensure all existing automated tests pass before submitting a pull request.
+This project is licensed under the [MIT License](LICENSE).
