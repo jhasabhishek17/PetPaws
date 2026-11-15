@@ -428,10 +428,11 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       if (isMongoConnected()) {
         const doc = await VetProfile.create({
           custom_id: 'vet-test-seed-01',
+          user_id: 'u-vet-seed-01',
           name: 'Dr. Test Vet',
-          specialty: 'General Veterinary Care',
-          consultation_fee: 500,
-          contact: '+91 9876543210'
+          specialization: 'General Veterinary Care',
+          clinic_address: '100 Marine Drive, Mumbai',
+          consultation_fee: 500
         });
         vetId = doc.custom_id;
       } else {
@@ -440,10 +441,11 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
         const entry = {
           id: 'vet-test-seed-01',
           custom_id: 'vet-test-seed-01',
+          user_id: 'u-vet-seed-01',
           name: 'Dr. Test Vet',
-          specialty: 'General Veterinary Care',
-          consultation_fee: 500,
-          contact: '+91 9876543210'
+          specialization: 'General Veterinary Care',
+          clinic_address: '100 Marine Drive, Mumbai',
+          consultation_fee: 500
         };
         db.vet_profiles.push(entry);
         saveData(db);
@@ -755,14 +757,20 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
     setDnsResolverForTesting(auditTestDnsResolver);
     const savedTransport = process.env.EMAIL_TRANSPORT;
     const savedSmtpHost = process.env.SMTP_HOST;
+    const savedSmtpUser = process.env.SMTP_USER;
+    const savedSmtpPass = process.env.SMTP_PASS;
     const savedResendKey = process.env.RESEND_API_KEY;
+    const savedEmail59Key = process.env.EMAIL59_API_KEY;
     const failEmail = `smtp_fail_${Date.now()}@valid-mx-domain.org`;
     createdUserEmails.add(failEmail);
 
     try {
       process.env.EMAIL_TRANSPORT = '';
       process.env.SMTP_HOST = '';
+      process.env.SMTP_USER = '';
+      process.env.SMTP_PASS = '';
       process.env.RESEND_API_KEY = '';
+      process.env.EMAIL59_API_KEY = '';
 
       // 1. Registration when email service is unconfigured must report email_sent: false & delivery_error: true
       const regFailRes = await postJson('/api/auth/register', {
@@ -796,8 +804,11 @@ describe('PetPaws Platform Audit & Feature Verification', async () => {
       assert.strictEqual(retryRegRes.data.delivery_error, false);
     } finally {
       process.env.EMAIL_TRANSPORT = savedTransport || 'test';
-      if (savedSmtpHost !== undefined) process.env.SMTP_HOST = savedSmtpHost;
-      if (savedResendKey !== undefined) process.env.RESEND_API_KEY = savedResendKey;
+      if (savedSmtpHost !== undefined) process.env.SMTP_HOST = savedSmtpHost; else delete process.env.SMTP_HOST;
+      if (savedSmtpUser !== undefined) process.env.SMTP_USER = savedSmtpUser; else delete process.env.SMTP_USER;
+      if (savedSmtpPass !== undefined) process.env.SMTP_PASS = savedSmtpPass; else delete process.env.SMTP_PASS;
+      if (savedResendKey !== undefined) process.env.RESEND_API_KEY = savedResendKey; else delete process.env.RESEND_API_KEY;
+      if (savedEmail59Key !== undefined) process.env.EMAIL59_API_KEY = savedEmail59Key; else delete process.env.EMAIL59_API_KEY;
     }
   });
 
