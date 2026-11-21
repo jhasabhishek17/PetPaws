@@ -73,7 +73,7 @@
 ## 📸 Visual Showcase
 
 ### Login Screen
-![Login page](./images/login%20page.png)
+![Login page](./images/loginpage.png)
 
 ### Dashboard After Login
 ![After login](./images/afterlogin.png)
@@ -82,10 +82,10 @@
 ![Business Dashboard](./images/BusinessDashboard.png)
 
 ### Business Plan Section
-![Business Plan section](./images/BusinessPlan%20section.png)
+![Business Plan section](./images/BusinessPlanSection.png)
 
 ### Seller Management Portal
-![Seller management portal](./images/sellermanagement%20portal.png)
+![Seller management portal](./images/sellermanagementportal.png)
 
 ### Product Section
 ![Product section](./images/productsection.png)
