@@ -79,31 +79,31 @@
 ![After login](./images/afterlogin.png)
 
 ### Business Dashboard
-![Business Dashboard](./images/Business%20Dashboard.png)
+![Business Dashboard](./images/BusinessDashboard.png)
 
 ### Business Plan Section
-![Business Plan section](./images/Business%20Plan%20section.png)
+![Business Plan section](./images/BusinessPlan%20section.png)
 
 ### Seller Management Portal
-![Seller management portal](./images/seller%20management%20portal.png)
+![Seller management portal](./images/sellermanagement%20portal.png)
 
 ### Product Section
-![Product section](./images/product%20section.png)
+![Product section](./images/productsection.png)
 
 ### Vet Section
-![Vet section](./images/vet%20section.png)
+![Vet section](./images/vetsection.png)
 
 ### Tracking Section
-![Tracking section](./images/Tracking%20section.png)
+![Tracking section](./images/Trackingsection.png)
 
 ### Customer Dashboard
-![Customer Dashboard](./images/customer%20Dashboard.png)
+![Customer Dashboard](./images/customerDashboard.png)
 
 ### Customer Support
-![Customer Support](./images/customer%20support.png)
+![Customer Support](./images/customersupport.png)
 
 ### Listing Page
-![Listing page](./images/listing%20.png)
+![Listing page](./images/listing.png)
 
 | Component | Link |
 |---|---|
