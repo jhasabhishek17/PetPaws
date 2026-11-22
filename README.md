@@ -25,7 +25,31 @@
 
 ## 📌 Table of Contents
 
-- [Overview](#-overview)
+---
+
+## 📌 Table of Contents
+
+- [Overview](#overview)
+- [Live Demo](#live-demo)
+- [Visual Showcase](#visual-showcase)
+- [Core Features by Role](#core-features-by-role)
+- [Technology Stack](#technology-stack)
+- [System Architecture](#system-architecture)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Environment Configuration](#environment-configuration)
+- [Database Seeding](#database-seeding)
+- [Running Locally](#running-locally)
+- [Automated Testing (73 Tests)](#automated-testing-73-tests)
+- [API Overview](#api-overview)
+- [Database Design (15 Mongoose Models)](#database-design-15-mongoose-models)
+- [Security & Production Hardening](#security--production-hardening)
+- [Current Limitations](#current-limitations)
+- [Future Enhancements](#future-enhancements)
+- [Author](#author)
+
+---
+
 - [Live Demo](#-live-demo)
 - [Visual Showcase](#-visual-showcase)
 - [Core Features by Role](#-core-features-by-role)
